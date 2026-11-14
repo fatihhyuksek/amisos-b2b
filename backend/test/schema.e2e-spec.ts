@@ -41,6 +41,7 @@ async function violation(fn: () => Promise<unknown>): Promise<string | undefined
 
 const dealerInput = (over: Partial<typeof schema.dealers.$inferInsert> = {}) => ({
   companyTitle: 'Örnek Züccaciye Ltd.',
+  companyTitleKey: 'örnek züccaciye ltd.',
   contactName: 'Ayşe Yılmaz',
   email: 'ayse@ornek.com',
   phone: '5320000000',
@@ -95,9 +96,9 @@ describe('Bayi', () => {
       await violation(() =>
         db
           .insert(schema.dealers)
-          .values(dealerInput({ email: 'baska@ornek.com', companyTitle: 'örnek züccaciye ltd.' })),
+          .values(dealerInput({ email: 'baska@ornek.com', companyTitle: 'örnek züccaciye ltd.', companyTitleKey: 'örnek züccaciye ltd.' })),
       ),
-    ).toBe('dealers_company_title_uq');
+    ).toBe('dealers_company_title_key_uq');
   });
 
   it('K-51: reddedilen bayi aynı e-posta ve unvanla yeniden başvurabilir', async () => {
@@ -108,7 +109,7 @@ describe('Bayi', () => {
     expect(again.status).toBe('pending_email');
     // Aktif/bekleyen bir kayıt varken ikinci başvuru yine engellenir.
     expect(
-      await violation(() => db.insert(schema.dealers).values(dealerInput({ companyTitle: 'Farklı' }))),
+      await violation(() => db.insert(schema.dealers).values(dealerInput({ companyTitle: 'Farklı', companyTitleKey: 'farklı' }))),
     ).toBe('dealers_email_uq');
   });
 

@@ -48,6 +48,11 @@ export function ResetPasswordPage() {
       history.replaceState(null, '', `#/sifre-sifirla?tur=${tur}`)
       setDone(true)
     } catch (err) {
+      // Sunucu şifre kuralını reddettiyse bağlantı hâlâ geçerlidir: alan hatası göster.
+      if (err instanceof ApiError && err.status === 400 && err.code === 'VALIDATION') {
+        setErrors({ password: err.fields?.password ?? 'Şifre kurala uymuyor.' })
+        return
+      }
       setFormError(
         err instanceof ApiError && err.status === 400
           ? INVALID_LINK

@@ -8,13 +8,13 @@ import {
   Post,
   Req,
   Res,
-  StandardSchemaValidationPipe,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { createValidationPipe } from '../common/validation.js';
 import { isProductionLike, type Env } from '../config/env.js';
 import { SESSION_COOKIE } from './auth.constants.js';
 import {
@@ -25,6 +25,7 @@ import {
 } from './auth.guards.js';
 import {
   emailVerifySchema,
+  invitationAcceptSchema,
   loginSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
@@ -35,7 +36,7 @@ import { SessionsService, type AuthIdentity } from './sessions.service.js';
 
 @Controller('auth')
 @UseGuards(JsonOnlyGuard)
-@UsePipes(new StandardSchemaValidationPipe())
+@UsePipes(createValidationPipe())
 export class AuthController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
@@ -121,6 +122,21 @@ export class AuthController {
     @Body({ schema: emailVerifySchema }) body: { token: string },
   ): Promise<void> {
     await this.auth.verifyEmail(body.token);
+  }
+
+  /** K-04: davetle şifre belirleme. Otomatik giriş yapılmaz. */
+  @Post('invitation/accept')
+  @HttpCode(204)
+  @UseGuards(ThrottlerGuard)
+  async invitationAccept(
+    @Body({ schema: invitationAcceptSchema })
+    body: {
+      token: string;
+      password: string;
+      consents: { kvkk: true; terms: true; marketing: boolean };
+    },
+  ): Promise<void> {
+    await this.auth.acceptInvitation(body.token, body.password, body.consents);
   }
 
   private startSession(res: Response, result: LoginResult): AuthIdentity {

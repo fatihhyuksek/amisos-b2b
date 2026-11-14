@@ -37,6 +37,7 @@ import { SessionsService } from './sessions.service.js';
     DealerGuard,
   ],
   exports: [
+    ThrottlerModule,
     SessionsService,
     AuthTokensService,
     PasswordService,

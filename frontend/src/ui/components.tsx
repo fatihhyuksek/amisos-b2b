@@ -1,4 +1,14 @@
-import { useId, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react'
+import type { DealerStatus } from '../api'
+import { DEALER_STATUS } from './dealerStatus'
 import { formatPercent, formatTRY } from './format'
 import { Icon, type IconName } from './Icon'
 
@@ -273,5 +283,147 @@ export function AuthCard({
       </section>
       {footer && <div className="ui-auth__footer">{footer}</div>}
     </main>
+  )
+}
+
+// ---------- Bayi durumu (K-04, K-08, K-51) ----------
+export function DealerStatusBadge({ status }: { status: DealerStatus }) {
+  const s = DEALER_STATUS[status]
+  return <Badge tone={s.tone}>{s.label}</Badge>
+}
+
+// ---------- Onay kutusu ----------
+export function Checkbox({
+  id,
+  checked,
+  onChange,
+  error,
+  children,
+}: {
+  id: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  error?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="ui-field">
+      <label className="ui-check" htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
+        />
+        <span>{children}</span>
+      </label>
+      {error && (
+        <span id={`${id}-err`} className="ui-error">
+          {error}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ---------- Sayfalama ----------
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onChange,
+}: {
+  page: number
+  pageSize: number
+  total: number
+  onChange: (page: number) => void
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize))
+  if (total <= pageSize) return null
+  return (
+    <nav className="ui-pagination" aria-label="Sayfalama">
+      <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+        Önceki
+      </Button>
+      <span className="ui-pagination__info" aria-live="polite">
+        Sayfa {page} / {pages}
+      </span>
+      <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
+        Sonraki
+      </Button>
+    </nav>
+  )
+}
+
+// ---------- Diyalog ----------
+const FOCUSABLE =
+  'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Kalıcı modal diyalog: yerel <dialog> arka planı etkisiz kılar, Esc kapatır;
+ * Tab odağı diyalog içinde döner, kapanınca odak açan öğeye geri gider.
+ * Diyalog yalnızca açıkken oluşturulur (ebeveyn koşullu çizer).
+ */
+export function Modal({
+  title,
+  onClose,
+  dismissable = true,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  /** false iken Esc ve arka plan tıklaması diyaloğu kapatmaz (istek sürerken). */
+  dismissable?: boolean
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    const opener = document.activeElement as HTMLElement | null
+    if (!dialog.open) dialog.showModal()
+    return () => {
+      dialog.close()
+      opener?.focus()
+    }
+  }, [])
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLDialogElement>) {
+    if (e.key !== 'Tab') return
+    const items = Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  return (
+    <dialog
+      ref={ref}
+      className="ui-modal"
+      aria-labelledby={titleId}
+      onCancel={(e) => {
+        e.preventDefault()
+        if (dismissable) onClose()
+      }}
+      onKeyDown={onKeyDown}
+      onClick={(e) => {
+        if (e.target === ref.current && dismissable) onClose()
+      }}
+    >
+      <div className="ui-modal__body">
+        <h2 id={titleId}>{title}</h2>
+        {children}
+      </div>
+    </dialog>
   )
 }

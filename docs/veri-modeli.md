@@ -26,8 +26,14 @@ Gereksinimler: `docs/requirements/bayi-hesabi.md`
 
 Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/test/schema.e2e-spec.ts`):
 
-- Aynı e-posta veya firma unvanıyla ikinci bayi (büyük/küçük harf duyarsız). Reddedilen
-  başvurular bu kurala dahil değildir; reddedilen bayi yeniden başvurabilir (K-51).
+- Aynı e-posta (büyük/küçük harf duyarsız) veya aynı firma unvanıyla ikinci bayi. Unvan tekilliği
+  `dealers.company_title_key` sütunundadır: Türkçe yerelle küçültülmüş, iç boşlukları tek boşluğa
+  indirilmiş unvan (`companyTitleKey()`, `backend/src/dealers/company-title.ts`; "ÖRNEK ZÜCCACİYE" ile
+  "Örnek  Züccaciye" aynı anahtarı üretir, noktalama aynen kalır). Migration 0003 mevcut satırları
+  aynı sonucu veren SQL ile doldurur (testle doğrulanır). Reddedilen başvurular bu kurala dahil
+  değildir; reddedilen bayi yeniden başvurabilir (K-51).
+- 24 saat içinde e-postasını doğrulamayan (`pending_email`) başvurular e-posta/unvanı kilitlemez:
+  aynı e-posta/unvanla yeni başvuruda ve günlük temizlikte (consents ve token'larıyla) silinir.
 - Gerekçesiz red.
 - Boş veya tekrarlanan barkod; tekrarlanan ürün kodu.
 - Koli içi adedi 0; koli katı olmayan sipariş satırı.
@@ -40,7 +46,6 @@ Durum geçiş kuralları (sırayla ilerleme, İptal) kodda: `backend/src/orders/
 
 ## Açık sorular
 
-1. **Türkçe karakterlerde tekillik:** Veritabanı `lower()` Türkçe büyük İ/I harflerini
-   her zaman doğru küçültmeyebilir. Uygulama, firma unvanı ve e-postayı kaydetmeden önce
-   Türkçe kurallarla normalleştirecek (kimlik doğrulama / başvuru adımında).
+1. **E-posta tekilliği:** E-posta ASCII kabul edilir (`lower()`); ASCII dışı e-posta adresleri için
+   ayrı normalleştirme yok. (Firma unvanı sorunu `company_title_key` ile çözüldü.)
 2. **KDV oranı ürün bazında** tutuluyor; ürün girilirken zorunlu. Varsayılan oran belirlenmedi.

@@ -15,6 +15,9 @@ export const PASSWORD_RESET_COOLDOWN_MS = 2 * 60 * 1000;
 /** Gereksinimde yok, varsayım (24 saat). */
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** K-04: davet (şifre belirleme) bağlantısı 72 saat geçerli. */
+export const INVITATION_TTL_MS = 72 * 60 * 60 * 1000;
+
 /** K-53: en az 8 karakter; büyük harf, küçük harf ve rakam zorunlu. */
 export const PASSWORD_MIN_LENGTH = 8;
 

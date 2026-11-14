@@ -14,16 +14,22 @@ import { AuditService } from '../audit/audit.service.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import type { Env } from '../config/env.js';
 import { DB, type Database } from '../database/database.module.js';
-import { adminUsers, dealers } from '../database/schema.js';
+import { adminUsers, consents, dealers } from '../database/schema.js';
+import { CONSENT_DOCUMENT_VERSION } from '../common/consents.js';
 import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
 import {
   EMAIL_VERIFICATION_TTL_MS,
+  INVITATION_TTL_MS,
   ACCOUNT_PASSIVE_MESSAGE,
   LOGIN_FAILED_MESSAGE,
   PASSWORD_RESET_COOLDOWN_MS,
   PASSWORD_RESET_TTL_MS,
 } from './auth.constants.js';
-import { AuthTokensService, type SubjectType } from './auth-tokens.service.js';
+import {
+  AuthTokensService,
+  type DbExecutor,
+  type SubjectType,
+} from './auth-tokens.service.js';
 import { normalizeEmail } from './email.js';
 import { PasswordService } from './password.service.js';
 import { SessionsService, type AuthIdentity } from './sessions.service.js';
@@ -57,7 +63,7 @@ export class AuthService {
     return Promise.all(this.inFlight).then(() => undefined);
   }
 
-  private background(label: string, work: () => Promise<void>): void {
+  runInBackground(label: string, work: () => Promise<void>): void {
     const task: Promise<void> = work()
       .catch((error: unknown) => {
         this.logger.error(label, error instanceof Error ? error.stack : error);
@@ -76,12 +82,18 @@ export class AuthService {
   async loginDealer(email: string, password: string): Promise<LoginResult> {
     const normalized = normalizeEmail(email);
     this.limiter.assertAllowed('dealer', normalized);
-    // Reddedilen eski başvuru ile yeniden başvuru aynı e-postayı taşıyabilir (K-51): aktif olan seçilir.
+    // Reddedilen eski kayıt (K-51: aynı e-postayla yeniden başvuru mümkün) girişe hiç katılmaz;
+    // tekillik indeksi nedeniyle geriye en çok bir kayıt kalır.
     const rows = await this.db
       .select()
       .from(dealers)
-      .where(sql`lower(${dealers.email}) = ${normalized}`);
-    const dealer = rows.find((d) => d.status === 'active') ?? rows[0];
+      .where(
+        and(
+          sql`lower(${dealers.email}) = ${normalized}`,
+          sql`${dealers.status} <> 'rejected'`,
+        ),
+      );
+    const dealer = rows[0];
 
     const passwordOk = await this.passwords.verify(
       dealer?.passwordHash,
@@ -135,7 +147,7 @@ export class AuthService {
       if (admin) {
         // Yanıtı geciktirmez. Hesap sahibi değil giriş denemesi yapan bilinmiyor: aktör 'system',
         // hedef entityId'de.
-        this.background('Başarısız giriş audit kaydı yazılamadı', () =>
+        this.runInBackground('Başarısız giriş audit kaydı yazılamadı', () =>
           this.audit.record({
             actorType: 'system',
             action: 'auth.login_failed',
@@ -178,7 +190,7 @@ export class AuthService {
    * gider (GR-BAYI-007). Hata olursa yalnızca log'a yazılır.
    */
   requestPasswordReset(email: string, type: SubjectType): void {
-    this.background('Şifre sıfırlama isteği işlenemedi', () =>
+    this.runInBackground('Şifre sıfırlama isteği işlenemedi', () =>
       this.processPasswordReset(email, type),
     );
   }
@@ -277,15 +289,19 @@ export class AuthService {
       throw new BadRequestException('Bağlantı geçersiz veya süresi dolmuş.');
   }
 
-  /** E-posta doğrulama (K-03): pending_email -> pending_approval (K-04). */
+  /**
+   * E-posta doğrulama (K-03): pending_email -> pending_approval (K-04). Durum geçişi gerçekleştiyse
+   * aktif Admin'lere yeni başvuru bildirimi gider (GR-BAYI-001'den bilinçli sapma: bildirim
+   * doğrulamada; doğrulanmamış başvurular ekibe gitmez).
+   */
   async verifyEmail(token: string): Promise<void> {
-    const ok = await this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const subject = await this.tokens.consume(
         token,
         'email_verification',
         tx,
       );
-      if (!subject || subject.subjectType !== 'dealer') return false;
+      if (!subject || subject.subjectType !== 'dealer') return null;
       const now = this.clock.now();
       await tx
         .update(dealers)
@@ -293,7 +309,7 @@ export class AuthService {
           emailVerifiedAt: sql`coalesce(${dealers.emailVerifiedAt}, ${now.toISOString()}::timestamptz)`,
         })
         .where(eq(dealers.id, subject.subjectId));
-      await tx
+      const [moved] = await tx
         .update(dealers)
         .set({ status: 'pending_approval' })
         .where(
@@ -301,10 +317,19 @@ export class AuthService {
             eq(dealers.id, subject.subjectId),
             eq(dealers.status, 'pending_email'),
           ),
-        );
-      return true;
+        )
+        .returning({ companyTitle: dealers.companyTitle });
+      return { companyTitle: moved?.companyTitle ?? null };
     });
-    if (ok) return;
+    if (result) {
+      const title = result.companyTitle;
+      if (title !== null) {
+        this.runInBackground('Yeni başvuru bildirimi gönderilemedi', () =>
+          this.notifyAdminsOfApplication(title),
+        );
+      }
+      return;
+    }
     // İdempotent: bağlantı daha önce kullanılmış ve e-posta zaten doğrulanmışsa (çift tıklama,
     // e-posta tarayıcısının ön getirmesi) başarılı sayılır.
     const used = await this.tokens.findUsed(token, 'email_verification');
@@ -335,6 +360,120 @@ export class AuthService {
       dealer.email,
       `${this.appUrl()}/#/eposta-dogrula?token=${token}`,
     );
+  }
+
+  /** Başvuru yanıtını bekletmeden doğrulama e-postası gönderir (hata yalnızca log'a yazılır). */
+  queueEmailVerification(dealerId: string): void {
+    this.runInBackground('Doğrulama e-postası gönderilemedi', () =>
+      this.sendEmailVerification(dealerId),
+    );
+  }
+
+  private async notifyAdminsOfApplication(companyTitle: string): Promise<void> {
+    const admins = await this.db
+      .select({ email: adminUsers.email })
+      .from(adminUsers)
+      .where(eq(adminUsers.isActive, true));
+    for (const admin of admins) {
+      await this.mail.sendNewApplication(admin.email, companyTitle);
+    }
+  }
+
+  /**
+   * K-04: davet token'ı (72 saat) üretir; önceki davet geçersiz olur. Çağıranın transaction'ında
+   * (bayi satırı kilitliyken) çalıştırılır; bağlantıyı döner. E-posta commit sonrası
+   * `queueInvitationEmail` ile gönderilir.
+   */
+  async issueInvitationLink(
+    dealerId: string,
+    executor: DbExecutor,
+  ): Promise<string> {
+    const token = await this.tokens.issue(
+      'dealer',
+      dealerId,
+      'invitation',
+      INVITATION_TTL_MS,
+      executor,
+    );
+    return `${this.appUrl()}/#/davet?token=${token}`;
+  }
+
+  queueInvitationEmail(to: string, link: string): void {
+    this.runInBackground('Davet e-postası gönderilemedi', () =>
+      this.mail.sendInvitation(to, link),
+    );
+  }
+
+  /**
+   * K-04, K-57: davet token'ı tek kullanımlık; yalnızca aktif ve şifresi olmayan bayi için geçerli.
+   * Şifreyle birlikte KVKK/koşul (zorunlu) ve pazarlama onayları aynı transaction'da kaydedilir; o tür
+   * için zaten onay kaydı varsa (başvurudan gelen) tekrar yazılmaz.
+   * Aksi halde token harcanmaz (işlem geri alınır) ve 400 döner.
+   */
+  async acceptInvitation(
+    token: string,
+    newPassword: string,
+    consentInput: { kvkk: true; terms: true; marketing: boolean },
+  ): Promise<void> {
+    const passwordHash = await this.passwords.hash(newPassword);
+    const now = this.clock.now();
+    await this.db.transaction(async (tx) => {
+      const subject = await this.tokens.consume(token, 'invitation', tx);
+      if (subject?.subjectType === 'dealer') {
+        const [dealer] = await tx
+          .update(dealers)
+          // Davet bağlantısını açabilmek e-postaya erişimi kanıtlar: doğrulanmamışsa doğrulanmış sayılır.
+          .set({
+            passwordHash,
+            emailVerifiedAt: sql`coalesce(${dealers.emailVerifiedAt}, ${now.toISOString()}::timestamptz)`,
+          })
+          .where(
+            and(
+              eq(dealers.id, subject.subjectId),
+              eq(dealers.status, 'active'),
+              sql`${dealers.passwordHash} is null`,
+            ),
+          )
+          .returning({ id: dealers.id });
+        if (dealer) {
+          await this.recordInvitationConsents(tx, dealer.id, consentInput);
+          await this.audit.record(
+            {
+              actorType: 'dealer',
+              actorId: dealer.id,
+              action: 'dealer.invitation_accepted',
+              entityType: 'dealers',
+              entityId: dealer.id,
+            },
+            tx,
+          );
+          return;
+        }
+      }
+      throw new BadRequestException('Bağlantı geçersiz veya süresi dolmuş.');
+    });
+  }
+
+  private async recordInvitationConsents(
+    tx: DbExecutor,
+    dealerId: string,
+    input: { kvkk: true; terms: true; marketing: boolean },
+  ): Promise<void> {
+    const existing = await tx
+      .select({ type: consents.type, granted: consents.granted })
+      .from(consents)
+      .where(eq(consents.dealerId, dealerId));
+    const rows = (['kvkk', 'terms', 'marketing'] as const).flatMap((type) => {
+      const records = existing.filter((c) => c.type === type);
+      const granted = input[type];
+      // Zaten onaylı kayıt varsa tekrar yazma; onay yoksa ve hiç kayıt da yoksa (ret) kaydet.
+      if (records.some((c) => c.granted)) return [];
+      if (!granted && records.length > 0) return [];
+      return [
+        { dealerId, type, documentVersion: CONSENT_DOCUMENT_VERSION, granted },
+      ];
+    });
+    if (rows.length) await tx.insert(consents).values(rows);
   }
 
   private appUrl(): string {

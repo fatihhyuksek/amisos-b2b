@@ -22,11 +22,39 @@ if errorlevel 1 (
 if not exist "backend\.env" copy "backend\.env.example" "backend\.env" >nul
 REM Eski portlari yeni portlara tasir: 3000->3100, 5173->5180, veritabani 5432->5433.
 powershell -NoProfile -Command "$f='backend\.env'; (Get-Content $f) -replace '^PORT=3000$','PORT=3100' -replace 'localhost:5173','localhost:5180' -replace 'localhost:5432','localhost:5433' | Set-Content $f"
-if not exist "backend\node_modules" (cd backend && call npm install && cd ..)
-if not exist "frontend\node_modules" (cd frontend && call npm install && cd ..)
+echo Paketler guncelleniyor (yeni eklenen paketler varsa kurulur)...
+cd backend
+call npm install --no-audit --no-fund
+if errorlevel 1 (
+  echo.
+  echo HATA: Backend paketleri kurulamadi. Yukaridaki mesaji okuyun.
+  pause
+  exit /b 1
+)
+cd ..\frontend
+call npm install --no-audit --no-fund
+if errorlevel 1 (
+  echo.
+  echo HATA: Frontend paketleri kurulamadi. Yukaridaki mesaji okuyun.
+  pause
+  exit /b 1
+)
+cd ..
 cd backend
 call npm run db:migrate
+if errorlevel 1 (
+  echo.
+  echo HATA: Veritabani guncellenemedi. Yukaridaki mesaji okuyun.
+  pause
+  exit /b 1
+)
 call npm run db:seed
+if errorlevel 1 (
+  echo.
+  echo HATA: Gelistirme hesaplari hazirlanamadi. Yukaridaki mesaji okuyun.
+  pause
+  exit /b 1
+)
 cd ..
 start "Amisos Backend" cmd /k "cd /d %~dp0backend && npm run start:dev"
 start "Amisos Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"

@@ -72,6 +72,8 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-54 | Pasif bayi mesajı | Şifresi doğru olan pasif bayiye "Hesabınız pasif durumda. Bilgi için bizimle iletişime geçin." gösterilir. Yanlış şifrede genel hata. |
 | K-55 | E-posta doğrulama süresi | Doğrulama bağlantısı 24 saat geçerlidir. |
 | K-56 | Gönderen e-posta | onay@amisosb2b.com (adres henüz kurulmadı; SMTP sağlayıcısı sonra belirlenecek). |
+| K-57 | Davetle açılan bayinin onayları | Admin'in davetle açtığı bayi, şifresini belirlerken KVKK aydınlatma metni ve kullanım koşullarını onaylar (zorunlu); pazarlama onayı isteğe bağlı. |
+| K-58 | Yeniden aktif etme | Pasif bayi tek tıkla, gerekçe istenmeden aktif edilir (gerekçe isteğe bağlı). |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 

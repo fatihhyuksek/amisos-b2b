@@ -58,6 +58,7 @@ describe('Kimlik doğrulama (e2e)', () => {
       .insert(dealers)
       .values({
         companyTitle: `Firma ${name} ${run}`,
+        companyTitleKey: `firma ${name} ${run}`,
         contactName: 'Yetkili',
         email: email(name),
         phone: '5550000000',
@@ -113,6 +114,7 @@ describe('Kimlik doğrulama (e2e)', () => {
           mails.push({ kind: 'verify', to, link });
           return Promise.resolve();
         },
+        sendNewApplication: () => Promise.resolve(),
       })
       .compile();
     app = moduleRef.createNestApplication();

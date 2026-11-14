@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import * as schema from '../database/schema.js';
+import { companyTitleKey } from '../dealers/company-title.js';
 
 export const DEV_ADMIN = {
   email: 'admin@amisos.local',
@@ -69,9 +70,10 @@ async function main(): Promise<void> {
     } else {
       await db.insert(schema.dealers).values({
         companyTitle: 'Deneme Züccaciye (geliştirme)',
+        companyTitleKey: companyTitleKey('Deneme Züccaciye (geliştirme)'),
         contactName: 'Deneme Bayi',
         email: DEV_DEALER.email,
-        phone: '5000000000',
+        phone: '05000000000',
         city: 'İstanbul',
         district: 'Kadıköy',
         address: 'Deneme adresi',

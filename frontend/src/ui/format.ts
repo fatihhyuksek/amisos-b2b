@@ -23,3 +23,16 @@ export function formatInt(value: number): string {
 export function formatPercent(value: string): string {
   return `%${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 2 }).format(Number(value))}`
 }
+
+const dateFormatter = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium' })
+const dateTimeFormatter = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })
+
+/** ISO zaman damgası → "14 Kas 2026" */
+export function formatDate(iso: string): string {
+  return dateFormatter.format(new Date(iso))
+}
+
+/** ISO zaman damgası → "14 Kas 2026 14:30" */
+export function formatDateTime(iso: string): string {
+  return dateTimeFormatter.format(new Date(iso))
+}
