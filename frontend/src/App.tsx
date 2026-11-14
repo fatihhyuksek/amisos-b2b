@@ -5,6 +5,13 @@ import { AdminHome } from './admin/AdminHome'
 import { DealerCreatePage } from './admin/DealerCreatePage'
 import { DealerDetailPage } from './admin/DealerDetailPage'
 import { DealerListPage } from './admin/DealerListPage'
+import { MediaLibraryPage } from './admin/MediaLibraryPage'
+import { ProductFormPage } from './admin/ProductFormPage'
+import { ProductGroupsPage } from './admin/ProductGroupsPage'
+import { ProductImportPage } from './admin/ProductImportPage'
+import { ProductListPage } from './admin/ProductListPage'
+import { CatalogPage } from './pages/CatalogPage'
+import { ProductDetailPage } from './pages/ProductDetailPage'
 import { DesignPreview } from './design/DesignPreview'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ApplyPage } from './pages/ApplyPage'
@@ -13,7 +20,6 @@ import { LoginPage } from './pages/LoginPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { matchPath, replace, useRoute } from './router'
-import { WelcomePage } from './pages/WelcomePage'
 import { Alert, AuthCard, Button } from './ui/components'
 
 function LoadingScreen() {
@@ -120,7 +126,7 @@ function Routes() {
     case '/':
       return (
         <Protected area="dealer">
-          <WelcomePage area="dealer" />
+          <CatalogPage />
         </Protected>
       )
     case '/yonetim':
@@ -141,7 +147,51 @@ function Routes() {
           <DealerCreatePage />
         </Protected>
       )
+    case '/yonetim/urunler':
+      return (
+        <Protected area="admin">
+          <ProductListPage />
+        </Protected>
+      )
+    case '/yonetim/urunler/yeni':
+      return (
+        <Protected area="admin">
+          <ProductFormPage />
+        </Protected>
+      )
+    case '/yonetim/urunler/ice-aktar':
+      return (
+        <Protected area="admin">
+          <ProductImportPage />
+        </Protected>
+      )
+    case '/yonetim/urun-gruplari':
+      return (
+        <Protected area="admin">
+          <ProductGroupsPage />
+        </Protected>
+      )
+    case '/yonetim/gorseller':
+      return (
+        <Protected area="admin">
+          <MediaLibraryPage />
+        </Protected>
+      )
     default: {
+      const product = matchPath(path, '/yonetim/urunler/:id')
+      if (product)
+        return (
+          <Protected area="admin">
+            <ProductFormPage id={product.id} />
+          </Protected>
+        )
+      const shopProduct = matchPath(path, '/urun/:id')
+      if (shopProduct)
+        return (
+          <Protected area="dealer">
+            <ProductDetailPage id={shopProduct.id} />
+          </Protected>
+        )
       const detail = matchPath(path, '/yonetim/bayiler/:id')
       if (detail)
         return (
