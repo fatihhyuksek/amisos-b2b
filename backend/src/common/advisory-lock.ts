@@ -7,6 +7,8 @@ export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 /** Zamanlanmış iş kilit kimlikleri (rastgele sabitler; uygulamada benzersiz olmalı). */
 export const LOCK_APPROVAL_REMINDER = 7_301_001;
 export const LOCK_STALE_APPLICATIONS = 7_301_002;
+/** Excel ürün içe aktarmaları art arda (eşzamanlı değil) çalışır. */
+export const LOCK_PRODUCT_IMPORT = 7_301_003;
 
 /**
  * `work`'ü transaction içinde, yalnızca kilit alınabilirse çalıştırır (kilit transaction bitince

@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
   UsePipes,
@@ -16,6 +17,10 @@ import {
 import { AdminGuard, CurrentUser } from '../auth/auth.guards.js';
 import { JsonOnlyGuard } from '../auth/json-only.guard.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
+import {
+  groupDiscountsSchema,
+  type GroupDiscountsInput,
+} from '../catalog/catalog.schemas.js';
 import { createValidationPipe } from '../common/validation.js';
 import {
   createDealerSchema,
@@ -122,5 +127,21 @@ export class AdminDealersController {
       admin.id,
       body.generalDiscountPercent,
     );
+  }
+
+  // K-12, K-13: bayiye ürün grubu bazında iskonto.
+  @Get(':id/group-discounts')
+  groupDiscounts(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.dealers.getGroupDiscounts(id);
+  }
+
+  @Put(':id/group-discounts')
+  @HttpCode(204)
+  async setGroupDiscounts(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: groupDiscountsSchema }) body: GroupDiscountsInput,
+    @CurrentUser() admin: AuthIdentity,
+  ): Promise<void> {
+    await this.dealers.setGroupDiscounts(id, admin.id, body.items);
   }
 }

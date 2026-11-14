@@ -14,9 +14,11 @@ Giriş yapmamış kullanıcıya hiçbir uçtan fiyat dönmez (401).
 
 ## Görsel kütüphanesi (Admin, K-61, K-62)
 
-Dosyalar sunucu diskinde `MEDIA_DIR` (varsayılan `backend/storage/media`, git'e girmez).
+Dosyalar sunucu diskinde `MEDIA_DIR` (varsayılan `storage/media`, backend çalışma dizinine göre; git'e girmez).
 Yüklemede iki boyut üretilir (webp): küçük `thumb` (400 px) ve büyük `large` (1200 px, uzun kenar).
-Kabul: jpeg, png, webp; dosya başına en fazla 8 MB; istek başına en fazla 50 dosya.
+Kabul: jpeg, png, webp (tür dosya içeriğinden saptanır, uzantıya bakılmaz); dosya başına en fazla 8 MB;
+istek başına en fazla 50 dosya. Sınır aşılırsa tüm istek **413** döner (tek tek `errors`'a düşmez).
+EXIF yönlendirmesi uygulanır, tüm metadata atılır.
 
 `Media`:
 ```json
@@ -69,9 +71,13 @@ Kabul: jpeg, png, webp; dosya başına en fazla 8 MB; istek başına en fazla 50
 
 - `GET /api/admin/products/import-template` → `.xlsx` (başlık satırı + 2 örnek satır + açıklama sayfası).
 - `POST /api/admin/products/import?dryRun=true|false` (multipart, alan `file`, `.xlsx`, en fazla 5 MB / 5000 satır)
-  → **200** `{ total, created, updated, groupsCreated: ["..."], errors: [{ row, column, message }] }`.
+  → **200** `{ total, created, updated, groupsCreated: ["..."], errors: [{ row, column, message }] }`
+  (`row` Excel satır numarası, başlık satırı = 1). Hata listesi 1000'i aşarsa ilk 1000 döner ve `truncated: true` eklenir.
+  Dosya `.xlsx` değilse veya yoksa **400** `VALIDATION` (`fields.file`); 413: 5 MB üstü. 5000 satır aşılırsa `errors: [{ row: 1, column: "Dosya", ... }]`.
   - `dryRun=true`: hiçbir şey yazılmaz, yalnızca rapor.
-  - `dryRun=false`: hata varsa **hiçbir satır yazılmaz** (422 aynı gövdeyle); hata yoksa tek transaction.
+  - `dryRun=false`: hata varsa **hiçbir satır yazılmaz** (422 aynı gövdeyle, ek olarak `code: "IMPORT_INVALID"`); hata yoksa tek transaction.
+  - Mevcut üründe boş hücre: Ürün kodu, Açıklama, KDV oranı, Stok, Aktif değişmez; Boş KDV oranı yeni üründe %20 olur (K-60), mevcutta değişmez. Barkodu `ORNEK` ile başlayan satır (şablon örnekleri) hatadır.
+  - Başlıklar Türkçe harf, büyük/küçük harf, boşluk ve noktalamaya duyarsız eşlenir; "Liste fiyatı" kısa adı da kabul edilir.
 - Sütunlar (başlık adları sabit, sıra serbest):
 
 | Sütun | Zorunlu | Not |
@@ -82,7 +88,7 @@ Kabul: jpeg, png, webp; dosya başına en fazla 8 MB; istek başına en fazla 50
 | Ürün grubu | evet | Yoksa otomatik oluşturulur |
 | Koli içi adet | evet | Tam sayı ≥ 1 |
 | Liste fiyatı (KDV hariç) | evet | "19,99" veya 19.99 |
-| KDV oranı | hayır | Boşsa %20 (K-60) |
+| KDV oranı | hayır | Boşsa yeni üründe %20 (K-60), mevcut üründe değişmez |
 | Açıklama | hayır | |
 | Stok | hayır | "Var" / "Yok"; boşsa yeni üründe Var, mevcut üründe değişmez |
 | Aktif | hayır | "Evet" / "Hayır"; boşsa yeni üründe Evet, mevcutta değişmez |
@@ -113,3 +119,4 @@ Kabul: jpeg, png, webp; dosya başına en fazla 8 MB; istek başına en fazla 50
   yalnızca aktif ürün ve aktif grup; `q` ad, barkod, kodda; tam barkod eşleşmesi en üstte.
 - `GET /api/catalog/products/:id` → `CatalogProduct` (pasif ürün **404**)
 - Stok adedi hiçbir yerde dönmez (K-18).
+- Arama (`q`): ad Türkçe harf ve büyük/küçük harf duyarsız ("ÇAY" = "cay"); barkod ve kod harf duyarsız alt dizi eşleşmesi.

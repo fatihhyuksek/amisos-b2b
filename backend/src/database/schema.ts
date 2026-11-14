@@ -228,12 +228,45 @@ export const productGroups = pgTable(
   {
     id: uuid().primaryKey().defaultRandom(),
     name: text().notNull(),
+    /**
+     * Ad tekillik anahtarı (API sözleşmesi: aynı ad Türkçe büyük/küçük harf duyarsız): `companyTitleKey()`
+     * ile üretilir (src/dealers/company-title.ts); migration mevcut satırları aynı sonucu veren SQL ile doldurur.
+     */
+    nameKey: text().notNull(),
     sortOrder: integer().notNull().default(0),
     isActive: boolean().notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex('product_groups_name_uq').on(sql`lower(${t.name})`)],
+  (t) => [uniqueIndex('product_groups_name_key_uq').on(t.nameKey)],
+);
+
+/**
+ * Görsel kütüphanesi (K-61, K-62). Dosyalar diskte `MEDIA_DIR/<id>/{thumb,large}.webp`; yol yalnızca
+ * `id`'den türetilir. `storageKey` = `<id>` (dizin adı).
+ */
+export const media = pgTable(
+  'media',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    storageKey: text().notNull(),
+    /** Yüklenen dosyanın adı (aranabilir, ör. barkod). */
+    originalName: text().notNull(),
+    /** Yüklenen özgün dosyanın içerikten saptanan türü (image/jpeg, image/png, image/webp). */
+    mime: text().notNull(),
+    /** Büyük (large) sürümün bayt boyutu. */
+    size: integer().notNull(),
+    width: integer().notNull(),
+    height: integer().notNull(),
+    uploadedBy: uuid()
+      .notNull()
+      .references(() => adminUsers.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('media_storage_key_uq').on(t.storageKey),
+    index('media_created_at_idx').on(t.createdAt),
+  ],
 );
 
 /** Ürünler portalda yönetilir (K-14). Barkod zorunlu ve tekil (K-16, K-30). */
@@ -283,12 +316,18 @@ export const productImages = pgTable(
     productId: uuid()
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
-    storageKey: text().notNull(),
-    altText: text(),
+    /** Görsel kütüphanesindeki kayıt; kullanımdaki görsel silinemez (K-62). */
+    mediaId: uuid()
+      .notNull()
+      .references(() => media.id, { onDelete: 'restrict' }),
     sortOrder: integer().notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index('product_images_product_idx').on(t.productId, t.sortOrder)],
+  (t) => [
+    index('product_images_product_idx').on(t.productId, t.sortOrder),
+    uniqueIndex('product_images_product_media_uq').on(t.productId, t.mediaId),
+    index('product_images_media_idx').on(t.mediaId),
+  ],
 );
 
 /** Bayiye ürün grubu bazında iskonto (K-12). Genel oranla birlikte yüksek olan uygulanır (K-13). */

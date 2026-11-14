@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -12,6 +14,8 @@ export default defineConfig({
     env: {
       // Testlerde hız sınırı devre dışı denecek kadar yüksek; hız sınırı testi kendi değerini koyar.
       AUTH_RATE_LIMIT_PER_MINUTE: '1000',
+      // Görsel testleri geçici dizine yazar (depodaki storage/ klasörüne dokunmaz).
+      MEDIA_DIR: join(tmpdir(), 'amisos-b2b-media-e2e'),
       DATABASE_URL:
         process.env.DATABASE_URL ?? 'postgres://amisos:amisos@localhost:5433/amisos_b2b',
     },

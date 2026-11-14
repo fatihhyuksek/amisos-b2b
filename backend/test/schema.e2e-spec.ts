@@ -1,5 +1,6 @@
 // Veri modeli kısıtları: veritabanı, uygulama kodu atlansa bile temel iş kurallarını korur.
 // Her test kendi işleminde (transaction) çalışır ve geri alınır.
+import { eq } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import * as schema from '../src/database/schema.js';
@@ -55,7 +56,7 @@ const dealerInput = (over: Partial<typeof schema.dealers.$inferInsert> = {}) => 
 async function seedProduct(over: Partial<typeof schema.products.$inferInsert> = {}) {
   const [group] = await db
     .insert(schema.productGroups)
-    .values({ name: `Mutfak ${Math.random()}` })
+    .values({ name: `Mutfak ${Math.random()}`, nameKey: `mutfak ${Math.random()}` })
     .returning();
   const [product] = await db
     .insert(schema.products)
@@ -233,5 +234,30 @@ describe('Ön sipariş', () => {
         }),
       ),
     ).toBe('order_status_history_admin_has_user');
+  });
+});
+
+describe('Katalog kısıtları (K-61, K-62, K-40)', () => {
+  it('K-62: kullanımdaki görsel silinemez (product_images.media_id restrict)', async () => {
+    const { product } = await seedProduct();
+    const [admin] = await db
+      .insert(schema.adminUsers)
+      .values({ email: `kat-${Math.random()}@ornek.com`, fullName: 'A', passwordHash: 'x' })
+      .returning();
+    const [m] = await db
+      .insert(schema.media)
+      .values({ storageKey: `k-${Math.random()}`, originalName: 'a.png', mime: 'image/png', size: 1, width: 1, height: 1, uploadedBy: admin.id })
+      .returning();
+    await db.insert(schema.productImages).values({ productId: product.id, mediaId: m.id });
+    const err = await violation(() => db.delete(schema.media).where(eq(schema.media.id, m.id)));
+    expect(err).toContain('product_images_media_id_media_id_fk');
+  });
+
+  it('K-40: grup adı tekilliği name_key üzerindedir', async () => {
+    const key = `tekil ${Math.random()}`;
+    await db.insert(schema.productGroups).values({ name: 'A', nameKey: key });
+    expect(await violation(() => db.insert(schema.productGroups).values({ name: 'a', nameKey: key }))).toBe(
+      'product_groups_name_key_uq',
+    );
   });
 });
