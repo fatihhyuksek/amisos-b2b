@@ -67,6 +67,7 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-48 | Rapor görünümü | Tablo ve Excel'e ek olarak grafikler (aylık sipariş tutarı trendi, ürün grubu dağılımı) ve panel açılışında özet ana sayfa. |
 | K-49 | Dönem karşılaştırması | Raporlar seçilen dönemi, bir önceki dönemle ve geçen yılın aynı dönemiyle karşılaştırır. |
 | K-50 | Pasif bayi eşiği | Son siparişi 60 günden eski olan bayi "uzun süredir sipariş vermeyen" listesine düşer. |
+| K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 
 ## 3. Gereksinimler
@@ -91,7 +92,7 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 - Kabul: Onaydan sonraki ilk ön sipariş yeni koşullarla oluşur. Önceki siparişlerin fiyatı değişmez.
 
 **GR-BAYI-004 · Başvuru kontrolü** · Öncelik: Orta · Kararlar: K-03
-- Kabul: Aynı firma unvanı veya aynı e-posta ile ikinci başvuru %100 engellenir.
+- Kabul: Aynı firma unvanı veya aynı e-posta ile ikinci başvuru %100 engellenir. Reddedilmiş başvurular bu kurala dahil değildir (K-51).
 - Kabul: E-postası doğrulanmamış başvuru onay listesine düşmez.
 
 **GR-BAYI-008 · Başvuru formu** · Öncelik: Yüksek · Kararlar: K-35
