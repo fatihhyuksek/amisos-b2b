@@ -15,6 +15,13 @@
       "when": 1794648187306,
       "tag": "0001_dealer_reapply",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794649757318,
+      "tag": "0002_auth_sessions",
+      "breakpoints": true
     }
   ]
 }

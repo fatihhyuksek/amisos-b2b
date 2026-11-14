@@ -24,6 +24,10 @@ Son güncelleme: 2026-11-14
 - Bayi ve Admin girişi (e-posta + şifre), e-posta doğrulama, şifre sıfırlama (1 saat geçerli),
   pasif bayinin girişinin engellenmesi (GR-BAYI-006, GR-BAYI-007, K-29, K-39).
 - Giriş ve şifre ekranları tasarım sistemine göre; ui-ux-designer görsel denetimi.
+- **Backend tamamlandı** (branch `claude/auth`): `/api/auth/*` uçları, `sessions` tablosu
+  (`0002_auth_sessions`), argon2id, hız sınırı, AdminGuard/DealerGuard, `npm run admin:create`.
+  Frontend kısmı devam ediyor. Açık sorular: oturum süresi (7 gün), şifre uzunluğu (10),
+  e-posta sağlayıcısı, pasif bayi mesajı, e-posta doğrulama süresi (24 saat), arayüz yolları.
 
 ## Sonraki adımlar (sırayla)
 
