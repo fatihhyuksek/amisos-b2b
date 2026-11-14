@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // E2E testlerinden önce migration'ları test veritabanına uygular.
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -10,7 +11,7 @@ export default async function setup(): Promise<void> {
   });
   try {
     await migrate(drizzle(pool), {
-      migrationsFolder: new URL('../drizzle', import.meta.url).pathname,
+      migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)),
     });
   } finally {
     await pool.end();
