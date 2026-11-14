@@ -42,6 +42,13 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 | K-27 | Teslimat adresi | Teslimat ambarla yapılacaksa adres alınır. Değilse adres görüşmede belirlenir. |
 | K-28 | Platform | Önce web (bilgisayar ve telefon tarayıcısına uyumlu). Mobil uygulama sonraki aşamada. |
 | K-29 | Giriş | E-posta ve şifre ile giriş. Şifre sıfırlama e-postayla yapılır. |
+| K-30 | Barkod tekilliği | Barkod tekildir, aynı barkodla iki ürün kaydedilemez. |
+| K-31 | "Yok" eşiği | Stoğu 0 veya daha az olan ürün "Yok" görünür. |
+| K-32 | Koli içi adedi | Her üründe zorunludur. Tek satılan ürünlerde değer 1'dir. |
+| K-33 | KDV satırı | Ön sipariş özetinde KDV ayrı satırda gösterilir. |
+| K-34 | Stok güncelleme saatleri | Mesai saatlerinde (08:00–20:00) yaklaşık 2–2,5 saatte bir. |
+| K-35 | Başvuru bilgileri | Zorunlu alanlar: firma unvanı, yetkili adı soyadı, e-posta, telefon, il, ilçe, açık adres. Vergi bilgisi istenmez. |
+| K-36 | Teslimat şekilleri | Ambar ile, Bayi kendisi alır, Tır yüklemesi. |
 
 ## 3. Gereksinimler
 
@@ -65,8 +72,12 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 - Kabul: Onaydan sonraki ilk ön sipariş yeni koşullarla oluşur. Önceki siparişlerin fiyatı değişmez.
 
 **GR-BAYI-004 · Başvuru kontrolü** · Öncelik: Orta · Kararlar: K-03
-- Kabul: Aynı vergi no/unvan veya aynı e-posta ile ikinci başvuru %100 engellenir.
+- Kabul: Aynı firma unvanı veya aynı e-posta ile ikinci başvuru %100 engellenir.
 - Kabul: E-postası doğrulanmamış başvuru onay listesine düşmez.
+
+**GR-BAYI-008 · Başvuru formu** · Öncelik: Yüksek · Kararlar: K-35
+- Kabul: Firma unvanı, yetkili adı soyadı, e-posta, telefon, il, ilçe ve açık adres alanlarından biri boşsa başvuru gönderilemez.
+- Kabul: E-posta ve telefon biçimi doğrulanır. Geçersiz biçimde başvuru gönderilemez.
 
 **GR-BAYI-005 · Tek kullanıcı** · Öncelik: Orta · Kararlar: K-07
 - Kabul: Her bayi hesabına tam olarak bir e-posta (giriş bilgisi) bağlanır.
@@ -136,9 +147,11 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 - Kabul: Durum yalnızca tanımlı sırayla ilerler. İptal, Teslim edildi dışındaki her adımdan seçilebilir. Geçersiz geçiş %100 reddedilir.
 - Kabul: Her durum değişikliği zaman ve kaynakla (BizimHesap / kullanıcı) kaydedilir.
 
-**GR-SIP-007 · Teslimat adresi** · Öncelik: Orta · Kararlar: K-27
-- Kabul: Ön siparişte teslimat şekli "Ambar" seçilirse adres girilmeden sipariş gönderilemez.
-- Kabul: Diğer teslimat şekillerinde adres istenmez, siparişte "adres görüşmede belirlenecek" bilgisi yer alır.
+**GR-SIP-007 · Teslimat şekli ve adres** · Öncelik: Orta · Kararlar: K-27, K-36
+- Kabul: Ön siparişte teslimat şekli seçilmeden sipariş gönderilemez. Seçenekler: Ambar ile, Bayi kendisi alır, Tır yüklemesi.
+- Kabul: "Ambar ile" seçilirse adres girilmeden sipariş gönderilemez.
+- Kabul: "Bayi kendisi alır" seçilirse adres istenmez.
+- Açık: "Tır yüklemesi" için adres istenip istenmeyeceği.
 
 ### Bildirim ve platform
 
@@ -152,18 +165,11 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 
 ## 4. Onay bekleyen varsayımlar
 
-| ID | Varsayım | İlgili |
-|---|---|---|
-| V-01 | Barkod tekildir, aynı barkodla iki ürün kaydedilemez. | GR-URN-001 |
-| V-02 | Stoğu 0 veya daha az olan ürün "Yok" görünür. | GR-URN-002 |
-| V-03 | Her üründe koli içi adedi zorunludur. Tek satılan ürünlerde değer 1'dir. | GR-SIP-004 |
-| V-04 | Ön sipariş özetinde KDV ayrı satırda gösterilir. | GR-FIY-003 |
-| V-05 | Stok güncellemeleri mesai saatlerinde (08:00–20:00) yaklaşık 2–2,5 saatte bir yapılır. | GR-URN-002 |
+Yok. Önceki V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı.
 
 ## 5. Açık konular
 
 - BizimHesap API araştırması: sipariş aktarımı, stok ve durum okumanın mümkün olup olmadığı (GR-SIP-001, GR-URN-002, GR-SIP-006).
 - BizimHesap sipariş durumlarının portaldaki altı duruma eşlenmesi.
-- Teslimat şekilleri listesi ve ambar seçimi (ambar adı, adres kaydı, bayi başına kayıtlı adres olup olmadığı).
+- Tır yüklemesinde adres istenip istenmeyeceği; ambar seçiminde başvurudaki adresin varsayılan olarak kullanılıp kullanılmayacağı.
 - Doldurulacak süre ve kurallar: bildirim süreleri, aktarım süresi, şifre sıfırlama bağlantısı süresi, kuruş yuvarlama kuralı, en küçük ekran genişliği.
-- Hesap açılışındaki asgari bilgi listesi (hangi alanlar zorunlu).
