@@ -1,6 +1,6 @@
 // Bayi fiyatı hesabı. GR-FIY-001, GR-FIY-002; K-10, K-12, K-13, K-39.
 // Saf fonksiyon: veritabanına dokunmaz; para hesabı yalnızca money.ts ile yapılır.
-import { Money, roundMoney } from '../common/money.js';
+import { lineNetFromUnitPrice, Money, roundMoney } from '../common/money.js';
 
 export interface DealerPrice {
   /** İskonto sonrası birim fiyat, KDV hariç, 2 basamak. */
@@ -31,4 +31,18 @@ export function calculateDealerPrice(
     price: roundMoney(new Money(listPrice).times(factor)).toFixed(2),
     discountPercent: percent.toFixed(2),
   };
+}
+
+/**
+ * Sipariş satırı net tutarı = miktar × bayinin gördüğü (yuvarlanmış iskontolu) birim fiyat.
+ * Gelecekteki sipariş akışı satırı bununla hesaplar; ekrandaki birim fiyat × miktar ile birebir tutar.
+ */
+export function dealerLineNet(
+  quantity: number,
+  listPrice: string,
+  generalPercent: string | null | undefined,
+  groupPercent: string | null | undefined,
+): string {
+  const { price } = calculateDealerPrice(listPrice, generalPercent, groupPercent);
+  return lineNetFromUnitPrice(quantity, price).toFixed(2);
 }

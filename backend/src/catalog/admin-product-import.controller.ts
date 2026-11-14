@@ -9,16 +9,15 @@ import {
   Post,
   Query,
   Res,
-  UploadedFile,
   UseGuards,
   UseInterceptors,
   UsePipes,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import multer from 'multer';
 import { AdminGuard, CurrentUser } from '../auth/auth.guards.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
+import { SameOriginGuard } from '../auth/same-origin.guard.js';
+import { MultipartInterceptor, UploadedFilesField } from '../common/multipart.js';
 import { createValidationPipe } from '../common/validation.js';
 import { fixFilename } from '../media/media.service.js';
 import { importQuerySchema } from './catalog.schemas.js';
@@ -26,7 +25,7 @@ import { MAX_IMPORT_BYTES } from './import-format.js';
 import { ProductImportService } from './product-import.service.js';
 
 @Controller('admin/products')
-@UseGuards(AdminGuard)
+@UseGuards(SameOriginGuard, AdminGuard)
 @UsePipes(createValidationPipe())
 export class AdminProductImportController {
   constructor(@Inject(ProductImportService) private readonly imports: ProductImportService) {}
@@ -47,17 +46,13 @@ export class AdminProductImportController {
 
   @Post('import')
   @HttpCode(200)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: MAX_IMPORT_BYTES, files: 1 },
-    }),
-  )
+  @UseInterceptors(MultipartInterceptor({ maxFileBytes: MAX_IMPORT_BYTES, maxFiles: 1 }))
   import(
-    @UploadedFile() file: Express.Multer.File | undefined,
+    @UploadedFilesField('file') files: Express.Multer.File[],
     @Query({ schema: importQuerySchema }) query: { dryRun: boolean },
     @CurrentUser() admin: AuthIdentity,
   ) {
+    const file = files[0];
     if (!file) {
       throw new BadRequestException({
         statusCode: 400,

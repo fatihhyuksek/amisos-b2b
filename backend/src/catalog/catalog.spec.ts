@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { foldTr } from '../common/like.js';
 import { parseDecimalText } from './decimal.js';
 import { headerKey } from './import-format.js';
@@ -28,5 +29,25 @@ describe('başlık ve arama normalizasyonu (K-59, K-40)', () => {
   it('foldTr Türkçe harfleri ASCII\'ye indirger', () => {
     expect(foldTr('ÇAY Bardağı İŞ')).toBe('cay bardagi is');
     expect(foldTr('Işık')).toBe('isik');
+  });
+});
+
+describe('mapProductConflict FK ihlali (23503) -> 400 VALIDATION', () => {
+  it('grup ve görsel FK ihlalleri fields ile döner', async () => {
+    const { mapProductConflict } = await import('./products.service.js');
+    const fk = (constraint: string) => ({ cause: { code: '23503', constraint } });
+    try {
+      mapProductConflict(fk('products_group_id_product_groups_id_fk'));
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect((e as BadRequestException).getResponse()).toMatchObject({ code: 'VALIDATION', fields: { groupId: expect.any(String) } });
+    }
+    try {
+      mapProductConflict(fk('product_images_media_id_media_id_fk'));
+      expect.unreachable();
+    } catch (e) {
+      expect((e as BadRequestException).getResponse()).toMatchObject({ fields: { mediaIds: expect.any(String) } });
+    }
   });
 });

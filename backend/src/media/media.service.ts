@@ -8,6 +8,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -53,6 +54,7 @@ export function fixFilename(raw: string): string {
 @Injectable()
 export class MediaService {
   private readonly root: string;
+  private readonly logger = new Logger(MediaService.name);
 
   constructor(
     @Inject(DB) private readonly db: Database,
@@ -86,7 +88,9 @@ export class MediaService {
         if (error instanceof InvalidImageError) {
           errors.push({ filename, message: error.message });
         } else {
-          throw error;
+          // Dosya başına izolasyon: disk/DB hatası diğer dosyaları durdurmaz (store() diske yazılanı siler).
+          this.logger.error(`Görsel kaydedilemedi: ${filename}`, error instanceof Error ? error.stack : error);
+          errors.push({ filename, message: 'Dosya kaydedilemedi, tekrar deneyin.' });
         }
       }
     }

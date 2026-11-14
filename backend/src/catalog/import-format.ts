@@ -1,5 +1,6 @@
 // Excel toplu ürün yükleme biçimi ve satır ayrıştırma (saf kısım). K-59, K-60.
 import ExcelJS from 'exceljs';
+import { Money } from '../common/money.js';
 import { foldTr } from '../common/like.js';
 import { normalizeCompanyTitle } from '../dealers/company-title.js';
 import { parseDecimalText } from './decimal.js';
@@ -78,6 +79,18 @@ export interface ParsedSheet {
   errors: ImportError[];
 }
 
+const NUMERIC_BARCODE_MESSAGE =
+  'Barkod hücresi sayı olarak kaydedilmiş; baştaki sıfırlar kaybolmuş olabilir. Sütunu Metin biçimine çevirip barkodu yeniden yazın.';
+
+/** Hücre sayı (veya sayı sonuçlu formül) ise değeri, değilse null. */
+function numericValue(value: ExcelJS.CellValue | undefined): number | null {
+  if (typeof value === 'number') return value;
+  if (value && typeof value === 'object' && 'result' in value && typeof value.result === 'number') {
+    return value.result;
+  }
+  return null;
+}
+
 const columnTitle = (key: ColumnKey) => COLUMNS.find((c) => c.key === key)!.header;
 
 /** Hücre değerini düz metne çevirir (zengin metin, formül sonucu, bağlantı, sayı). */
@@ -123,26 +136,56 @@ export function parseSheet(sheet: ExcelJS.Worksheet): ParsedSheet {
 
   const rows: ImportRow[] = [];
   let total = 0;
-  const last = sheet.rowCount;
-  for (let r = 2; r <= last; r++) {
-    const excelRow = sheet.getRow(r);
+  let overLimit = false;
+  // Yalnızca gerçekten var olan satırlar gezilir (biçimli boş satırlar milyonlarca olabilir).
+  sheet.eachRow({ includeEmpty: false }, (excelRow, r) => {
+    if (r < 2 || overLimit) return;
     const raw = (key: ColumnKey): string => {
       const col = columnIndex.get(key);
       return col === undefined ? '' : cellText(excelRow.getCell(col).value);
     };
-    if (COLUMNS.every((c) => raw(c.key) === '')) continue;
+    const cellOf = (key: ColumnKey) => {
+      const col = columnIndex.get(key);
+      return col === undefined ? undefined : excelRow.getCell(col);
+    };
+    if (COLUMNS.every((c) => raw(c.key) === '')) return;
     total++;
+    if (total > MAX_IMPORT_ROWS) {
+      overLimit = true;
+      return;
+    }
 
     const before = errors.length;
     const fail = (key: ColumnKey, message: string) =>
       errors.push({ row: r, column: columnTitle(key), message });
 
-    const barcode = raw('barcode');
-    if (!barcode) fail('barcode', 'Barkod boş olamaz.');
+    let barcode = raw('barcode');
+    const barcodeNumber = numericValue(cellOf('barcode')?.value);
+    if (barcodeNumber !== null) {
+      // Sayı hücresinde baştaki sıfırlar kaybolmuş olabilir: yalnızca EAN-8/EAN-13 uzunluğu güvenli sayılır.
+      const digits = Number.isSafeInteger(barcodeNumber) && barcodeNumber > 0 ? String(barcodeNumber) : '';
+      if (digits.length === 8 || digits.length === 13) {
+        barcode = digits;
+      } else {
+        barcode = '';
+        fail('barcode', NUMERIC_BARCODE_MESSAGE);
+      }
+    }
+    if (barcodeNumber !== null && !barcode) {
+      // hata yukarıda eklendi
+    } else if (!barcode) fail('barcode', 'Barkod boş olamaz.');
     else if (barcode.length > 64) fail('barcode', 'Barkod en fazla 64 karakter olabilir.');
     else if (foldTr(barcode).startsWith('ornek')) fail('barcode', 'Şablondaki örnek satırı silin.');
 
-    const code = raw('code');
+    let code = raw('code');
+    const codeNumber = numericValue(cellOf('code')?.value);
+    if (codeNumber !== null) {
+      if (Number.isSafeInteger(codeNumber) && codeNumber >= 0) code = String(codeNumber);
+      else {
+        code = '';
+        fail('code', 'Ürün kodu sayı olarak geçersiz; sütunu Metin biçimine çevirip yeniden yazın.');
+      }
+    }
     if (code.length > 64) fail('code', 'Ürün kodu en fazla 64 karakter olabilir.');
 
     const name = raw('name');
@@ -170,9 +213,17 @@ export function parseSheet(sheet: ExcelJS.Worksheet): ParsedSheet {
     const vatRaw = raw('vatRate');
     let vatRate: string | null = null;
     if (vatRaw) {
-      const parsed = parseDecimalText(vatRaw);
+      const vatCell = cellOf('vatRate');
+      const vatNumber = numericValue(vatCell?.value);
+      const percentFormat = typeof vatCell?.numFmt === 'string' && vatCell.numFmt.includes('%');
+      // Yüzde biçimli hücrede 0,2 gerçekte %20'dir (değer × 100).
+      const parsed = parseDecimalText(
+        vatNumber !== null && percentFormat ? new Money(vatNumber).times(100).toString() : vatRaw,
+      );
       if (parsed === null || parsed.length > 5) {
         fail('vatRate', 'KDV oranı 0 ile 99,99 arasında olmalı.');
+      } else if (!percentFormat && new Money(parsed).gt(0) && new Money(parsed).lt(1)) {
+        fail('vatRate', 'KDV oranını yüzde olarak yazın, ör. 20.');
       } else {
         vatRate = parsed;
       }
@@ -212,6 +263,13 @@ export function parseSheet(sheet: ExcelJS.Worksheet): ParsedSheet {
         active,
       });
     }
+  });
+  if (overLimit) {
+    return {
+      total,
+      rows: [],
+      errors: [{ row: 1, column: 'Dosya', message: `En fazla ${MAX_IMPORT_ROWS} satır yüklenebilir.` }],
+    };
   }
   return { total, rows, errors };
 }

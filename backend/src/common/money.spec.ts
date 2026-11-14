@@ -1,4 +1,4 @@
-import { lineTotal, Money, roundMoney, sumLines } from './money.js';
+import { lineNetFromUnitPrice, lineTotal, Money, roundMoney, sumLines } from './money.js';
 
 describe('money', () => {
   it('yarımları yukarı yuvarlar (K-39)', () => {
@@ -19,5 +19,12 @@ describe('money', () => {
 
   it('toplamı yuvarlanmış satırlardan alır', () => {
     expect(sumLines(['0.005', '0.005']).toFixed(2)).toBe('0.02');
+  });
+});
+
+describe('lineNetFromUnitPrice', () => {
+  it('miktar × birim fiyat, 2 basamak', () => {
+    expect(lineNetFromUnitPrice(12, '41.57').toFixed(2)).toBe('498.84');
+    expect(lineNetFromUnitPrice(3, '0.335').toFixed(2)).toBe('1.01');
   });
 });

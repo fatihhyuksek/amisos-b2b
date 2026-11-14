@@ -11,6 +11,7 @@ import ExcelJS from 'exceljs';
 import { AuditService } from '../audit/audit.service.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { LOCK_PRODUCT_IMPORT, type Tx } from '../common/advisory-lock.js';
+import { zipUncompressedSize } from '../common/zip-size.js';
 import { mapProductConflict } from './products.service.js';
 import { DB, type Database } from '../database/database.module.js';
 import { auditLog, productGroups, products } from '../database/schema.js';
@@ -26,13 +27,19 @@ import {
 
 const MAX_REPORTED_ERRORS = 1000;
 const CHUNK = 500;
+const MAX_UNZIPPED_BYTES = 50 * 1024 * 1024;
 
 export interface ImportReport {
   total: number;
   created: number;
+  /** Yalnızca gerçekten değişen mevcut ürünler. */
   updated: number;
+  /** Barkodu eşleşen ama hiçbir alanı değişmeyen ürünler. */
+  unchanged: number;
   groupsCreated: string[];
   errors: ImportError[];
+  /** Hata olmayan uyarılar (ör. pasif gruba düşen ürün). */
+  warnings: { row: number; message: string }[];
   /** Hata listesi uzunsa ilk 1000 hata döner. */
   truncated?: boolean;
 }
@@ -126,6 +133,9 @@ export class ProductImportService {
     dryRun: boolean,
     adminId: string,
   ): Promise<ImportReport> {
+    const unzipped = zipUncompressedSize(buffer);
+    if (unzipped === null) throw invalidFile('Geçerli bir .xlsx dosyası yükleyin.');
+    if (unzipped > MAX_UNZIPPED_BYTES) throw invalidFile('Dosya açıldığında çok büyük (en fazla 50 MB).');
     const wb = new ExcelJS.Workbook();
     try {
       await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
@@ -134,14 +144,13 @@ export class ProductImportService {
     }
     const sheet = wb.getWorksheet('Ürünler') ?? wb.worksheets[0];
     if (!sheet) throw invalidFile('Dosyada çalışma sayfası yok.');
-    if (sheet.rowCount - 1 > MAX_IMPORT_ROWS) {
+    const parsed = parseSheet(sheet);
+    if (parsed.total > MAX_IMPORT_ROWS) {
       return this.finish(
-        { total: 0, created: 0, updated: 0, groupsCreated: [], errors: [{ row: 1, column: 'Dosya', message: `En fazla ${MAX_IMPORT_ROWS} satır yüklenebilir.` }] },
+        { total: parsed.total, created: 0, updated: 0, unchanged: 0, groupsCreated: [], errors: parsed.errors, warnings: [] },
         dryRun,
       );
     }
-
-    const parsed = parseSheet(sheet);
     const errors = [...parsed.errors];
     const rows = parsed.rows;
 
@@ -175,8 +184,10 @@ export class ProductImportService {
         total: parsed.total,
         created: plan.toCreate.length,
         updated: plan.toUpdate.length,
+        unchanged: plan.unchanged,
         groupsCreated: plan.groupsToCreate.map((g) => g.name),
         errors: [],
+        warnings: plan.warnings,
       };
       errors.sort((a, b) => a.row - b.row);
       result.errors = errors;
@@ -196,6 +207,7 @@ export class ProductImportService {
               total: result.total,
               created: result.created,
               updated: result.updated,
+              unchanged: result.unchanged,
               groupsCreated: result.groupsCreated,
             },
           },
@@ -251,7 +263,15 @@ export class ProductImportService {
 
     const groupsToCreate = new Map<string, { name: string; key: string }>();
     const toCreate: { row: ImportRow; groupKey: string }[] = [];
-    const toUpdate: { row: ImportRow; groupKey: string; current: ProductRow }[] = [];
+    const toUpdate: {
+      row: ImportRow;
+      groupKey: string;
+      current: ProductRow;
+      next: Partial<typeof products.$inferInsert>;
+      changes: Record<string, { previous: unknown; next: unknown }>;
+    }[] = [];
+    const warnings: { row: number; message: string }[] = [];
+    let unchanged = 0;
     for (const row of rows) {
       if (row.code) {
         const owner = codeOwner.get(row.code);
@@ -265,15 +285,45 @@ export class ProductImportService {
         }
       }
       const groupKey = companyTitleKey(row.groupName);
-      if (!groupByKey.has(groupKey) && !groupsToCreate.has(groupKey)) {
+      const group = groupByKey.get(groupKey);
+      if (!group && !groupsToCreate.has(groupKey)) {
         groupsToCreate.set(groupKey, { name: row.groupName, key: groupKey });
       }
+      if (group && !group.isActive) {
+        warnings.push({ row: row.row, message: 'Ürün grubu pasif; ürün katalogda görünmez.' });
+      }
       const current = byBarcode.get(row.barcode);
-      if (current) toUpdate.push({ row, groupKey, current });
-      else toCreate.push({ row, groupKey });
+      if (!current) {
+        toCreate.push({ row, groupKey });
+        continue;
+      }
+      const next: Partial<typeof products.$inferInsert> = {
+        name: row.name,
+        caseQuantity: row.caseQuantity,
+        listPrice: row.listPrice,
+      };
+      // Boş Ürün kodu / Açıklama / KDV / Stok / Aktif mevcut üründe değişmez.
+      if (row.vatRate !== null) next.vatRate = row.vatRate;
+      if (row.code !== null) next.code = row.code;
+      if (row.description !== null) next.description = row.description;
+      if (row.stock !== null) next.stockStatus = row.stock;
+      if (row.active !== null) next.isActive = row.active;
+      const changes: Record<string, { previous: unknown; next: unknown }> = {};
+      for (const [key, value] of Object.entries(next)) {
+        const previous = current[key as keyof ProductRow];
+        // numeric sütunlar "48.90" biçiminde gelir; aynı biçimde karşılaştırılır.
+        if (previous !== value) changes[key] = { previous, next: value };
+      }
+      if (!group || group.id !== current.groupId) {
+        changes.groupId = { previous: current.groupId, next: group?.id ?? null };
+      }
+      if (Object.keys(changes).length === 0) unchanged++;
+      else toUpdate.push({ row, groupKey, current, next, changes });
     }
     return {
       errors,
+      warnings,
+      unchanged,
       toCreate,
       toUpdate,
       groupsToCreate: [...groupsToCreate.values()],
@@ -323,32 +373,14 @@ export class ProductImportService {
     }
 
     const audits: (typeof auditLog.$inferInsert)[] = [];
-    for (const { row, groupKey, current } of plan.toUpdate) {
-      const next: Partial<typeof products.$inferInsert> = {
-        groupId: groupIds.get(groupKey)!,
-        name: row.name,
-        caseQuantity: row.caseQuantity,
-        listPrice: row.listPrice,
-      };
-      if (row.vatRate !== null) next.vatRate = row.vatRate;
-      // Boş Ürün kodu / Açıklama / Stok / Aktif mevcut üründe değişmez.
-      if (row.code !== null) next.code = row.code;
-      if (row.description !== null) next.description = row.description;
-      if (row.stock !== null) next.stockStatus = row.stock;
-      if (row.active !== null) next.isActive = row.active;
-
-      const changes: Record<string, { previous: unknown; next: unknown }> = {};
-      for (const [key, value] of Object.entries(next)) {
-        const previous = current[key as keyof ProductRow];
-        // numeric sütunlar "48.90" biçiminde gelir; aynı biçimde karşılaştırılır.
-        if (previous !== value) changes[key] = { previous, next: value };
-      }
-      if (Object.keys(changes).length === 0) continue;
+    for (const { groupKey, current, next, changes } of plan.toUpdate) {
+      const set = { ...next, groupId: groupIds.get(groupKey)! };
+      if (changes.groupId) changes.groupId.next = set.groupId;
       if (changes.stockStatus) {
-        next.stockSource = 'manual';
-        next.stockUpdatedAt = now;
+        set.stockSource = 'manual';
+        set.stockUpdatedAt = now;
       }
-      await tx.update(products).set(next).where(eq(products.id, current.id));
+      await tx.update(products).set(set).where(eq(products.id, current.id));
       audits.push({
         actorType: 'admin',
         actorId: adminId,

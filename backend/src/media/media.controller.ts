@@ -10,39 +10,35 @@ import {
   Post,
   Query,
   Res,
-  UploadedFiles,
   UseGuards,
   UseInterceptors,
   UsePipes,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import multer from 'multer';
 import { AdminGuard, CurrentUser } from '../auth/auth.guards.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
+import { SameOriginGuard } from '../auth/same-origin.guard.js';
+import { MultipartInterceptor, UploadedFilesField } from '../common/multipart.js';
 import { createValidationPipe } from '../common/validation.js';
 import { MAX_FILE_BYTES, MAX_FILES_PER_REQUEST } from './image-processing.js';
 import { mediaListQuerySchema, type MediaListQuery } from './media.schemas.js';
 import { MediaService } from './media.service.js';
 
 @Controller('admin/media')
-@UseGuards(AdminGuard)
+@UseGuards(SameOriginGuard, AdminGuard)
 @UsePipes(createValidationPipe())
 export class AdminMediaController {
   constructor(@Inject(MediaService) private readonly media: MediaService) {}
 
   @Post()
   @UseInterceptors(
-    FilesInterceptor('files', MAX_FILES_PER_REQUEST, {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES_PER_REQUEST },
-    }),
+    MultipartInterceptor({ maxFileBytes: MAX_FILE_BYTES, maxFiles: MAX_FILES_PER_REQUEST }),
   )
   upload(
-    @UploadedFiles() files: Express.Multer.File[] | undefined,
+    @UploadedFilesField('files') files: Express.Multer.File[],
     @CurrentUser() admin: AuthIdentity,
   ) {
-    return this.media.upload(files ?? [], admin.id);
+    return this.media.upload(files, admin.id);
   }
 
   @Get()

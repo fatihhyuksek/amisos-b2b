@@ -36,7 +36,15 @@ export class CatalogService {
 
   async list(dealerId: string, query: CatalogListQuery) {
     const filters: (SQL | undefined)[] = [eq(products.isActive, true), eq(productGroups.isActive, true)];
-    if (query.q) filters.push(productSearch(query.q));
+    if (query.q) {
+      // GR-URN-003: q aktif bir ürünün barkoduyla birebir eşleşiyorsa yalnızca o ürün döner.
+      const [exact] = await this.db
+        .select({ id: products.id })
+        .from(products)
+        .innerJoin(productGroups, eq(productGroups.id, products.groupId))
+        .where(and(eq(products.barcode, query.q), eq(products.isActive, true), eq(productGroups.isActive, true)));
+      filters.push(exact ? eq(products.barcode, query.q) : productSearch(query.q));
+    }
     if (query.groupId) filters.push(eq(products.groupId, query.groupId));
     const where = and(...filters);
 

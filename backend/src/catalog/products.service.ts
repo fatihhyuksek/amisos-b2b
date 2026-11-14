@@ -12,7 +12,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import type { Tx } from '../common/advisory-lock.js';
 import { escapeLike, foldSql, foldTr } from '../common/like.js';
-import { isUniqueViolation, violatedConstraint } from '../common/pg-errors.js';
+import { isForeignKeyViolation, isUniqueViolation, violatedConstraint } from '../common/pg-errors.js';
 import { DB, type Database } from '../database/database.module.js';
 import { media, productGroups, productImages, products } from '../database/schema.js';
 import type {
@@ -50,6 +50,12 @@ export function mapProductConflict(error: unknown): never {
         message: 'Bu barkod başka bir üründe kullanılıyor.',
       });
     }
+  }
+  if (isForeignKeyViolation(error)) {
+    // Eşzamanlı silme yarışı: grup veya görsel kontrolden sonra kaldırılmış olabilir.
+    const constraint = violatedConstraint(error) ?? '';
+    if (constraint.includes('media')) throw validationError({ mediaIds: 'Seçilen görsellerden biri bulunamadı.' });
+    if (constraint.includes('group')) throw validationError({ groupId: 'Ürün grubu bulunamadı.' });
   }
   throw error;
 }

@@ -1,4 +1,4 @@
-import { calculateDealerPrice } from './pricing.service.js';
+import { calculateDealerPrice, dealerLineNet } from './pricing.service.js';
 
 describe('calculateDealerPrice (GR-FIY-002, K-13, K-10, K-39)', () => {
   it('K-13: genel 10 + mutfak grubu 15 -> mutfakta 15, diğer grupta 10', () => {
@@ -33,5 +33,16 @@ describe('calculateDealerPrice (GR-FIY-002, K-13, K-10, K-39)', () => {
 
   it('GR-FIY-002: kayan nokta hatası yok (19.99 x 0.9)', () => {
     expect(calculateDealerPrice('19.99', '10', null).price).toBe('17.99');
+  });
+});
+
+describe('dealerLineNet (GR-FIY-002, K-39)', () => {
+  it('satır = miktar × yuvarlanmış birim fiyat: 12 × 48.90 %15 -> 12 × 41.57 = 498.84', () => {
+    expect(dealerLineNet(12, '48.90', null, '15.00')).toBe('498.84');
+    // Tek seferde yuvarlayan lineTotal 12 × 41.565 = 498.78 verirdi; sipariş bununla hesaplanmaz.
+  });
+
+  it('iskonto yoksa miktar × liste fiyatı', () => {
+    expect(dealerLineNet(3, '19.99', null, null)).toBe('59.97');
   });
 });

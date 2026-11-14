@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { and, eq, inArray, like, or } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import sharp from 'sharp';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
@@ -23,6 +24,7 @@ import {
   products,
   sessions,
 } from '../src/database/schema.js';
+import { AuditService } from '../src/audit/audit.service.js';
 import { companyTitleKey } from '../src/dealers/company-title.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
 
@@ -113,7 +115,11 @@ describe('Katalog (e2e)', () => {
   const png = (w = 50, h = 30) =>
     sharp({ create: { width: w, height: h, channels: 3, background: '#cc3333' } }).png().toBuffer();
 
-  async function workbook(rows: (string | number | null)[][], headers?: string[]) {
+  async function workbook(
+    rows: (string | number | null)[][],
+    headers?: string[],
+    tweak?: (ws: ExcelJS.Worksheet) => void,
+  ) {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Ürünler');
     ws.addRow(
@@ -131,6 +137,7 @@ describe('Katalog (e2e)', () => {
       ],
     );
     for (const r of rows) ws.addRow(r);
+    tweak?.(ws);
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
   const importFile = (buf: Buffer, dryRun: boolean) =>
@@ -584,8 +591,10 @@ describe('Katalog (e2e)', () => {
         total: 2,
         created: 2,
         updated: 0,
+        unchanged: 0,
         groupsCreated: [gname('Excel Yeni')],
         errors: [],
+        warnings: [],
       });
       expect(await productByBarcode(bc('x1'))).toBeUndefined();
       const groups = await db.select().from(productGroups).where(eq(productGroups.name, gname('Excel Yeni')));
@@ -894,13 +903,14 @@ describe('Katalog (e2e)', () => {
       expect(ids.indexOf(mutfak)).toBeLessThan(ids.indexOf(tabak));
     });
 
-    it('GR-URN-003: arama ad (Türkçe duyarsız), barkod ve kodda; tam barkod eşleşmesi ilk sırada; sayfalama', async () => {
+    it('GR-URN-003: arama ad (Türkçe duyarsız), barkod ve kodda; tam barkod eşleşmesinde yalnızca o ürün; sayfalama', async () => {
       const d = await dealerAgent('kat-arama');
       const g = await createGroup('Katalog Arama');
       const exact = await createProduct(g.id, 'qz9', { name: `Zzz ${run}` });
       await createProduct(g.id, 'aa', { name: `Aaa ${exact.barcode}` });
       const res = (await d.agent.get('/api/catalog/products').query({ q: exact.barcode }).expect(200)).body;
-      expect(res.total).toBe(2);
+      // GR-URN-003: birebir barkod eşleşmesinde yalnızca o ürün döner.
+      expect(res.total).toBe(1);
       expect(res.items[0].id).toBe(exact.id);
 
       const byCode = (await search(d.agent, { q: bc('cmk') }).expect(200)).body;
@@ -935,6 +945,145 @@ describe('Katalog (e2e)', () => {
       await d.agent.get('/api/catalog/groups').expect(200);
       await admin.agent.post(`/api/admin/dealers/${d.dealer.id}/deactivate`).send({ reason: 'test nedeni' }).expect(204);
       await d.agent.get('/api/catalog/groups').expect(401);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('Güvenlik ve dayanıklılık düzeltmeleri', () => {
+    const num = (v: number) => v;
+
+    it('K-16: sayı hücreli barkod yalnızca EAN-8/EAN-13 uzunluğunda kabul edilir; ürün kodu güvenli tam sayı olmalı', async () => {
+      const g = gname('Sayı Hücre');
+      const buf = await workbook([
+        [num(8691234567890), num(12345), 'a', g, 1, '1', null, null, null, null],
+        [num(12345678), null, 'b', g, 1, '1', null, null, null, null],
+        [num(123456789012), null, 'c', g, 1, '1', null, null, null, null],
+        [num(1.5), null, 'd', g, 1, '1', null, null, null, null],
+        [num(1.5e20), null, 'e', g, 1, '1', null, null, null, null],
+        [bc('sayi-kod'), num(1.5), 'f', g, 1, '1', null, null, null, null],
+      ]);
+      const res = await importFile(buf, true).expect(200);
+      const errs = res.body.errors as { row: number; column: string; message: string }[];
+      expect(errs.map((e) => [e.row, e.column])).toEqual([
+        [4, 'Barkod'],
+        [5, 'Barkod'],
+        [6, 'Barkod'],
+        [7, 'Ürün kodu'],
+      ]);
+      expect(errs[0].message).toContain('Metin biçimine');
+      expect(res.body.created + res.body.updated + res.body.unchanged).toBe(2);
+    });
+
+    it('K-60: yüzde biçimli KDV hücresi (0,2) %20 olur; biçimsiz 0<değer<1 hata', async () => {
+      const g = gname('KDV Biçim');
+      const pct = await workbook([[bc('pct'), null, 'p', g, 1, '1', 0.2, null, null, null]], undefined, (ws) => {
+        ws.getCell('G2').numFmt = '0%';
+      });
+      await importFile(pct, false).expect(200);
+      expect((await productByBarcode(bc('pct'))).vatRate).toBe('20.00');
+      const bare = await workbook([[bc('bare'), null, 'p', g, 1, '1', 0.2, null, null, null]]);
+      const res = await importFile(bare, true).expect(200);
+      expect(res.body.errors).toEqual([
+        { row: 2, column: 'KDV oranı', message: 'KDV oranını yüzde olarak yazın, ör. 20.' },
+      ]);
+    });
+
+    it('K-59: açılınca çok büyük (zip bombası) dosya 400 VALIDATION fields.file', async () => {
+      const zip = new JSZip();
+      zip.file('xl/sharedStrings.xml', 'a'.repeat(60 * 1024 * 1024));
+      zip.file('[Content_Types].xml', '<Types/>');
+      const bomb = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+      expect(bomb.length).toBeLessThan(1024 * 1024);
+      const res = await importFile(bomb, true).expect(400);
+      expect(res.body.code).toBe('VALIDATION');
+      expect(res.body.fields.file).toContain('50 MB');
+    });
+
+    it('K-59: biçimli boş satırlar satır sınırına sayılmaz', async () => {
+      const buf = await workbook([[bc('bos'), null, 'b', gname('Boş Satır'), 1, '1', null, null, null, null]], undefined, (ws) => {
+        ws.getCell('A200000').numFmt = '@';
+        ws.getRow(150000).height = 20;
+      });
+      const res = await importFile(buf, true).expect(200);
+      expect(res.body).toMatchObject({ total: 1, errors: [] });
+    });
+
+    it('K-62: 40 megapikselden büyük görsel errors\'a düşer', async () => {
+      const huge = await sharp({ create: { width: 7000, height: 7000, channels: 3, background: '#ffffff' } })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+      expect(huge.length).toBeLessThan(8 * 1024 * 1024);
+      const res = await admin.agent
+        .post('/api/admin/media')
+        .attach('files', huge, 'dev.png')
+        .attach('files', await png(), 'normal.png')
+        .expect(201);
+      expect(res.body.items.map((i: { filename: string }) => i.filename)).toEqual(['normal.png']);
+      expect(res.body.errors[0]).toMatchObject({ filename: 'dev.png' });
+      expect(res.body.errors[0].message).toContain('40 megapiksel');
+    }, 30_000);
+
+    it('K-62: istek başına 20 dosya sınırı aşılırsa 413 TOO_MANY_FILES', async () => {
+      const tiny = Buffer.from('x');
+      let req = admin.agent.post('/api/admin/media');
+      for (let i = 0; i < 21; i++) req = req.attach('files', tiny, `f${i}.png`);
+      const res = await req.expect(413);
+      expect(res.body.code).toBe('TOO_MANY_FILES');
+      const big = Buffer.alloc(8 * 1024 * 1024 + 10);
+      const tooBig = await admin.agent.post('/api/admin/media').attach('files', big, 'b.png').expect(413);
+      expect(tooBig.body.code).toBe('FILE_TOO_LARGE');
+    });
+
+    it('K-62: DB hatası veren dosya errors\'a düşer, diğerleri kalır ve diske yazılan dosya silinir', async () => {
+      const { readdir } = await import('node:fs/promises');
+      const before = (await readdir(process.env.MEDIA_DIR!)).length;
+      const audit = app.get(AuditService);
+      const spy = vi.spyOn(audit, 'record').mockRejectedValueOnce(new Error('db düştü'));
+      try {
+        const res = await admin.agent
+          .post('/api/admin/media')
+          .attach('files', await png(), 'birinci.png')
+          .attach('files', await png(), 'ikinci.png')
+          .expect(201);
+        expect(res.body.items.map((i: { filename: string }) => i.filename)).toEqual(['ikinci.png']);
+        expect(res.body.errors).toEqual([{ filename: 'birinci.png', message: 'Dosya kaydedilemedi, tekrar deneyin.' }]);
+      } finally {
+        spy.mockRestore();
+      }
+      expect((await readdir(process.env.MEDIA_DIR!)).length).toBe(before + 1);
+    });
+
+    it('GR-YON-001: multipart uçlarda çapraz kaynak istekleri 403 (SameOriginGuard); başlıksız ve aynı kaynak serbest', async () => {
+      const file = await png();
+      await admin.agent.post('/api/admin/media').set('Origin', 'http://evil.example').attach('files', file, 'a.png').expect(403);
+      await admin.agent.post('/api/admin/media').set('Sec-Fetch-Site', 'cross-site').attach('files', file, 'a.png').expect(403);
+      await admin.agent.post('/api/admin/media').set('Sec-Fetch-Site', 'same-site').attach('files', file, 'a.png').expect(403);
+      await admin.agent
+        .post('/api/admin/products/import?dryRun=true')
+        .set('Origin', 'http://evil.example')
+        .attach('file', await workbook([]), 'u.xlsx')
+        .expect(403);
+      await admin.agent
+        .post('/api/admin/media')
+        .set('Origin', 'http://localhost:5180')
+        .set('Sec-Fetch-Site', 'same-origin')
+        .attach('files', file, 'ok.png')
+        .expect(201);
+      await admin.agent.post('/api/admin/media').set('Sec-Fetch-Site', 'none').attach('files', file, 'ok2.png').expect(201);
+    });
+
+    it('K-59: değişmeyen satırlar unchanged sayılır; pasif gruba düşen satır warnings verir', async () => {
+      const g = await createGroup('Excel Rapor');
+      const rows = [[bc('rp1'), null, 'Rapor', g.name, 2, '9,90', null, null, null, null]];
+      await importFile(await workbook(rows), false).expect(200);
+      const again = await importFile(await workbook(rows), false).expect(200);
+      expect(again.body).toMatchObject({ total: 1, created: 0, updated: 0, unchanged: 1, warnings: [] });
+      const changed = await importFile(await workbook([[bc('rp1'), null, 'Rapor', g.name, 2, '10,00', null, null, null, null]]), false).expect(200);
+      expect(changed.body).toMatchObject({ created: 0, updated: 1, unchanged: 0 });
+
+      await admin.agent.patch(`/api/admin/product-groups/${g.id}`).send({ isActive: false }).expect(200);
+      const warned = await importFile(await workbook(rows), true).expect(200);
+      expect(warned.body.warnings).toEqual([{ row: 2, message: 'Ürün grubu pasif; ürün katalogda görünmez.' }]);
     });
   });
 });
