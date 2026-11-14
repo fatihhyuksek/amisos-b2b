@@ -14,7 +14,7 @@ import { Link } from '../Link'
 import { Alert, AuthCard, Button, Checkbox, Modal } from '../ui/components'
 
 const DUPLICATE =
-  'Bu e-posta veya firma unvanıyla bekleyen ya da aktif bir kayıt var. Şifrenizi unuttuysanız şifre sıfırlamayı kullanın.'
+  'Bu e-posta veya firma unvanıyla bekleyen ya da aktif bir kayıt var. E-postanızdaki doğrulama bağlantısını kullanın; bağlantının süresi dolduysa 24 saat sonra yeniden başvurabilirsiniz. Hesabınız aktifse giriş yapın veya şifre sıfırlamayı kullanın.'
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {

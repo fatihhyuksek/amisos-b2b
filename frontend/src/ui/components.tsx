@@ -369,10 +369,13 @@ const FOCUSABLE =
 export function Modal({
   title,
   onClose,
+  dismissable = true,
   children,
 }: {
   title: string
   onClose: () => void
+  /** false iken Esc ve arka plan tıklaması diyaloğu kapatmaz (istek sürerken). */
+  dismissable?: boolean
   children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -410,11 +413,11 @@ export function Modal({
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault()
-        onClose()
+        if (dismissable) onClose()
       }}
       onKeyDown={onKeyDown}
       onClick={(e) => {
-        if (e.target === ref.current) onClose()
+        if (e.target === ref.current && dismissable) onClose()
       }}
     >
       <div className="ui-modal__body">

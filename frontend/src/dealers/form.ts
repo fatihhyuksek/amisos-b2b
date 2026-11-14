@@ -25,11 +25,13 @@ const REQUIRED: Record<Exclude<DealerFieldName, 'email' | 'phone'>, string> = {
   address: 'Açık adres zorunludur.',
 }
 
+/** +90 532…, 0532…, 532… kabul; 10 hane ve 2–5 ile başlar (API sözleşmesi). */
 export function validatePhone(value: string): string | undefined {
   if (!value.trim()) return 'Telefon zorunludur.'
-  const digits = value.replace(/\D/g, '')
-  if (digits.length < 10 || digits.length > 11)
-    return 'Telefon 10 veya 11 haneli olmalıdır (ör. 0532 123 45 67).'
+  let digits = value.replace(/\D/g, '')
+  if (digits.length === 12 && digits.startsWith('90')) digits = digits.slice(2)
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1)
+  if (!/^[2-5]\d{9}$/.test(digits)) return 'Geçerli bir telefon girin (ör. 0532 123 45 67).'
 }
 
 export function validateDealer(v: DealerInput): DealerErrors {

@@ -147,8 +147,12 @@ export async function submitApplication(input: ApplicationInput): Promise<void> 
   await post('/applications', input)
 }
 
-export async function acceptInvitation(token: string, password: string): Promise<void> {
-  await post('/auth/invitation/accept', { token, password })
+export async function acceptInvitation(
+  token: string,
+  password: string,
+  consents: ApplicationInput['consents'],
+): Promise<void> {
+  await post('/auth/invitation/accept', { token, password, consents })
 }
 
 export function fetchDealerSummary(signal?: AbortSignal): Promise<DealerCounts> {

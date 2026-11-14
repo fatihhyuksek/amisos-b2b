@@ -34,53 +34,66 @@ function actionError(err: unknown): string {
   return 'İşlem tamamlanamadı. Lütfen daha sonra tekrar deneyin.'
 }
 
-/** Gerekçe isteyen diyalog (reddet / pasife al). Gerekçe en az 3 karakter (API sözleşmesi). */
-function ReasonDialog({
+/**
+ * İşlem diyaloğu (onayla / reddet / pasife al). `reasonRequired` ise gerekçe (en az 3 karakter) istenir.
+ * onConfirm hata iletisi (metin) döndürürse diyalog açık kalır, gerekçe korunur; istek sürerken kapanmaz.
+ */
+function ActionDialog({
   title,
+  info,
+  reasonRequired,
   confirmLabel,
   danger,
   onConfirm,
   onClose,
 }: {
   title: string
+  info?: string
+  reasonRequired: boolean
   confirmLabel: string
   danger?: boolean
-  onConfirm: (reason: string) => Promise<void>
+  onConfirm: (reason: string) => Promise<string | null>
   onClose: () => void
 }) {
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | undefined>()
+  const [serverError, setServerError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     const value = reason.trim()
-    if (value.length < 3) {
+    if (reasonRequired && value.length < 3) {
       setError('Gerekçe zorunludur (en az 3 karakter).')
       return
     }
     setError(undefined)
+    setServerError(null)
     setBusy(true)
     try {
-      await onConfirm(value)
+      setServerError(await onConfirm(value))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} dismissable={!busy}>
       <form className="ui-auth__form" onSubmit={submit} noValidate>
-        <Field label="Gerekçe" htmlFor="reason" error={error}>
-          <textarea
-            id="reason"
-            className="ui-textarea"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            aria-invalid={error ? true : undefined}
-            autoFocus
-          />
-        </Field>
+        {info && <p>{info}</p>}
+        {serverError && <Alert tone="danger">{serverError}</Alert>}
+        {reasonRequired && (
+          <Field label="Gerekçe" htmlFor="reason" error={error}>
+            <textarea
+              id="reason"
+              className="ui-textarea"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              aria-invalid={error ? true : undefined}
+              autoFocus
+            />
+          </Field>
+        )}
         <div className="ui-modal__actions">
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Vazgeç
@@ -170,7 +183,7 @@ function Dl({ items }: { items: [string, React.ReactNode][] }) {
 
 export function DealerDetailPage({ id }: { id: string }) {
   const { state, reload } = useLoad<DealerDetail>((signal) => fetchDealer(id, signal), id)
-  const [dialog, setDialog] = useState<'reject' | 'deactivate' | null>(null)
+  const [dialog, setDialog] = useState<'approve' | 'reject' | 'deactivate' | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null)
 
@@ -193,13 +206,24 @@ export function DealerDetailPage({ id }: { id: string }) {
     }
   }
 
-  async function withReason(
-    fn: (reason: string) => Promise<void>,
-    reason: string,
-    success: string,
-  ): Promise<void> {
-    await run(() => fn(reason), success)
+  /** Diyalog işlemi: başarıda kapanır; 409'da durum değiştiği için kapanıp sayfada bildirir; diğer hatada açık kalır. */
+  async function inDialog(fn: () => Promise<void>, success: string): Promise<string | null> {
+    setNotice(null)
+    try {
+      await fn()
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setNotice({ tone: 'danger', text: actionError(err) })
+        reload()
+        setDialog(null)
+        return null
+      }
+      return actionError(err)
+    }
+    setNotice({ tone: 'info', text: success })
+    reload()
     setDialog(null)
+    return null
   }
 
   return (
@@ -243,22 +267,37 @@ export function DealerDetailPage({ id }: { id: string }) {
       {state.status === 'ready' && (
         <Detail dealer={state.data} busy={busy} run={run} openDialog={setDialog} />
       )}
+      {dialog === 'approve' && (
+        <ActionDialog
+          title="Bayiyi onayla"
+          info="Bayi onaylanacak ve şifre belirleme e-postası gönderilecek. Devam edilsin mi?"
+          reasonRequired={false}
+          confirmLabel="Onayla"
+          onClose={() => setDialog(null)}
+          onConfirm={() =>
+            inDialog(() => approveDealer(id), 'Bayi onaylandı; şifre belirleme e-postası gönderiliyor.')
+          }
+        />
+      )}
       {dialog === 'reject' && (
-        <ReasonDialog
+        <ActionDialog
           title="Başvuruyu reddet"
+          reasonRequired
           confirmLabel="Reddet"
           danger
           onClose={() => setDialog(null)}
-          onConfirm={(r) => withReason((x) => rejectDealer(id, x), r, 'Başvuru reddedildi.')}
+          onConfirm={(r) => inDialog(() => rejectDealer(id, r), 'Başvuru reddedildi.')}
         />
       )}
       {dialog === 'deactivate' && (
-        <ReasonDialog
+        <ActionDialog
           title="Bayiyi pasife al"
+          info="Bayinin açık oturumları kapatılır ve giriş yapamaz."
+          reasonRequired
           confirmLabel="Pasife al"
           danger
           onClose={() => setDialog(null)}
-          onConfirm={(r) => withReason((x) => deactivateDealer(id, x), r, 'Bayi pasife alındı.')}
+          onConfirm={(r) => inDialog(() => deactivateDealer(id, r), 'Bayi pasife alındı.')}
         />
       )}
     </AdminLayout>
@@ -274,7 +313,7 @@ function Detail({
   dealer: DealerDetail
   busy: boolean
   run: (fn: () => Promise<void>, success: string) => Promise<boolean>
-  openDialog: (d: 'reject' | 'deactivate') => void
+  openDialog: (d: 'approve' | 'reject' | 'deactivate') => void
 }) {
   const canResend = d.status === 'active' && !d.hasPassword
   return (
@@ -321,12 +360,7 @@ function Detail({
           <h2 id="sec-actions">İşlemler</h2>
           <div className="ui-actions">
             {d.status === 'pending_approval' && (
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  run(() => approveDealer(d.id), 'Bayi onaylandı; şifre belirleme e-postası gönderildi.')
-                }
-              >
+              <Button disabled={busy} onClick={() => openDialog('approve')}>
                 Onayla
               </Button>
             )}
@@ -352,7 +386,7 @@ function Detail({
               <Button
                 variant="secondary"
                 disabled={busy}
-                onClick={() => run(() => resendInvitation(d.id), 'Davet e-postası yeniden gönderildi.')}
+                onClick={() => run(() => resendInvitation(d.id), 'Davet e-postası yeniden gönderiliyor.')}
               >
                 Daveti yeniden gönder
               </Button>
@@ -361,7 +395,7 @@ function Detail({
         </section>
       )}
 
-      {d.status !== 'rejected' && (
+      {(d.status === 'pending_approval' || d.status === 'active' || d.status === 'passive') && (
         <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-terms">
           <h2 id="sec-terms">İskonto</h2>
           {/* Kayıttan sonra veri yenilenir; anahtar formu yeni değerle sıfırlar. */}
