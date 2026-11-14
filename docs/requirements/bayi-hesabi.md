@@ -222,6 +222,6 @@ V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı. Yok. V-06
 
 ## 5. Açık konular
 
-- BizimHesap API araştırması: sipariş aktarımı, stok ve durum okumanın mümkün olup olmadığı (GR-SIP-001, GR-URN-002, GR-SIP-006).
-- BizimHesap sipariş durumlarının portaldaki altı duruma eşlenmesi.
+- BizimHesap API: doküman incelendi, bkz. `docs/research/bizimhesap-api.md`. Sipariş aktarımı ve stok okuma mümkün görünüyor; sipariş durumu okuma servisi yok, bu yüzden durumlar şimdilik Admin tarafından elle güncellenir (K-24 yedek yolu). `addinvoice` kaydının sipariş mi fatura mı oluşturduğu test hesabıyla doğrulanmalı.
+- Stokta esas alınacak BizimHesap deposu (tek depo / tüm depoların toplamı).
 - KVKK aydınlatma metni ve kullanım koşulları metinlerinin hazırlanması (iş sahibi / hukuk).
