@@ -1,7 +1,7 @@
 # Amisos B2B Tasarım Sistemi
 
 Durum: taslak, nötr palet. Marka kimliği (logo, renk, yazı tipi) gelince güncellenecek.
-Önizleme: frontend çalışırken `http://localhost:5173/#/tasarim`
+Önizleme: frontend çalışırken `http://localhost:5180/#/tasarim`
 
 ## Dosyalar
 

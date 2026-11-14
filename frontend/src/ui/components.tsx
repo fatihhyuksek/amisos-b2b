@@ -1,4 +1,4 @@
-import { useId, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useId, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
 import { formatPercent, formatTRY } from './format'
 import { Icon, type IconName } from './Icon'
 
@@ -213,5 +213,65 @@ export function EmptyState({
       {children && <p>{children}</p>}
       {action}
     </div>
+  )
+}
+
+// ---------- Şifre alanı ----------
+/** Göster/gizle düğmeli şifre girişi. Etiket Field ile verilir (id eşleşmeli). */
+export function PasswordInput({
+  invalid,
+  describedBy,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { invalid?: boolean; describedBy?: string }) {
+  const [shown, setShown] = useState(false)
+  return (
+    <div className="ui-password">
+      <input
+        {...rest}
+        className="ui-input"
+        type={shown ? 'text' : 'password'}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+      />
+      <button
+        type="button"
+        className="ui-password__toggle"
+        onClick={() => setShown((v) => !v)}
+        aria-pressed={shown}
+        aria-label={shown ? 'Şifreyi gizle' : 'Şifreyi göster'}
+      >
+        <Icon name={shown ? 'eyeOff' : 'eye'} />
+      </button>
+    </div>
+  )
+}
+
+// ---------- Kimlik doğrulama kartı ----------
+/** Ortalanmış kart düzeni: üstte marka metni, altında başlık ve içerik. */
+export function AuthCard({
+  title,
+  intro,
+  children,
+  footer,
+}: {
+  title: string
+  intro?: string
+  children: ReactNode
+  footer?: ReactNode
+}) {
+  return (
+    <main className="ui-auth">
+      <div className="ui-auth__brand">Amisos B2B</div>
+      <section className="ui-card ui-auth__card" aria-labelledby="auth-title">
+        <div className="ui-card__body ui-auth__body">
+          <div className="ui-auth__head">
+            <h1 id="auth-title">{title}</h1>
+            {intro && <p className="muted">{intro}</p>}
+          </div>
+          {children}
+        </div>
+      </section>
+      {footer && <div className="ui-auth__footer">{footer}</div>}
+    </main>
   )
 }

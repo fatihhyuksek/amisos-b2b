@@ -13,6 +13,12 @@ Amisos Züccaciye bayi ön sipariş portalı. Gereksinimler: `docs/requirements/
 
 ## Yerelde çalıştırma
 
+**Windows'ta tek tıkla:** Docker Desktop'ı açın, sonra repo kökündeki `baslat.cmd` dosyasına çift tıklayın.
+Veritabanını başlatır, eksik paketleri kurar, migration ve geliştirme hesaplarını hazırlar, backend ve
+frontend'i iki ayrı pencerede açar (pencereleri kapatmayın). Adres: http://localhost:5180/#/yonetim/giris
+
+Elle çalıştırmak için:
+
 1. Veritabanını başlat:
 
    ```bash
@@ -25,10 +31,12 @@ Amisos Züccaciye bayi ön sipariş portalı. Gereksinimler: `docs/requirements/
    cd backend
    cp .env.example .env
    npm install
+   npm run db:migrate
+   npm run db:seed
    npm run start:dev
    ```
 
-   Kontrol: http://localhost:3000/api/health → `{"status":"ok","database":"up"}`
+   Kontrol: http://localhost:3100/api/health → `{"status":"ok","database":"up"}`
 
 3. Frontend (ayrı terminalde):
 
@@ -38,7 +46,7 @@ Amisos Züccaciye bayi ön sipariş portalı. Gereksinimler: `docs/requirements/
    npm run dev
    ```
 
-   http://localhost:5173 açılır. `/api` istekleri backend'e yönlendirilir.
+   http://localhost:5180 açılır. `/api` istekleri backend'e yönlendirilir.
 
 ## Komutlar
 
@@ -49,6 +57,8 @@ Amisos Züccaciye bayi ön sipariş portalı. Gereksinimler: `docs/requirements/
 | backend | `npm run lint` | Kod denetimi |
 | backend | `npm run db:generate` | Şemadan migration üretir |
 | backend | `npm run db:migrate` | Migration'ları veritabanına uygular |
+| backend | `npm run db:seed` | Geliştirme hesaplarını oluşturur/sıfırlar: `admin@amisos.local` / `Admin1234`, `bayi@amisos.local` / `Bayi1234` (yalnızca development) |
+| backend | `npm run admin:create -- --email ... --name "..."` | Gerçek Admin hesabı oluşturur (şifreyi gizli sorar) |
 | frontend | `npm run build` | Üretim derlemesi |
 | frontend | `npm run lint` | Kod denetimi |
 

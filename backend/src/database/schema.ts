@@ -175,6 +175,28 @@ export const authTokens = pgTable(
   ],
 );
 
+/**
+ * Sunucu taraflı oturum (GR-BAYI-006, GR-BAYI-007, K-29). Çerezdeki token'ın kendisi değil
+ * SHA-256 özeti saklanır. Kayan süre: her kullanımda `expires_at` uzar.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    tokenHash: text().notNull(),
+    subjectType: tokenSubject().notNull(),
+    subjectId: uuid().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('sessions_token_hash_uq').on(t.tokenHash),
+    index('sessions_subject_idx').on(t.subjectType, t.subjectId),
+    index('sessions_expires_at_idx').on(t.expiresAt),
+  ],
+);
+
 /** KVKK, kullanım koşulları ve pazarlama onayları; metin sürümüyle (GR-KVK-001). */
 export const consents = pgTable(
   'consents',

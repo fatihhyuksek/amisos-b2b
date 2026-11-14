@@ -488,3 +488,92 @@
   border-color: var(--color-accent);
   color: var(--color-text-on-accent);
 }
+
+/* ---------- Şifre alanı ---------- */
+.ui-password {
+  position: relative;
+}
+
+.ui-password .ui-input {
+  padding-right: calc(var(--control-height) + var(--space-1));
+}
+
+.ui-password__toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--control-height);
+  height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.ui-password__toggle:hover {
+  color: var(--color-text);
+}
+
+/* ---------- Kimlik doğrulama sayfası ---------- */
+.ui-auth {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-4);
+}
+
+.ui-auth__brand {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.01em;
+}
+
+.ui-auth__card {
+  width: 100%;
+  max-width: 26rem;
+}
+
+.ui-auth__body {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.ui-auth__head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ui-auth__head h1 {
+  font-size: var(--font-size-xl);
+}
+
+.ui-auth__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ui-auth__footer {
+  width: 100%;
+  max-width: 26rem;
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.ui-auth__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+}

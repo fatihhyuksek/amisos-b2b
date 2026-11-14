@@ -6,7 +6,7 @@ import pg from 'pg';
 export default async function setup(): Promise<void> {
   const pool = new pg.Pool({
     connectionString:
-      process.env.DATABASE_URL ?? 'postgres://amisos:amisos@localhost:5432/amisos_b2b',
+      process.env.DATABASE_URL ?? 'postgres://amisos:amisos@localhost:5433/amisos_b2b',
   });
   try {
     await migrate(drizzle(pool), {

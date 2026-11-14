@@ -1,6 +1,6 @@
 # Veri Modeli
 
-Kaynak: `backend/src/database/schema.ts` · Migration: `backend/drizzle/0000_init.sql`
+Kaynak: `backend/src/database/schema.ts` · Migration: `backend/drizzle/0000_init.sql`, `0002_auth_sessions.sql`
 Gereksinimler: `docs/requirements/bayi-hesabi.md`
 
 ## Tablolar
@@ -10,6 +10,7 @@ Gereksinimler: `docs/requirements/bayi-hesabi.md`
 | `admin_users` | Yönetim kullanıcıları (şimdilik tek rol: Admin) | K-42, GR-YON-001 |
 | `dealers` | Bayi hesabı: başvuru bilgileri, durum, giriş bilgisi, genel iskonto oranı | K-02 – K-08, K-12, K-35, GR-BAYI-001…008 |
 | `auth_tokens` | E-posta doğrulama, şifre sıfırlama, davet bağlantıları (yalnızca özet saklanır) | K-03, K-29, GR-BAYI-007 |
+| `sessions` | Sunucu taraflı oturum: token özeti, konu (admin/dealer), bitiş (kayan 7 gün), son görülme | K-29, GR-BAYI-006, GR-BAYI-007 |
 | `consents` | KVKK, kullanım koşulları, pazarlama onayları ve metin sürümü | K-45, GR-KVK-001 |
 | `product_groups` | Ürün grupları | K-12, K-40 |
 | `products` | Ürün: barkod (zorunlu, tekil), kod, koli içi adedi, liste fiyatı, KDV oranı, stok durumu | K-14 – K-16, K-18, K-30 – K-32 |
