@@ -100,6 +100,18 @@ describe('Bayi', () => {
     ).toBe('dealers_company_title_uq');
   });
 
+  it('K-51: reddedilen bayi aynı e-posta ve unvanla yeniden başvurabilir', async () => {
+    await db
+      .insert(schema.dealers)
+      .values(dealerInput({ status: 'rejected', rejectionReason: 'Eksik bilgi' }));
+    const [again] = await db.insert(schema.dealers).values(dealerInput()).returning();
+    expect(again.status).toBe('pending_email');
+    // Aktif/bekleyen bir kayıt varken ikinci başvuru yine engellenir.
+    expect(
+      await violation(() => db.insert(schema.dealers).values(dealerInput({ companyTitle: 'Farklı' }))),
+    ).toBe('dealers_email_uq');
+  });
+
   it('yeni başvuru e-posta doğrulaması bekler (K-03)', async () => {
     const [dealer] = await db.insert(schema.dealers).values(dealerInput()).returning();
     expect(dealer.status).toBe('pending_email');

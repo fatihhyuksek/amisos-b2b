@@ -137,8 +137,13 @@ export const dealers = pgTable(
   },
   (t) => [
     // GR-BAYI-004 / GR-BAYI-005: aynı e-posta veya aynı firma unvanıyla ikinci kayıt olamaz.
-    uniqueIndex('dealers_email_uq').on(sql`lower(${t.email})`),
-    uniqueIndex('dealers_company_title_uq').on(sql`lower(${t.companyTitle})`),
+    // K-51: reddedilen başvurular tekilliğe dahil değil; reddedilen bayi yeniden başvurabilir.
+    uniqueIndex('dealers_email_uq')
+      .on(sql`lower(${t.email})`)
+      .where(sql`${t.status} <> 'rejected'`),
+    uniqueIndex('dealers_company_title_uq')
+      .on(sql`lower(${t.companyTitle})`)
+      .where(sql`${t.status} <> 'rejected'`),
     index('dealers_status_idx').on(t.status),
     check(
       'dealers_general_discount_range',

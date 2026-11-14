@@ -48,7 +48,6 @@ Son güncelleme: 2026-11-14
 - BizimHesap desteğinden API token'ı, FirmID ve test hesabı.
 - KVKK aydınlatma metni ve kullanım koşulları metinleri.
 - Stokta esas alınacak BizimHesap deposu (BizimHesap adımında).
-- Veri modeli açık soruları: `docs/veri-modeli.md` (reddedilen bayinin yeniden başvurusu).
 - Marka kimliği: logo, kurumsal renkler, varsa yazı tipi.
 
 ## Notlar

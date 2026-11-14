@@ -25,7 +25,8 @@ Gereksinimler: `docs/requirements/bayi-hesabi.md`
 
 Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/test/schema.e2e-spec.ts`):
 
-- Aynı e-posta veya firma unvanıyla ikinci bayi (büyük/küçük harf duyarsız).
+- Aynı e-posta veya firma unvanıyla ikinci bayi (büyük/küçük harf duyarsız). Reddedilen
+  başvurular bu kurala dahil değildir; reddedilen bayi yeniden başvurabilir (K-51).
 - Gerekçesiz red.
 - Boş veya tekrarlanan barkod; tekrarlanan ürün kodu.
 - Koli içi adedi 0; koli katı olmayan sipariş satırı.
@@ -38,9 +39,7 @@ Durum geçiş kuralları (sırayla ilerleme, İptal) kodda: `backend/src/orders/
 
 ## Açık sorular
 
-1. **Reddedilen bayi yeniden başvurabilir mi?** Şu an aynı e-posta ve unvan tekil olduğu
-   için reddedilen bayi aynı bilgilerle yeniden başvuramaz.
-2. **Türkçe karakterlerde tekillik:** Veritabanı `lower()` Türkçe büyük İ/I harflerini
+1. **Türkçe karakterlerde tekillik:** Veritabanı `lower()` Türkçe büyük İ/I harflerini
    her zaman doğru küçültmeyebilir. Uygulama, firma unvanı ve e-postayı kaydetmeden önce
    Türkçe kurallarla normalleştirecek (kimlik doğrulama / başvuru adımında).
-3. **KDV oranı ürün bazında** tutuluyor; ürün girilirken zorunlu. Varsayılan oran belirlenmedi.
+2. **KDV oranı ürün bazında** tutuluyor; ürün girilirken zorunlu. Varsayılan oran belirlenmedi.
