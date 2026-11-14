@@ -9,6 +9,11 @@ Amisos Züccaciye bayi portalı **resmi işlem yapmaz**. Bayi portalda yalnızca
 **ön sipariş** oluşturur. Ön sipariş Amisos'un kullandığı **BizimHesap**
 programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödeme yoktur.
 
+**Roller (şimdilik):** Sistemi tek bir **Admin** yönetir ve her işlemi yapar
+(K-42). Bu dokümanda geçen satış temsilcisi, satış yöneticisi ve finans
+adımlarının hepsini şu an Admin yerine getirir. Rol adları, ileride ayrı
+kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
+
 ## 2. Onaylanan kararlar
 
 | ID | Konu | Karar |
@@ -51,6 +56,9 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 | K-36 | Teslimat şekilleri | Ambar ile, Bayi kendisi alır, Tır yüklemesi. |
 | K-37 | Tır yüklemesi adresi | Adres istenmez, görüşmede belirlenir. |
 | K-38 | Ambar adresi | Başvurudaki adres otomatik gelir, bayi değiştirebilir. Ayrıca ambar firmasının adı ve şubesi girilir. |
+| K-40 | Ürün kataloğu | Ürün grubuna göre listeleme, ad veya barkodla arama, ürün başına birden çok görsel ve açıklama. |
+| K-41 | Sepet | Sepet kalıcıdır, çıkış yapılsa da korunur. Geçmiş sipariş "tekrar sipariş ver" ile sepete kopyalanabilir. |
+| K-42 | Yönetim rolleri | Şimdilik tek rol: Admin. Her işlemi yapar. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 
 ## 3. Gereksinimler
@@ -111,12 +119,23 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 **GR-FIY-003 · KDV gösterimi** · Öncelik: Orta · Kararlar: K-11
 - Kabul: Ürün listesinde ve sepette birim fiyatlar KDV hariç gösterilir.
 
+### Yönetim
+
+**GR-YON-001 · Tek Admin rolü** · Öncelik: Yüksek · Kararlar: K-42
+- Kabul: Admin hesap onayı, pasife alma/aktif etme, ticari koşullar, ürün/fiyat/stok ve sipariş durumu işlemlerinin tamamını yapabilir.
+- Kabul: Bayi kullanıcısı yönetim paneline hiçbir yoldan erişemez (%100 engellenir).
+- Kabul: Admin işlemleri kimin yaptığı ve zamanla kaydedilir, böylece ileride roller ayrıldığında geçmiş izlenebilir.
+
 ### Ürün ve stok
 
 **GR-URN-001 · Ürün kaydı** · Öncelik: Yüksek · Kararlar: K-14, K-15, K-16
 - Ürünler, ürün grupları ve liste fiyatları portal yönetim panelinden yönetilir.
 - Kabul: Barkodu boş ürün kaydedilemez (panelde ve toplu içe aktarımda %100).
 - Kabul: Liste fiyatı değişikliği kayıttan sonraki ön siparişlerde geçerli olur, önceki siparişler değişmez.
+
+**GR-URN-003 · Ürün kataloğu** · Öncelik: Yüksek · Kararlar: K-40
+- Kabul: Bayi ürünleri ürün grubuna göre listeler; ürün adı veya barkodla arar. Tam barkodla arama tek ve doğru ürünü getirir.
+- Kabul: Ürüne birden çok görsel ve bir açıklama eklenebilir. Görseli olmayan ürün varsayılan görselle gösterilir.
 
 **GR-URN-002 · Stok gösterimi** · Öncelik: Orta · Kararlar: K-18, K-19
 - Kabul: Bayi yalnızca "Var" / "Yok" görür, adede hiçbir yoldan ulaşamaz.
@@ -140,6 +159,10 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 
 **GR-SIP-004 · Koli katı** · Öncelik: Yüksek · Kararlar: K-21
 - Kabul: Koli içi 12 olan üründe 12, 24, 36… kabul edilir. 10 veya 13 girilirse sepet kaydedilmez ve uyarı gösterilir.
+
+**GR-SIP-008 · Kalıcı sepet ve tekrar sipariş** · Öncelik: Orta · Kararlar: K-41
+- Kabul: Bayi çıkış yapıp tekrar girdiğinde sepet içeriği aynen korunur.
+- Kabul: "Tekrar sipariş ver" geçmiş siparişin satırlarını güncel fiyat ve stok durumuyla sepete ekler. Artık satılmayan ürünler eklenmez ve bayiye listelenir.
 
 **GR-SIP-005 · Gönderim sonrası kilit** · Öncelik: Yüksek · Kararlar: K-22
 - Kabul: Gönderilmiş ön siparişte düzenleme ve iptal %100 engellenir (ekranda ve veri çağrılarında).
@@ -167,10 +190,15 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 
 ## 4. Onay bekleyen varsayımlar
 
-Yok. Önceki V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı.
+V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı.
+
+| ID | Varsayım | İlgili |
+|---|---|---|
+| V-06 | Tek Admin olduğu için "temsilci önerir, finans onaylar" adımı şimdilik tek adıma iner: Admin ticari koşulları doğrudan belirler. | GR-BAYI-003 |
+| V-07 | "Tekrar sipariş ver" eski fiyatı değil güncel fiyatı kullanır. | GR-SIP-008 |
 
 ## 5. Açık konular
 
 - BizimHesap API araştırması: sipariş aktarımı, stok ve durum okumanın mümkün olup olmadığı (GR-SIP-001, GR-URN-002, GR-SIP-006).
 - BizimHesap sipariş durumlarının portaldaki altı duruma eşlenmesi.
-- Henüz konuşulmamış konular: ürün kataloğu (arama, filtre, görsel), sepetin saklanması, yönetim paneli rolleri, KVKK / kullanım koşulları onayı, raporlama.
+- Henüz konuşulmamış konular: KVKK / kullanım koşulları onayı, raporlama.
