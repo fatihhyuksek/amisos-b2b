@@ -15,25 +15,25 @@ Son güncelleme: 2026-11-14
    (`.claude/agents/`). Branch: `claude/dev-agents`
 8. Veri modeli: 13 tablo, ilk migration, kısıt ve durum geçişi testleri
    (`docs/veri-modeli.md`). Branch: `claude/data-model`
+9. Tasarım sistemi (nötr palet): belirteçler, bileşenler, katalog ve sepet taslakları,
+   açık/koyu tema (`docs/design/README.md`, önizleme `#/tasarim`). Branch: `claude/design-system`
 
 ## Sıradaki adım
 
-**Tasarım sistemi ve ana ekran taslakları** (ui-ux-designer):
-- Renk, tipografi, boşluk ve bileşenler; `frontend/` içinde CSS değişkenleri, `docs/design/` altında belge.
-- Ana akışların taslakları: başvuru, giriş, katalog, sepet, ön sipariş, sipariş geçmişi;
-  Admin onay kuyruğu, ürün/fiyat yönetimi, raporlar.
-- Marka kimliği gelmediyse nötr palet; marka sonra uygulanır.
+**Kimlik doğrulama** (backend-developer + frontend-developer, ardından code-reviewer):
+- Bayi ve Admin girişi (e-posta + şifre), e-posta doğrulama, şifre sıfırlama (1 saat geçerli),
+  pasif bayinin girişinin engellenmesi (GR-BAYI-006, GR-BAYI-007, K-29, K-39).
+- Giriş ve şifre ekranları tasarım sistemine göre; ui-ux-designer görsel denetimi.
 
 ## Sonraki adımlar (sırayla)
 
-1. Kimlik doğrulama: bayi ve Admin girişi, e-posta doğrulama, şifre sıfırlama (GR-BAYI-007).
-2. Bayi başvurusu ve Admin onay akışı (GR-BAYI-001…006, 008, GR-KVK-001).
-3. Ürün kataloğu ve Admin ürün/fiyat yönetimi (GR-URN-001…003).
-4. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
-5. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
-6. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
-7. Raporlar ve özet ana sayfa (GR-RAP-001…003).
-8. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+1. Bayi başvurusu ve Admin onay akışı (GR-BAYI-001…006, 008, GR-KVK-001).
+2. Ürün kataloğu ve Admin ürün/fiyat yönetimi (GR-URN-001…003).
+3. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
+4. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
+5. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
+6. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+7. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
    - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
    - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
    - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı

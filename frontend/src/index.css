@@ -1,59 +1,14 @@
-:root {
-  --bg: #f7f7f5;
-  --fg: #1f2328;
-  --muted: #5c636b;
-  --good: #1a7f37;
-  --bad: #c62828;
-  --card: #ffffff;
-  --border: #d9dcdf;
-  color-scheme: light dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
-}
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/components.css';
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15171a;
-    --fg: #e6e8ea;
-    --muted: #9aa1a8;
-    --good: #4ac26b;
-    --bad: #ff6b6b;
-    --card: #1e2125;
-    --border: #33373c;
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-}
-
+/* Geçici başlangıç sayfası (sunucu durumu). */
 .shell {
   max-width: 40rem;
   margin: 0 auto;
-  padding: 3rem 1rem;
-}
-
-h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.subtitle {
-  margin: 0.25rem 0 2rem;
-  color: var(--muted);
-}
-
-.status {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
+  padding: var(--space-12) var(--space-4);
+  display: grid;
+  gap: var(--space-4);
 }
 
 .status ul {
@@ -63,9 +18,9 @@ h1 {
 }
 
 .good {
-  color: var(--good);
+  color: var(--color-success);
 }
 
 .bad {
-  color: var(--bad);
+  color: var(--color-danger);
 }
