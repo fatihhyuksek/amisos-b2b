@@ -20,8 +20,8 @@ if errorlevel 1 (
   exit /b 1
 )
 if not exist "backend\.env" copy "backend\.env.example" "backend\.env" >nul
-REM Eski portlari (3000/5173) yeni portlara (3100/5180) tasir.
-powershell -NoProfile -Command "$f='backend\.env'; (Get-Content $f) -replace '^PORT=3000$','PORT=3100' -replace 'localhost:5173','localhost:5180' | Set-Content $f"
+REM Eski portlari yeni portlara tasir: 3000->3100, 5173->5180, veritabani 5432->5433.
+powershell -NoProfile -Command "$f='backend\.env'; (Get-Content $f) -replace '^PORT=3000$','PORT=3100' -replace 'localhost:5173','localhost:5180' -replace 'localhost:5432','localhost:5433' | Set-Content $f"
 if not exist "backend\node_modules" (cd backend && call npm install && cd ..)
 if not exist "frontend\node_modules" (cd frontend && call npm install && cd ..)
 cd backend

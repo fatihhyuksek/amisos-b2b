@@ -9,7 +9,8 @@ services:
       POSTGRES_PASSWORD: amisos
       POSTGRES_DB: amisos_b2b
     ports:
-      - "5432:5432"
+      # Bilgisayarda kurulu başka bir PostgreSQL (5432) ile çakışmasın diye 5433.
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:

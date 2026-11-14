@@ -13,7 +13,7 @@ export default defineConfig({
       // Testlerde hız sınırı devre dışı denecek kadar yüksek; hız sınırı testi kendi değerini koyar.
       AUTH_RATE_LIMIT_PER_MINUTE: '1000',
       DATABASE_URL:
-        process.env.DATABASE_URL ?? 'postgres://amisos:amisos@localhost:5432/amisos_b2b',
+        process.env.DATABASE_URL ?? 'postgres://amisos:amisos@localhost:5433/amisos_b2b',
     },
   },
 });
