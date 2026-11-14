@@ -10,6 +10,7 @@ import {
 import type { DealerStatus } from '../api'
 import { BrandLogo } from '../shop/brand'
 import { DEALER_STATUS } from './dealerStatus'
+import { ORDER_STATUS, type OrderStatus } from './orderStatus'
 import { formatPercent, formatTRY } from './format'
 import { Icon, type IconName } from './Icon'
 
@@ -60,20 +61,9 @@ export function StockBadge({ inStock }: { inStock: boolean }) {
   return inStock ? <Badge tone="success">Stokta var</Badge> : <Badge tone="warning">Stokta yok</Badge>
 }
 
-export type OrderStatus = 'submitted' | 'negotiating' | 'approved' | 'shipped' | 'delivered' | 'cancelled'
-
-const STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
-  submitted: { label: 'Gönderildi', tone: 'info' },
-  negotiating: { label: 'Görüşülüyor', tone: 'warning' },
-  approved: { label: 'Onaylandı', tone: 'success' },
-  shipped: { label: 'Sevk edildi', tone: 'info' },
-  delivered: { label: 'Teslim edildi', tone: 'success' },
-  cancelled: { label: 'İptal', tone: 'danger' },
-}
-
 /** Sipariş durumları (K-25). */
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  const s = STATUS[status]
+  const s = ORDER_STATUS[status]
   return <Badge tone={s.tone}>{s.label}</Badge>
 }
 

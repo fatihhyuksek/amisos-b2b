@@ -11,8 +11,8 @@ import {
   Price,
   QuantityStepper,
   StockBadge,
-  type OrderStatus,
 } from '../ui/components'
+import type { OrderStatus } from '../ui/orderStatus'
 import { formatTRY } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { CartDraft } from './CartDraft'

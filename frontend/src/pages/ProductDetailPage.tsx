@@ -1,6 +1,8 @@
 // GR-URN-003, GR-URN-002, GR-FIY-001, GR-FIY-003, K-40, K-18, K-10, K-11: Ürün detayı ve galeri.
-// Sepete ekleme alanı yer olarak hazır; sepet frontend'i sonraki adımda bağlanacak (GR-SIP-004, K-21).
+// Sepete ekleme alanı: koli adımlı miktar, sepette varsa mevcut miktar (GR-SIP-003, GR-SIP-004, K-20, K-21).
 import { useState, type KeyboardEvent } from 'react'
+import { useCart } from '../shop/cart'
+import { useAddToCart } from '../shop/useAddToCart'
 import { fetchCatalogProduct, type CatalogProduct } from '../api'
 import { useLoad } from '../admin/useLoad'
 import { Link } from '../Link'
@@ -103,26 +105,48 @@ function Gallery({ product }: { product: CatalogProduct }) {
   )
 }
 
-/** Sepete ekleme alanı: şimdilik pasif. Sepet bağlanınca miktar ve buton etkinleşir. */
+/** Sepete ekleme alanı. Sepette varsa mevcut miktar gösterilir ve buton "Sepeti güncelle" olur. */
 function AddToCartBox({ product }: { product: CatalogProduct }) {
-  const [qty, setQty] = useState(product.caseQuantity)
+  const { status, quantityOf } = useCart()
+  const add = useAddToCart()
+  const inCart = quantityOf(product.id)
+  // null: bayi henüz değiştirmedi; sepetteki miktar (yoksa bir koli) gösterilir.
+  const [edited, setEdited] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+  const qty = edited ?? (inCart > 0 ? inCart : product.caseQuantity)
+  const valid = Number.isInteger(qty) && qty > 0 && qty % product.caseQuantity === 0
+  const unchanged = inCart > 0 && qty === inCart
+
+  async function submit() {
+    setBusy(true)
+    const ok = await add(product, qty, inCart > 0 ? 'update' : 'add')
+    setBusy(false)
+    if (ok) setEdited(null)
+  }
+
   return (
     <div className="ui-buybox">
+      {inCart > 0 && (
+        <p className="ui-buybox__incart num">
+          <Icon name="bag" />
+          Sepetinizde: {inCart} adet
+        </p>
+      )}
       <div className="ui-buybox__row">
-        <QuantityStepper
-          value={qty}
-          step={product.caseQuantity}
-          onChange={setQty}
-          label={product.name}
-          disabled
-        />
-        <Button icon="bagPlus" disabled className="ui-buybox__btn">
-          Sepete ekle
+        <QuantityStepper value={qty} step={product.caseQuantity} onChange={setEdited} label={product.name} />
+        <Button
+          icon="bagPlus"
+          className="ui-buybox__btn"
+          disabled={busy || !valid || unchanged || status === 'error'}
+          onClick={submit}
+        >
+          {busy ? 'Kaydediliyor…' : inCart > 0 ? 'Sepeti güncelle' : 'Sepete ekle'}
         </Button>
       </div>
       <p className="ui-buybox__note">
         <Icon name="info" />
-        Sepet yakında açılacak. Miktar, koli içi adedin ({product.caseQuantity}) katları halinde seçilir.
+        Miktar, koli içi adedin ({product.caseQuantity}) katları halinde seçilir.
+        {product.stock !== 'in_stock' && ' Stokta yok: tedarik süresi görüşülecek.'}
       </p>
     </div>
   )

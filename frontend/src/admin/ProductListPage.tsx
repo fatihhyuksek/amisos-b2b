@@ -104,6 +104,7 @@ export function ProductListPage() {
     <Button
       variant="secondary"
       size="sm"
+      className="ui-button--touch"
       disabled={busyId === p.id}
       onClick={() => toggleStock(p)}
       aria-label={`${p.name}: stoku ${p.stockStatus === 'in_stock' ? 'Yok' : 'Var'} yap`}

@@ -9,6 +9,7 @@ import { BrandLogo } from '../shop/brand'
 import { catalogHref } from '../shop/catalogHref'
 import { CONTACT, PHONE_HREF, WHATSAPP_HREF } from '../shop/contact'
 import { useCartCount } from '../shop/cartCount'
+import { CartToast } from '../shop/CartToast'
 import { useCatalogGroups } from '../shop/useCatalogGroups'
 import { Button, Modal } from '../ui/components'
 import { Icon, type IconName } from '../ui/Icon'
@@ -595,6 +596,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
         <div className="ui-shop__container ui-shop__content">{children}</div>
       </main>
       <Footer />
+      <CartToast />
       <Drawer
         open={drawer}
         onClose={() => setDrawer(false)}

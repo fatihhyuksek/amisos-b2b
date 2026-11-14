@@ -1,11 +1,12 @@
 // Bayi ana sayfası: kampanya alanı (K-65), görselli kategori kutucukları, katalogdan ürünler.
 // GR-URN-003, GR-FIY-003, K-40.
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ApiError, fetchCatalogProducts, type CatalogGroup, type CatalogProduct } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { useLoad } from '../admin/useLoad'
 import { Link } from '../Link'
 import { PromoCarousel } from '../shop/PromoCarousel'
+import { useAddToCart } from '../shop/useAddToCart'
 import { useBanners } from '../shop/useBanners'
 import { useCatalogGroups } from '../shop/useCatalogGroups'
 import { ErrorAlert, ProductCard, ProductCardSkeleton } from '../ui/catalog'
@@ -16,32 +17,9 @@ import { ShopLayout } from './ShopLayout'
 const MAX_TILES = 12
 const PRODUCT_COUNT = 10
 
-/**
- * Her grubun ilk görselli ürününün küçük resmi. Backend'de grup kapak görseli yok;
- * grup başına küçük bir istek atılır (en fazla MAX_TILES). Açık soru: grup kapak görseli ucu.
- */
-function useGroupThumbs(groups: CatalogGroup[]) {
-  const [thumbs, setThumbs] = useState<Record<string, string | null>>({})
-  const ids = groups.map((g) => g.id).join(',')
-  useEffect(() => {
-    if (!ids) return
-    const c = new AbortController()
-    for (const id of ids.split(',')) {
-      fetchCatalogProducts({ groupId: id, page: 1, pageSize: 12 }, c.signal)
-        .then((r) => {
-          const hit = r.items.find((p) => p.images.length > 0)
-          setThumbs((t) => ({ ...t, [id]: hit?.images[0].thumbUrl ?? null }))
-        })
-        .catch(() => {
-          if (!c.signal.aborted) setThumbs((t) => ({ ...t, [id]: null }))
-        })
-    }
-    return () => c.abort()
-  }, [ids])
-  return thumbs
-}
-
-function CategoryTile({ group, thumb }: { group: CatalogGroup; thumb: string | null | undefined }) {
+/** Kapak: gruplar yanıtındaki thumbUrl (ilk görselli ürün); yoksa ikon. */
+function CategoryTile({ group }: { group: CatalogGroup }) {
+  const thumb = group.thumbUrl
   const [failed, setFailed] = useState(false)
   return (
     <li>
@@ -61,15 +39,13 @@ function CategoryTile({ group, thumb }: { group: CatalogGroup; thumb: string | n
 
 export function HomePage() {
   const { refresh } = useAuth()
+  const addToCart = useAddToCart()
   const banners = useBanners()
   const groups = useCatalogGroups()
   const groupList = groups.state.status === 'ready' ? groups.state.data.slice(0, MAX_TILES) : []
-  const thumbs = useGroupThumbs(groupList)
-  // Not: katalog ucunda "en yeni" sıralaması yok (ad sırası). Sıralama parametresi gelince
-  // başlık "Yeni ürünler" olur ve istek ona göre değişir. Açık soru olarak yazıldı.
   const products = useLoad<CatalogProduct[]>(
     (s) =>
-      fetchCatalogProducts({ page: 1, pageSize: PRODUCT_COUNT }, s)
+      fetchCatalogProducts({ sort: 'newest', page: 1, pageSize: PRODUCT_COUNT }, s)
         .then((r) => r.items)
         .catch((err: unknown) => {
           if (err instanceof ApiError && (err.status === 401 || err.status === 403)) void refresh()
@@ -106,7 +82,7 @@ export function HomePage() {
           </div>
           <ul className="ui-cattiles">
             {groupList.map((g) => (
-              <CategoryTile key={g.id} group={g} thumb={thumbs[g.id]} />
+              <CategoryTile key={g.id} group={g} />
             ))}
           </ul>
         </section>
@@ -114,7 +90,7 @@ export function HomePage() {
 
       <section aria-labelledby="products-title" className="ui-home__section">
         <div className="ui-sectionhead ui-sectionhead--center">
-          <h2 id="products-title">Katalogdan ürünler</h2>
+          <h2 id="products-title">Yeni ürünler</h2>
           <p className="muted">Fiyatlar KDV hariçtir</p>
         </div>
         {products.state.status === 'loading' && (
@@ -130,7 +106,7 @@ export function HomePage() {
         {products.state.status === 'ready' && products.state.data.length > 0 && (
           <ul className="ui-pgrid ui-pgrid--home">
             {products.state.data.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} onAdd={(prod) => void addToCart(prod)} />
             ))}
           </ul>
         )}

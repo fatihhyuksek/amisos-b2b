@@ -3,6 +3,7 @@ import { BrandLogo } from './shop/brand'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
+import { BannerListPage } from './admin/BannerListPage'
 import { DealerCreatePage } from './admin/DealerCreatePage'
 import { DealerDetailPage } from './admin/DealerDetailPage'
 import { DealerListPage } from './admin/DealerListPage'
@@ -13,7 +14,12 @@ import { ProductImportPage } from './admin/ProductImportPage'
 import { ProductListPage } from './admin/ProductListPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { HomePage } from './pages/HomePage'
-import { AccountPage, ComingSoonPage } from './pages/ShopPlaceholderPages'
+import { AccountPage } from './pages/ShopPlaceholderPages'
+import { CartPage } from './pages/CartPage'
+import { CheckoutPage } from './pages/CheckoutPage'
+import { OrderDetailPage } from './pages/OrderDetailPage'
+import { OrdersPage } from './pages/OrdersPage'
+import { CartProvider } from './shop/CartProvider'
 import { ProductDetailPage } from './pages/ProductDetailPage'
 import { DesignPreview } from './design/DesignPreview'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -143,13 +149,19 @@ function Routes() {
     case '/sepet':
       return (
         <Protected area="dealer">
-          <ComingSoonPage title="Sepetim" />
+          <CartPage />
+        </Protected>
+      )
+    case '/sepet/onay':
+      return (
+        <Protected area="dealer">
+          <CheckoutPage />
         </Protected>
       )
     case '/siparislerim':
       return (
         <Protected area="dealer">
-          <ComingSoonPage title="Siparişlerim" />
+          <OrdersPage />
         </Protected>
       )
     case '/hesabim':
@@ -206,7 +218,20 @@ function Routes() {
           <MediaLibraryPage />
         </Protected>
       )
+    case '/yonetim/bannerlar':
+      return (
+        <Protected area="admin">
+          <BannerListPage />
+        </Protected>
+      )
     default: {
+      const order = matchPath(path, '/siparislerim/:id')
+      if (order)
+        return (
+          <Protected area="dealer">
+            <OrderDetailPage id={order.id} />
+          </Protected>
+        )
       const product = matchPath(path, '/yonetim/urunler/:id')
       if (product)
         return (
@@ -233,6 +258,13 @@ function Routes() {
   }
 }
 
+/** Sepet bayiye aittir: oturum sahibi değişince sepet durumu sıfırlanır. */
+function DealerCart({ children }: { children: ReactNode }) {
+  const { state } = useAuth()
+  const key = state.status === 'authenticated' ? state.user.id : 'anon'
+  return <CartProvider key={key}>{children}</CartProvider>
+}
+
 function App() {
   // Önizlemede seçilen tema tüm sayfalarda uygulanır.
   useEffect(() => {
@@ -245,7 +277,9 @@ function App() {
   }, [])
   return (
     <AuthProvider>
-      <Routes />
+      <DealerCart>
+        <Routes />
+      </DealerCart>
     </AuthProvider>
   )
 }

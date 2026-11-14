@@ -11,6 +11,7 @@ import { ErrorAlert, ProductCard, ProductCardSkeleton } from '../ui/catalog'
 import { formatInt } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { catalogHref } from '../shop/catalogHref'
+import { useAddToCart } from '../shop/useAddToCart'
 import { ShopLayout } from './ShopLayout'
 
 const PAGE_SIZE = 24
@@ -28,6 +29,7 @@ export function CatalogPage() {
   const { query } = useRoute()
   const q = (query.get('q') ?? '').trim()
   const groupId = query.get('grup') ?? ''
+  const addToCart = useAddToCart()
   const groups = useCatalogGroups()
   const groupList = groups.state.status === 'ready' ? groups.state.data : []
   const group = groupList.find((g) => g.id === groupId)
@@ -185,7 +187,7 @@ export function CatalogPage() {
             <>
               <ul className="ui-pgrid">
                 {list.items.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                  <ProductCard key={p.id} product={p} onAdd={(prod) => void addToCart(prod)} />
                 ))}
               </ul>
               {list.loadMoreFailed && <ErrorAlert onRetry={loadMore}>Daha fazla ürün alınamadı.</ErrorAlert>}

@@ -29,17 +29,17 @@ export function AnnouncementCard() {
 
 function Slide({ banner }: { banner: Banner }) {
   const img = (
-    <picture>
-      {banner.mobileImageUrl && <source media="(max-width: 39.99rem)" srcSet={banner.mobileImageUrl} />}
+    <>
       <img src={banner.imageUrl} alt={banner.alt} decoding="async" />
-    </picture>
+      {banner.subtitle && <span className="ui-carousel__caption">{banner.subtitle}</span>}
+    </>
   )
   return banner.href ? (
     <Link to={banner.href} className="ui-carousel__link">
       {img}
     </Link>
   ) : (
-    img
+    <div className="ui-carousel__link">{img}</div>
   )
 }
 

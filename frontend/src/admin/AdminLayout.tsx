@@ -16,6 +16,11 @@ const LINKS = [
     match: (p: string) => p.startsWith('/yonetim/urun-gruplari'),
   },
   { to: '/yonetim/gorseller', label: 'Görseller', match: (p: string) => p.startsWith('/yonetim/gorseller') },
+  {
+    to: '/yonetim/bannerlar',
+    label: 'Kampanya görselleri',
+    match: (p: string) => p.startsWith('/yonetim/bannerlar'),
+  },
 ]
 
 export function AdminLayout({
@@ -41,6 +46,7 @@ export function AdminLayout({
           <Button
             variant="secondary"
             size="sm"
+            className="ui-button--touch"
             onClick={async () => {
               await logout()
               replace('/yonetim/giris')

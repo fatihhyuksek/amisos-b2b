@@ -1,31 +1,9 @@
-// Başlıktaki bağlantıların boşa düşmemesi için yer tutucu sayfalar.
-// Sepet ve Siparişlerim sonraki adımda gerçek ekranlarla değişecek (GR-SIP-006, GR-SIP-008).
+// Hesabım sayfası (bilgi + çıkış). Sepet ve Siparişlerim gerçek ekranlara taşındı.
 import { useAuth } from '../auth/useAuth'
-import { Link } from '../Link'
 import { replace } from '../router'
 import { CONTACT, PHONE_HREF } from '../shop/contact'
-import { Button, EmptyState } from '../ui/components'
+import { Button } from '../ui/components'
 import { ShopLayout } from './ShopLayout'
-
-export function ComingSoonPage({ title }: { title: string }) {
-  return (
-    <ShopLayout>
-      <h1>{title}</h1>
-      <div className="ui-card">
-        <EmptyState
-          title="Bu bölüm hazırlanıyor"
-          action={
-            <Link to="/katalog" className="ui-button ui-button--primary">
-              Kataloğa git
-            </Link>
-          }
-        >
-          Kısa süre içinde buradan işlem yapabileceksiniz.
-        </EmptyState>
-      </div>
-    </ShopLayout>
-  )
-}
 
 export function AccountPage() {
   const { state, logout } = useAuth()

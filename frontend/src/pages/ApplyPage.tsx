@@ -97,7 +97,7 @@ export function ApplyPage() {
   }
 
   const textLink = (label: string, key: string) => (
-    <button type="button" className="ui-linklike" onClick={() => setTextModal(key)}>
+    <button type="button" className="ui-linklike ui-linklike--touch" onClick={() => setTextModal(key)}>
       {label}
     </button>
   )

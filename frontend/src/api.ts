@@ -49,6 +49,7 @@ async function send(method: string, path: string, body?: unknown): Promise<Respo
 }
 
 const post = (path: string, body?: unknown) => send('POST', path, body)
+const put = (path: string, body?: unknown) => send('PUT', path, body)
 
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`/api${path}`, { credentials: 'include', signal })
@@ -445,6 +446,8 @@ export interface CatalogGroup {
   id: string
   name: string
   productCount: number
+  /** Grubun kapak küçük resmi (ilk görselli ürün); yoksa null/eksik. */
+  thumbUrl?: string | null
 }
 
 export function fetchCatalogGroups(signal?: AbortSignal): Promise<CatalogGroup[]> {
@@ -452,7 +455,7 @@ export function fetchCatalogGroups(signal?: AbortSignal): Promise<CatalogGroup[]
 }
 
 export function fetchCatalogProducts(
-  params: { q?: string; groupId?: string; page: number; pageSize: number },
+  params: { q?: string; groupId?: string; sort?: 'newest'; page: number; pageSize: number },
   signal?: AbortSignal,
 ): Promise<Paged<CatalogProduct>> {
   return getJson(`/catalog/products${qsOf(params)}`, signal)
@@ -460,4 +463,251 @@ export function fetchCatalogProducts(
 
 export function fetchCatalogProduct(id: string, signal?: AbortSignal): Promise<CatalogProduct> {
   return getJson(`/catalog/products/${encodeURIComponent(id)}`, signal)
+}
+
+// ---------- Sepet ve ön sipariş (docs/api/siparis-api.md) ----------
+// Tutarlar metin olarak gelir ve olduğu gibi gösterilir; arayüzde hesap yapılmaz.
+
+export interface CartLine {
+  productId: string
+  barcode: string
+  code: string | null
+  name: string
+  thumbUrl: string | null
+  quantity: number
+  caseQuantity: number
+  stock: StockStatus
+  listPrice: string
+  discountPercent: string | null
+  unitPrice: string
+  lineGross: string
+  lineDiscount: string
+  lineNet: string
+  vatRate: string
+  lineVat: string
+}
+
+export interface MoneySummary {
+  grossTotal: string
+  discountTotal: string
+  netTotal: string
+  vatTotal: string
+  grandTotal: string
+}
+
+export interface CartAdjusted {
+  productId: string
+  name: string
+  from: number
+  to: number
+  caseQuantity: number
+}
+
+export interface Cart {
+  lines: CartLine[]
+  summary: MoneySummary
+  warnings: { code: string; productId: string; name: string }[]
+  removed: { productId: string; name: string }[]
+  adjusted: CartAdjusted[]
+}
+
+export function fetchCart(signal?: AbortSignal): Promise<Cart> {
+  return getJson('/cart', signal)
+}
+
+/** Ekler veya miktarı değiştirir (0 = kaldırır). Koli katı değilse 400 CASE_MULTIPLE. */
+export async function putCartItem(productId: string, quantity: number): Promise<Cart> {
+  return (await (await put(`/cart/items/${encodeURIComponent(productId)}`, { quantity })).json()) as Cart
+}
+
+export async function deleteCartItem(productId: string): Promise<Cart> {
+  return (await (await del(`/cart/items/${encodeURIComponent(productId)}`)).json()) as Cart
+}
+
+export async function clearCartApi(): Promise<void> {
+  await del('/cart')
+}
+
+export interface CheckoutDefaults {
+  address: string
+  lastCarrier: { name: string; branch: string } | null
+}
+
+export function fetchCheckoutDefaults(signal?: AbortSignal): Promise<CheckoutDefaults> {
+  return getJson('/cart/checkout-defaults', signal)
+}
+
+export type DeliveryMethod = 'carrier' | 'pickup' | 'truck'
+
+export interface OrderInput {
+  deliveryMethod: DeliveryMethod
+  deliveryAddress?: string
+  carrierName?: string
+  carrierBranch?: string
+  note?: string
+  expectedTotal: string
+}
+
+/** 409 PRICE_CHANGED gövdesindeki güncel sepeti de taşır. */
+export class PriceChangedError extends ApiError {
+  readonly cart: Cart
+  constructor(cart: Cart) {
+    super(409, 'PRICE_CHANGED')
+    this.cart = cart
+  }
+}
+
+export async function submitOrder(input: OrderInput): Promise<{ id: string; orderNo: number }> {
+  const res = await fetch('/api/orders', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (res.status === 409) {
+    try {
+      const body = (await res.clone().json()) as { code?: string; cart?: Cart }
+      if (body.code === 'PRICE_CHANGED' && body.cart) throw new PriceChangedError(body.cart)
+    } catch (err) {
+      if (err instanceof PriceChangedError) throw err
+    }
+  }
+  if (!res.ok) throw await toError(res)
+  return (await res.json()) as { id: string; orderNo: number }
+}
+
+export type OrderStatusValue =
+  | 'submitted'
+  | 'negotiating'
+  | 'approved'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+
+export interface OrderListItem {
+  id: string
+  orderNo: number
+  submittedAt: string
+  status: OrderStatusValue
+  netTotal: string
+  grandTotal: string
+  lineCount: number
+}
+
+export interface OrderLine {
+  lineNo: number
+  productId: string
+  barcode: string
+  code: string | null
+  name: string
+  quantity: number
+  caseQuantity: number
+  listPrice: string
+  discountPercent: string | null
+  unitPrice: string
+  lineGross: string
+  lineDiscount: string
+  lineNet: string
+  vatRate: string
+  lineVat: string
+  outOfStock: boolean
+}
+
+export interface OrderDetail {
+  id: string
+  orderNo: number
+  status: OrderStatusValue
+  submittedAt: string
+  deliveryMethod: DeliveryMethod
+  deliveryAddress: string | null
+  carrierName: string | null
+  carrierBranch: string | null
+  note: string | null
+  lines: OrderLine[]
+  summary: MoneySummary
+  history: {
+    fromStatus: OrderStatusValue | null
+    toStatus: OrderStatusValue
+    source: string
+    createdAt: string
+  }[]
+}
+
+export function fetchOrders(
+  params: { page: number; pageSize: number },
+  signal?: AbortSignal,
+): Promise<Paged<OrderListItem>> {
+  return getJson(`/orders${qsOf(params)}`, signal)
+}
+
+export function fetchOrder(id: string, signal?: AbortSignal): Promise<OrderDetail> {
+  return getJson(`/orders/${encodeURIComponent(id)}`, signal)
+}
+
+export interface ReorderResult {
+  cart: Cart
+  added: { productId: string; name: string; quantity: number }[]
+  skipped: { productId: string; name: string; barcode: string; reason: string }[]
+  adjusted: CartAdjusted[]
+}
+
+export async function reorder(id: string): Promise<ReorderResult> {
+  return (await (await post(`/orders/${encodeURIComponent(id)}/reorder`)).json()) as ReorderResult
+}
+
+// ---------- Kampanya görselleri / banner (docs/api/banner-api.md, K-65) ----------
+
+export interface ShopBanner {
+  id: string
+  title: string
+  subtitle: string | null
+  linkPath: string | null
+  imageUrl: string
+  thumbUrl: string
+}
+
+export function fetchShopBanners(signal?: AbortSignal): Promise<ShopBanner[]> {
+  return getJson('/catalog/banners', signal)
+}
+
+export interface AdminBanner extends ShopBanner {
+  mediaId: string
+  sortOrder: number
+  isActive: boolean
+  startsAt: string | null
+  endsAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BannerInput {
+  mediaId: string
+  title: string
+  subtitle: string | null
+  linkPath: string | null
+  isActive: boolean
+  startsAt: string | null
+  endsAt: string | null
+}
+
+export function fetchAdminBanners(signal?: AbortSignal): Promise<AdminBanner[]> {
+  return getJson('/admin/banners', signal)
+}
+
+export async function createBanner(input: BannerInput): Promise<AdminBanner> {
+  return (await (await post('/admin/banners', input)).json()) as AdminBanner
+}
+
+export async function updateBanner(id: string, patch: Partial<BannerInput>): Promise<AdminBanner> {
+  return (await (
+    await send('PATCH', `/admin/banners/${encodeURIComponent(id)}`, patch)
+  ).json()) as AdminBanner
+}
+
+export async function deleteBanner(id: string): Promise<void> {
+  await del(`/admin/banners/${encodeURIComponent(id)}`)
+}
+
+export async function reorderBanners(ids: string[]): Promise<AdminBanner[]> {
+  return (await (await put('/admin/banners/order', { ids })).json()) as AdminBanner[]
 }
