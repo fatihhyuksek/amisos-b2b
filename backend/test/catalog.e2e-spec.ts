@@ -899,7 +899,7 @@ describe('Katalog (e2e)', () => {
       const ids = groups.map((g) => g.id);
       expect(ids).not.toContain(empty.id);
       expect(ids).not.toContain(onlyInactive.id);
-      expect(groups.find((g) => g.id === mutfak)).toEqual({ id: mutfak, name: gname('Katalog Mutfak'), productCount: 2 });
+      expect(groups.find((g) => g.id === mutfak)).toEqual({ id: mutfak, name: gname('Katalog Mutfak'), productCount: 2, thumbUrl: null });
       expect(ids.indexOf(mutfak)).toBeLessThan(ids.indexOf(tabak));
     });
 
@@ -938,6 +938,47 @@ describe('Katalog (e2e)', () => {
         { url: `/api/media/${m2.id}/large.webp`, thumbUrl: `/api/media/${m2.id}/thumb.webp` },
         { url: `/api/media/${m1.id}/large.webp`, thumbUrl: `/api/media/${m1.id}/thumb.webp` },
       ]);
+    });
+
+    it('GR-URN-003: sort=newest yeni eklenen önce; varsayılan ad sırası; geçersiz sort 400; tam barkod yine en üstte', async () => {
+      const d = await dealerAgent('kat-sort');
+      const g = await createGroup('Katalog Sıra');
+      const b = await createProduct(g.id, 'so1', { name: `Bbb ${run}` });
+      const a = await createProduct(g.id, 'so2', { name: `Aaa ${run}` });
+      const c = await createProduct(g.id, 'so3', { name: `Ccc ${run}` });
+      const idsOf = (res: { body: { items: { id: string }[] } }) => res.body.items.map((i) => i.id);
+      const q = { groupId: g.id };
+      expect(idsOf(await d.agent.get('/api/catalog/products').query(q).expect(200))).toEqual([a.id, b.id, c.id]);
+      expect(idsOf(await d.agent.get('/api/catalog/products').query({ ...q, sort: 'name' }).expect(200))).toEqual([a.id, b.id, c.id]);
+      expect(idsOf(await d.agent.get('/api/catalog/products').query({ ...q, sort: 'newest' }).expect(200))).toEqual([c.id, a.id, b.id]);
+      await d.agent.get('/api/catalog/products').query({ ...q, sort: 'oldest' }).expect(400);
+      const exact = await d.agent.get('/api/catalog/products').query({ q: b.barcode, sort: 'newest' }).expect(200);
+      expect(idsOf(exact)).toEqual([b.id]);
+    });
+
+    it('GR-URN-003: groups thumbUrl görselli ilk aktif ürünün ilk görseli; görselsiz veya pasif ürünün görseli sayılmaz (null)', async () => {
+      const d = await dealerAgent('kat-grupthumb');
+      const up = await admin.agent
+        .post('/api/admin/media')
+        .attach('files', await png(), 'g1.png')
+        .attach('files', await png(), 'g2.png')
+        .attach('files', await png(), 'g3.png')
+        .expect(201);
+      const [m1, m2, m3] = up.body.items as { id: string }[];
+      const withImg = await createGroup('Katalog Thumb Dolu');
+      const noImg = await createGroup('Katalog Thumb Boş');
+      const inactiveOnly = await createGroup('Katalog Thumb Pasif');
+      await createProduct(withImg.id, 'th0', { name: `Aaa görselsiz ${run}` });
+      await createProduct(withImg.id, 'th1', { name: `Bbb ${run}`, mediaIds: [m2.id, m1.id] });
+      await createProduct(withImg.id, 'th2', { name: `Ccc ${run}`, mediaIds: [m3.id] });
+      await createProduct(noImg.id, 'th3');
+      await createProduct(inactiveOnly.id, 'th4', { mediaIds: [m3.id], isActive: false });
+      await createProduct(inactiveOnly.id, 'th5');
+      const groups = (await d.agent.get('/api/catalog/groups').expect(200)).body as { id: string; thumbUrl: string | null }[];
+      const thumb = (id: string) => groups.find((g) => g.id === id)?.thumbUrl;
+      expect(thumb(withImg.id)).toBe(`/api/media/${m2.id}/thumb.webp`);
+      expect(thumb(noImg.id)).toBeNull();
+      expect(thumb(inactiveOnly.id)).toBeNull();
     });
 
     it('GR-FIY-001: pasife alınan bayi katalogdan çıkar (oturum geçersiz)', async () => {

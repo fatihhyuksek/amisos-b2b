@@ -109,6 +109,7 @@ export type AdminProductListQuery = z.infer<typeof adminProductListSchema>;
 export const catalogListSchema = z.object({
   q: z.string().trim().max(100).optional(),
   groupId: z.uuid().optional(),
+  sort: z.enum(['name', 'newest']).default('name'),
   ...paging,
   pageSize: z.coerce.number().int().min(1).max(100).default(24),
 });
