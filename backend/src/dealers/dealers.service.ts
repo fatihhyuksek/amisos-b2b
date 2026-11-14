@@ -1,6 +1,7 @@
 // Bayi başvurusu ve Admin bayi yönetimi.
 // GR-BAYI-001…008, GR-KVK-001, GR-YON-001; K-02 – K-08, K-12, K-35, K-43, K-45, K-51.
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   and,
+  asc,
   desc,
   eq,
   inArray,
@@ -37,13 +39,17 @@ import { AuthService } from '../auth/auth.service.js';
 import { SessionsService } from '../auth/sessions.service.js';
 import { isBusinessDaysOverdue } from '../common/business-days.js';
 import { CLOCK, type Clock } from '../common/clock.js';
+import { escapeLike } from '../common/like.js';
+import { isUniqueViolation } from '../common/pg-errors.js';
 import { DB, type Database } from '../database/database.module.js';
 import {
   adminUsers,
   auditLog,
   authTokens,
   consents,
+  dealerGroupDiscounts,
   dealers,
+  productGroups,
 } from '../database/schema.js';
 import type {
   ApplicationInput,
@@ -74,20 +80,7 @@ export interface DealerSummary {
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
-/** LIKE joker karakterlerini (% _ \) kaçırır; kullanıcı girdisi desen olarak yorumlanmaz. */
-export function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
-}
-
-/** PostgreSQL benzersizlik ihlali (drizzle hatayı `cause` içine sarar). */
-function isUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  for (let i = 0; i < 4 && current; i++) {
-    if ((current as { code?: unknown }).code === '23505') return true;
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
+export { escapeLike };
 
 const TERMS_EDITABLE: DealerStatus[] = [
   'pending_approval',
@@ -454,6 +447,79 @@ export class DealersService {
           entityType: 'dealers',
           entityId: id,
           data: { previous: dealer.previous, next: percent },
+        },
+        tx,
+      );
+    });
+  }
+
+  /** K-12, K-13: bayinin grup iskontoları (grup adıyla). */
+  async getGroupDiscounts(id: string) {
+    await this.getOrThrow(id);
+    return this.db
+      .select({
+        groupId: dealerGroupDiscounts.groupId,
+        groupName: productGroups.name,
+        discountPercent: dealerGroupDiscounts.discountPercent,
+      })
+      .from(dealerGroupDiscounts)
+      .innerJoin(productGroups, eq(productGroups.id, dealerGroupDiscounts.groupId))
+      .where(eq(dealerGroupDiscounts.dealerId, id))
+      .orderBy(asc(productGroups.sortOrder), asc(productGroups.name));
+  }
+
+  /**
+   * K-12, K-13: listeyi tamamen değiştirir (boş liste = hepsini kaldır). Yalnızca incelenebilir/aktif/pasif
+   * bayide (K-12 genel iskontoyla aynı kısıt). Önceki ve yeni liste audit_log'a yazılır.
+   */
+  async setGroupDiscounts(
+    id: string,
+    adminId: string,
+    items: { groupId: string; discountPercent: string }[],
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [dealer] = await tx
+        .select({ status: dealers.status })
+        .from(dealers)
+        .where(eq(dealers.id, id))
+        .for('update');
+      if (!dealer) throw new NotFoundException('Bayi bulunamadı.');
+      if (!TERMS_EDITABLE.includes(dealer.status)) throw invalidState();
+      if (items.length > 0) {
+        const found = await tx
+          .select({ id: productGroups.id })
+          .from(productGroups)
+          .where(inArray(productGroups.id, items.map((i) => i.groupId)));
+        if (found.length !== items.length) {
+          throw new BadRequestException({
+            statusCode: 400,
+            code: 'VALIDATION',
+            message: 'Girilen bilgiler geçersiz.',
+            fields: { items: 'Ürün gruplarından biri bulunamadı.' },
+          });
+        }
+      }
+      const previous = await tx
+        .select({
+          groupId: dealerGroupDiscounts.groupId,
+          discountPercent: dealerGroupDiscounts.discountPercent,
+        })
+        .from(dealerGroupDiscounts)
+        .where(eq(dealerGroupDiscounts.dealerId, id));
+      await tx.delete(dealerGroupDiscounts).where(eq(dealerGroupDiscounts.dealerId, id));
+      if (items.length > 0) {
+        await tx
+          .insert(dealerGroupDiscounts)
+          .values(items.map((i) => ({ dealerId: id, groupId: i.groupId, discountPercent: i.discountPercent })));
+      }
+      await this.audit.record(
+        {
+          actorType: 'admin',
+          actorId: adminId,
+          action: 'dealer.group_discounts_changed',
+          entityType: 'dealers',
+          entityId: id,
+          data: { previous, next: items },
         },
         tx,
       );

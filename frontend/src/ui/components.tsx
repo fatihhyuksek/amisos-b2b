@@ -370,8 +370,10 @@ export function Modal({
   title,
   onClose,
   dismissable = true,
+  wide,
   children,
 }: {
+  wide?: boolean
   title: string
   onClose: () => void
   /** false iken Esc ve arka plan tıklaması diyaloğu kapatmaz (istek sürerken). */
@@ -409,7 +411,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className="ui-modal"
+      className={wide ? 'ui-modal ui-modal--wide' : 'ui-modal'}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault()

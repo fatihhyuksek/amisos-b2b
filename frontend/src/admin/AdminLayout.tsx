@@ -8,6 +8,13 @@ import { Button } from '../ui/components'
 const LINKS = [
   { to: '/yonetim', label: 'Ana sayfa', match: (p: string) => p === '/yonetim' },
   { to: '/yonetim/bayiler', label: 'Bayiler', match: (p: string) => p.startsWith('/yonetim/bayiler') },
+  { to: '/yonetim/urunler', label: 'Ürünler', match: (p: string) => p.startsWith('/yonetim/urunler') },
+  {
+    to: '/yonetim/urun-gruplari',
+    label: 'Ürün grupları',
+    match: (p: string) => p.startsWith('/yonetim/urun-gruplari'),
+  },
+  { to: '/yonetim/gorseller', label: 'Görseller', match: (p: string) => p.startsWith('/yonetim/gorseller') },
 ]
 
 export function AdminLayout({

@@ -37,21 +37,28 @@ Son güncelleme: 2026-11-14
      (yaklaşan + gecikmiş, Türkiye saati).
    - Ürün grubu iskontoları katalog adımına bırakıldı.
 
+11. Ürün kataloğu ve fiyatlandırma (branch `claude/catalog`):
+   - Admin: ürünler (filtre, hızlı stok Var/Yok), ürün formu, ürün grupları, görsel kütüphanesi
+     (toplu yükleme, kütüphaneden seçme), Excel şablonu ve içe aktarma (kontrol + hep-ya-hiç),
+     bayiye ürün grubu iskontoları.
+   - Bayi: katalog (grup, ad/barkod arama, iskontolu KDV hariç fiyat, stok Var/Yok), ürün detayı.
+   - Fiyat: genel ve grup iskontosundan yüksek olan (K-13), 2 basamak yuvarlama; sipariş satırı
+     için `dealerLineNet` hazır (miktar × yuvarlanmış birim fiyat).
+   - Kararlar: K-59 – K-62.
+
 ## Sıradaki adım
 
-**Ürün kataloğu ve Admin ürün/fiyat yönetimi** (GR-URN-001…003, K-14 – K-16, K-30 – K-32, K-40):
-- Admin: ürün grupları, ürün ekleme/düzenleme (barkod zorunlu ve tekil, kod, koli içi adedi,
-  liste fiyatı, KDV oranı, açıklama, görseller), stok durumu (elle Var/Yok), toplu içe aktarma (Excel).
-- Admin: bayiye ürün grubu iskontoları (K-12, K-13).
-- Bayi: katalog (grup filtresi, ad/barkod arama, görsel, KDV hariç fiyat, iskonto, stok Var/Yok).
+**Sepet ve ön sipariş** (GR-SIP-003…005, 007, 008, K-20 – K-22, K-27, K-36 – K-38, K-41):
+- Kalıcı sepet, koli katı miktar, stokta olmayan ürün uyarısı, tekrar sipariş ver.
+- Ön sipariş özeti (ara toplam, iskonto, net, KDV ayrı satır, genel toplam), teslimat şekli
+  (ambar ise adres + ambar firması + şube), gönderim sonrası kilit, ekibe ve bayiye e-posta.
+- Satır tutarı `dealerLineNet` ile (ekrandaki birim fiyat × miktar; fark %0).
 
 ## Sonraki adımlar (sırayla)
 
-1. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
-2. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
-3. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
-4. Raporlar ve özet ana sayfa (GR-RAP-001…003).
-5. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+1. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
+2. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+3. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
    - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
    - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
    - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı

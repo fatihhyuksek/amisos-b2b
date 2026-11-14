@@ -16,6 +16,7 @@ import { Link } from '../Link'
 import { Alert, Badge, Button, DealerStatusBadge, Field, Modal } from '../ui/components'
 import { formatDateTime, formatPercent } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
+import { GroupDiscounts } from './GroupDiscounts'
 import { useLoad } from './useLoad'
 
 const INVALID_STATE = 'Bu işlem bayinin şu anki durumunda yapılamaz, sayfayı yenileyin.'
@@ -410,6 +411,10 @@ function Detail({
             }}
           />
         </section>
+      )}
+
+      {(d.status === 'pending_approval' || d.status === 'active' || d.status === 'passive') && (
+        <GroupDiscounts dealerId={d.id} />
       )}
 
       <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-consents">

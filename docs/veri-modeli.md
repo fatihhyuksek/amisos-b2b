@@ -1,6 +1,6 @@
 # Veri Modeli
 
-Kaynak: `backend/src/database/schema.ts` · Migration: `backend/drizzle/0000_init.sql`, `0002_auth_sessions.sql`
+Kaynak: `backend/src/database/schema.ts` · Migration: `backend/drizzle/0000_init.sql`, `0002_auth_sessions.sql`, `0004_catalog.sql`
 Gereksinimler: `docs/requirements/bayi-hesabi.md`
 
 ## Tablolar
@@ -12,9 +12,10 @@ Gereksinimler: `docs/requirements/bayi-hesabi.md`
 | `auth_tokens` | E-posta doğrulama, şifre sıfırlama, davet bağlantıları (yalnızca özet saklanır) | K-03, K-29, GR-BAYI-007 |
 | `sessions` | Sunucu taraflı oturum: token özeti, konu (admin/dealer), bitiş (kayan 7 gün), son görülme | K-29, GR-BAYI-006, GR-BAYI-007 |
 | `consents` | KVKK, kullanım koşulları, pazarlama onayları ve metin sürümü | K-45, GR-KVK-001 |
-| `product_groups` | Ürün grupları | K-12, K-40 |
+| `product_groups` | Ürün grupları; ad tekilliği `name_key` (Türkçe küçültülmüş, boşlukları sadeleştirilmiş ad) ile | K-12, K-40 |
 | `products` | Ürün: barkod (zorunlu, tekil), kod, koli içi adedi, liste fiyatı, KDV oranı, stok durumu | K-14 – K-16, K-18, K-30 – K-32 |
-| `product_images` | Ürün başına birden çok görsel | K-40 |
+| `media` | Görsel kütüphanesi: dosya adı, tür, boyut, genişlik/yükseklik, yükleyen Admin. Dosyalar diskte `MEDIA_DIR/<id>/{thumb,large}.webp` | K-61, K-62 |
+| `product_images` | Ürün başına sıralı görseller (`media_id` → `media`, silme kısıtlı; `sort_order`) | K-40, K-62 |
 | `dealer_group_discounts` | Bayiye ürün grubu bazında iskonto | K-12, K-13 |
 | `cart_items` | Kalıcı sepet (fiyat tutulmaz, gösterimde hesaplanır) | K-41 |
 | `orders` | Ön sipariş: durum, teslimat, KDV hariç toplamlar, BizimHesap aktarım alanları | K-17, K-22, K-25, K-27, K-33, K-36 – K-38 |
@@ -36,6 +37,8 @@ Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/t
   aynı e-posta/unvanla yeni başvuruda ve günlük temizlikte (consents ve token'larıyla) silinir.
 - Gerekçesiz red.
 - Boş veya tekrarlanan barkod; tekrarlanan ürün kodu.
+- Aynı adla (Türkçe büyük/küçük harf ve boşluk duyarsız) ikinci ürün grubu (`product_groups.name_key`, migration 0004 mevcut satırları aynı SQL ile doldurur).
+- Bir ürüne bağlı görselin silinmesi (`product_images.media_id` restrict); aynı görselin aynı ürüne iki kez eklenmesi.
 - Koli içi adedi 0; koli katı olmayan sipariş satırı.
 - 0–100 aralığı dışında iskonto oranı.
 - Ambar ile teslimatta adres, ambar adı veya şubesi eksik sipariş.

@@ -15,6 +15,8 @@ export interface Env {
    * virgülle ayrılmış IP/CIDR listesi.
    */
   TRUST_PROXY: boolean | number | string;
+  /** Görsel kütüphanesi dizini (K-61, K-62). Göreli yol, backend çalışma dizinine göredir. */
+  MEDIA_DIR: string;
 }
 
 /** Çerez `Secure` ve token'lı bağlantı log'u: yalnızca açıkça development/test dışında güvenli mod. */
@@ -88,5 +90,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
         : 'Amisos B2B <onay@amisosb2b.com>',
     AUTH_RATE_LIMIT_PER_MINUTE: rateLimit,
     TRUST_PROXY: parseTrustProxy(raw.TRUST_PROXY),
+    MEDIA_DIR:
+      typeof raw.MEDIA_DIR === 'string' && raw.MEDIA_DIR.trim()
+        ? raw.MEDIA_DIR.trim()
+        : 'storage/media',
   };
 }
