@@ -54,4 +54,5 @@ Son güncelleme: 2026-11-14
 
 - `.claude/agents/` altındaki ajanlar Claude Code oturumu açılırken yüklenir;
   yeni eklenen ajanlar bir sonraki oturumda kullanılabilir.
-- PR'ların birleştirme sırası: #1, sonra diğerleri.
+- Tüm işler `main` branch'inde. Her yeni adım ayrı bir branch'te yapılır ve PR ile `main`'e alınır.
+- Eski Spring Boot iskeleti kaldırıldı (geçmişte `79e180e` commit'inde duruyor).
