@@ -572,7 +572,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
         agent.post('/api/orders').send(body),
         agent.post('/api/orders').send(body),
       ]);
-      expect(results.map((r) => r.status).sort()).toEqual([201, 400, 400]);
+      expect(results.map((r) => r.status).sort((x, y) => x - y)).toEqual([201, 400, 400]);
       expect(results.filter((r) => r.status === 400).every((r) => r.body.code === 'EMPTY_CART')).toBe(true);
       expect(await db.select().from(orders).where(eq(orders.dealerId, dealer.id))).toHaveLength(1);
     });

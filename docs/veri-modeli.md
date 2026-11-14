@@ -45,6 +45,10 @@ Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/t
 - Tutarsız toplamlar (net = brüt − iskonto, genel toplam = net + KDV).
 - Kimin yaptığı belli olmayan Admin durum değişikliği.
 
+Sepet/sipariş davranışı (şema değişmedi, migration yok): sipariş gönderimi bayi bazında `pg_advisory_xact_lock` ile
+sıralanır (çift gönderim tek sipariş); sipariş satırı birim fiyatı saklanmaz, `unit_list_price` ve `discount_percent`'ten
+türetilir. API: `docs/api/siparis-api.md`.
+
 Durum geçiş kuralları (sırayla ilerleme, İptal) kodda: `backend/src/orders/order-status.ts`.
 
 ## Açık sorular

@@ -32,6 +32,9 @@ export interface OrderMail {
   grandTotal: string;
 }
 
+/** K-64: bayi e-postalarındaki iletişim bilgisi. */
+export const CONTACT_INFO = 'İletişim: 0552 492 50 58, info@amisosb2b.com, İSTOÇ Z Blok No: 91';
+
 const DELIVERY_LABELS = {
   carrier: 'Ambar ile',
   pickup: 'Bayi kendisi alır',
@@ -147,7 +150,7 @@ export class DevMailService implements MailService {
     this.log(
       `Ön sipariş #${order.orderNo} alındı`,
       to,
-      `${order.lines.length} kalem, KDV hariç ${order.netTotal} TL, genel toplam ${order.grandTotal} TL; ${formatDelivery(order)}`,
+      `${order.lines.length} kalem, KDV hariç ${order.netTotal} TL, genel toplam ${order.grandTotal} TL; ${formatDelivery(order)}. ${CONTACT_INFO}`,
     );
     return Promise.resolve();
   }
