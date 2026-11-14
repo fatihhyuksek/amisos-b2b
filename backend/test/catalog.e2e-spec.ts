@@ -981,6 +981,24 @@ describe('Katalog (e2e)', () => {
       expect(thumb(inactiveOnly.id)).toBeNull();
     });
 
+    it('GR-URN-002: stock=in_stock yalnızca stokta olanları getirir; parametre yoksa hepsi; grup productCount değişmez; geçersiz değer 400', async () => {
+      const d = await dealerAgent('kat-stokfiltre');
+      const g = await createGroup('Katalog Stok Filtre');
+      const inS = await createProduct(g.id, 'sf1');
+      const outS = await createProduct(g.id, 'sf2', { stockStatus: 'out_of_stock' });
+      const idsOf = (res: { body: { items: { id: string }[] } }) => res.body.items.map((i) => i.id).sort();
+      const all = await d.agent.get('/api/catalog/products').query({ groupId: g.id }).expect(200);
+      expect(idsOf(all)).toEqual([inS.id, outS.id].sort());
+      const only = await d.agent.get('/api/catalog/products').query({ groupId: g.id, stock: 'in_stock' }).expect(200);
+      expect(idsOf(only)).toEqual([inS.id]);
+      expect(only.body.total).toBe(1);
+      const searched = await d.agent.get('/api/catalog/products').query({ q: outS.barcode, stock: 'in_stock' }).expect(200);
+      expect(searched.body.total).toBe(0);
+      await d.agent.get('/api/catalog/products').query({ stock: 'out_of_stock' }).expect(400);
+      const groups = (await d.agent.get('/api/catalog/groups').expect(200)).body as { id: string; productCount: number }[];
+      expect(groups.find((x) => x.id === g.id)?.productCount).toBe(2);
+    });
+
     it('GR-FIY-001: pasife alınan bayi katalogdan çıkar (oturum geçersiz)', async () => {
       const d = await dealerAgent('kat-pasifbayi');
       await d.agent.get('/api/catalog/groups').expect(200);

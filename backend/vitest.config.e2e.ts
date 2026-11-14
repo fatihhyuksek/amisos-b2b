@@ -1,6 +1,7 @@
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
+import { resolveTestDatabaseUrl } from './test/test-database.js';
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
@@ -16,8 +17,8 @@ export default defineConfig({
       AUTH_RATE_LIMIT_PER_MINUTE: '1000',
       // Görsel testleri geçici dizine yazar (depodaki storage/ klasörüne dokunmaz).
       MEDIA_DIR: join(tmpdir(), 'amisos-b2b-media-e2e'),
-      DATABASE_URL:
-        process.env.DATABASE_URL ?? 'postgres://amisos:amisos@localhost:5433/amisos_b2b',
+      // Her zaman ayrı test veritabanı (amisos_b2b_test); dev veritabanına asla yazılmaz.
+      DATABASE_URL: resolveTestDatabaseUrl(),
     },
   },
 });

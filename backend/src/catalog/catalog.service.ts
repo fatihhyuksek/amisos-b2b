@@ -59,6 +59,7 @@ export class CatalogService {
       filters.push(exact ? eq(products.barcode, query.q) : productSearch(query.q));
     }
     if (query.groupId) filters.push(eq(products.groupId, query.groupId));
+    if (query.stock === 'in_stock') filters.push(eq(products.stockStatus, 'in_stock'));
     const where = and(...filters);
 
     const [{ total }] = await this.db
