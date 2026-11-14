@@ -17,6 +17,7 @@ Gereksinimler: `docs/requirements/bayi-hesabi.md`
 | `media` | Görsel kütüphanesi: dosya adı, tür, boyut, genişlik/yükseklik, yükleyen Admin. Dosyalar diskte `MEDIA_DIR/<id>/{thumb,large}.webp` | K-61, K-62 |
 | `product_images` | Ürün başına sıralı görseller (`media_id` → `media`, silme kısıtlı; `sort_order`) | K-40, K-62 |
 | `dealer_group_discounts` | Bayiye ürün grubu bazında iskonto | K-12, K-13 |
+| `banners` | Ana sayfa kampanya görselleri: `media_id` (restrict), başlık, bağlantı (yalnızca uygulama içi yol), sıra, aktiflik, yayın aralığı | K-65 |
 | `cart_items` | Kalıcı sepet (fiyat tutulmaz, gösterimde hesaplanır) | K-41 |
 | `orders` | Ön sipariş: durum, teslimat, KDV hariç toplamlar, BizimHesap aktarım alanları | K-17, K-22, K-25, K-27, K-33, K-36 – K-38 |
 | `order_lines` | Sipariş satırı: ürün ve fiyatın sipariş anındaki kopyası, uygulanan iskonto | K-13, K-20, K-21 |
@@ -39,6 +40,7 @@ Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/t
 - Boş veya tekrarlanan barkod; tekrarlanan ürün kodu.
 - Aynı adla (Türkçe büyük/küçük harf ve boşluk duyarsız) ikinci ürün grubu (`product_groups.name_key`, migration 0004 mevcut satırları aynı SQL ile doldurur).
 - Bir ürüne bağlı görselin silinmesi (`product_images.media_id` restrict); aynı görselin aynı ürüne iki kez eklenmesi.
+- Banner bağlantısı `/` ile başlamayan, `//` veya şema/ters eğik çizgi/boşluk içeren değer; bitişi başlangıçtan önce olan banner.
 - Koli içi adedi 0; koli katı olmayan sipariş satırı.
 - 0–100 aralığı dışında iskonto oranı.
 - Ambar ile teslimatta adres, ambar adı veya şubesi eksik sipariş.

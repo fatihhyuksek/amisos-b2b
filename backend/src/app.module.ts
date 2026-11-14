@@ -8,6 +8,7 @@ import { MailModule } from './mail/mail.service.js';
 import { validateEnv } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
+import { BannersModule } from './banners/banners.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { MediaModule } from './media/media.module.js';
 import { DealersModule } from './dealers/dealers.module.js';
@@ -25,6 +26,7 @@ import { HealthController } from './health/health.controller.js';
     MediaModule,
     CatalogModule,
     OrdersModule,
+    BannersModule,
     // K-04 hatırlatma zamanlayıcısı; test ortamında çalışmaz (mantık servis metoduyla test edilir).
     ...(process.env.NODE_ENV === 'test' ? [] : [ScheduleModule.forRoot()]),
   ],

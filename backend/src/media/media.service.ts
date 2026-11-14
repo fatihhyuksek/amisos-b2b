@@ -140,11 +140,11 @@ export class MediaService {
   }
 
   async list(query: MediaListQuery) {
-    const used = sql<number>`(select count(*)::int from product_images pi where pi.media_id = media.id)`;
+    const used = sql<number>`(select count(*)::int from product_images pi where pi.media_id = media.id) + (select count(*)::int from banners b where b.media_id = media.id)`;
     const filters = [];
     if (query.q) filters.push(ilike(media.originalName, `%${escapeLike(query.q)}%`));
     if (query.unused) {
-      filters.push(sql`not exists (select 1 from product_images pi where pi.media_id = media.id)`);
+      filters.push(sql`not exists (select 1 from product_images pi where pi.media_id = media.id) and not exists (select 1 from banners b where b.media_id = media.id)`);
     }
     const where = filters.length ? and(...filters) : undefined;
     const [{ total }] = await this.db
@@ -166,13 +166,13 @@ export class MediaService {
     };
   }
 
-  /** K-62: bir ürüne bağlı görsel silinemez (409 MEDIA_IN_USE). */
+  /** K-62: bir ürüne veya bannera bağlı görsel silinemez (409 MEDIA_IN_USE). */
   async remove(id: string, adminId: string): Promise<void> {
     const inUse = () =>
       new ConflictException({
         statusCode: 409,
         code: 'MEDIA_IN_USE',
-        message: 'Görsel bir ürüne bağlı, silinemez.',
+        message: 'Görsel bir ürüne veya bannera bağlı, silinemez.',
       });
     await this.db.transaction(async (tx) => {
       const [row] = await tx.select().from(media).where(eq(media.id, id)).for('update');

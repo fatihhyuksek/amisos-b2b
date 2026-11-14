@@ -353,6 +353,38 @@ export const dealerGroupDiscounts = pgTable(
   ],
 );
 
+/**
+ * Ana sayfa kampanya görselleri (K-65). Görsel kütüphaneden gelir (K-62); kullanımdaki görsel silinemez.
+ * `link_path` yalnızca uygulama içi yoldur: açık yönlendirme yok.
+ */
+export const banners = pgTable(
+  'banners',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    mediaId: uuid()
+      .notNull()
+      .references(() => media.id, { onDelete: 'restrict' }),
+    /** Zorunlu; görselin alt metni olarak da kullanılır. */
+    title: text().notNull(),
+    subtitle: text(),
+    linkPath: text(),
+    sortOrder: integer().notNull().default(0),
+    isActive: boolean().notNull().default(true),
+    startsAt: timestamp({ withTimezone: true }),
+    endsAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('banners_media_idx').on(t.mediaId),
+    index('banners_sort_idx').on(t.sortOrder),
+    check('banners_title_not_blank', sql`length(trim(${t.title})) > 0`),
+    // "/" ile başlar; "//", ters eğik çizgi, boşluk ve şema (":" "/" öncesinde olamaz) yok.
+    check('banners_link_path_internal', sql`${t.linkPath} IS NULL OR ${t.linkPath} ~ '^/([^/\\\\\\s][^\\\\\\s]*)?$'`),
+    check('banners_period_valid', sql`${t.startsAt} IS NULL OR ${t.endsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Sepet ve ön sipariş
 // ---------------------------------------------------------------------------
