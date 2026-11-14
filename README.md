@@ -13,6 +13,12 @@ Amisos Züccaciye bayi ön sipariş portalı. Gereksinimler: `docs/requirements/
 
 ## Yerelde çalıştırma
 
+**Windows'ta tek tıkla:** Docker Desktop'ı açın, sonra repo kökündeki `baslat.cmd` dosyasına çift tıklayın.
+Veritabanını başlatır, eksik paketleri kurar, migration ve geliştirme hesaplarını hazırlar, backend ve
+frontend'i iki ayrı pencerede açar (pencereleri kapatmayın). Adres: http://localhost:5173/#/yonetim/giris
+
+Elle çalıştırmak için:
+
 1. Veritabanını başlat:
 
    ```bash
