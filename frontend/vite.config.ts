@@ -5,6 +5,9 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Port doluysa başka porta kayma; açık hata ver (eski bir sunucu açık kalmış olabilir).
+    port: 5173,
+    strictPort: true,
     // Geliştirmede /api istekleri backend'e (NestJS, port 3000) yönlendirilir.
     proxy: {
       '/api': 'http://localhost:3000',
