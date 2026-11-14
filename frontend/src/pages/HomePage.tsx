@@ -88,6 +88,36 @@ export function HomePage() {
         </section>
       )}
 
+      <section className="ui-creamband" aria-labelledby="band-title">
+        <div className="ui-creamband__lead">
+          <h2 id="band-title">Bayilere özel hızlı sipariş</h2>
+          <p>Barkodu okutun, koli adedini seçin, ön siparişinizi tek ekranda gönderin.</p>
+        </div>
+        <ol className="ui-creamband__steps">
+          <li>
+            <Icon name="barcode" />
+            <span>
+              <strong>Ara veya okut</strong>
+              <span>Ürün adı, barkod ya da kod</span>
+            </span>
+          </li>
+          <li>
+            <Icon name="boxes" />
+            <span>
+              <strong>Koli katıyla ekle</strong>
+              <span>Miktar koli içi adedin katı</span>
+            </span>
+          </li>
+          <li>
+            <Icon name="orders" />
+            <span>
+              <strong>Ön siparişi gönder</strong>
+              <span>Teslimat şeklini seçin, onaylayın</span>
+            </span>
+          </li>
+        </ol>
+      </section>
+
       <section aria-labelledby="products-title" className="ui-home__section">
         <div className="ui-sectionhead ui-sectionhead--center">
           <h2 id="products-title">Yeni ürünler</h2>

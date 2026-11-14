@@ -155,3 +155,17 @@ export function ProductCardSkeleton() {
     </li>
   )
 }
+
+/** Grup küçük resmi (yoksa ikon); sabit boyut, yerleşim kayması yok. */
+export function GroupThumb({ src }: { src?: string | null }) {
+  const [failed, setFailed] = useState(false)
+  return (
+    <span className="ui-groupthumb" aria-hidden="true">
+      {src && !failed ? (
+        <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
+      ) : (
+        <Icon name="boxes" />
+      )}
+    </span>
+  )
+}

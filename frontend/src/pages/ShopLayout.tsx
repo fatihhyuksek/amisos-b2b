@@ -11,7 +11,9 @@ import { CONTACT, PHONE_HREF, WHATSAPP_HREF } from '../shop/contact'
 import { useCartCount } from '../shop/cartCount'
 import { CartToast } from '../shop/CartToast'
 import { useCatalogGroups } from '../shop/useCatalogGroups'
+import { useMediaQuery } from '../shop/useMediaQuery'
 import { Button, Modal } from '../ui/components'
+import { GroupThumb } from '../ui/catalog'
 import { Icon, type IconName } from '../ui/Icon'
 
 function useLogout() {
@@ -217,26 +219,29 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
         <Icon name="chevronDown" />
       </button>
       {open && (
-        <div id="all-categories" className="ui-popover ui-popover--wide">
-          <ul className="ui-popover__grid">
-            <li>
-              <Link
-                to="/katalog"
-                className="ui-popover__item"
-                aria-current={activeId === '' ? 'page' : undefined}
-              >
-                Tüm ürünler
-              </Link>
-            </li>
+        <div id="all-categories" className="ui-mega">
+          <div className="ui-mega__head">
+            <h2>Kategoriler</h2>
+            <Link
+              to="/katalog"
+              className="ui-sectionhead__more"
+              aria-current={activeId === '' ? 'page' : undefined}
+            >
+              Tüm ürünler
+              <Icon name="arrowRight" />
+            </Link>
+          </div>
+          <ul className="ui-mega__grid">
             {groups.map((g) => (
               <li key={g.id}>
                 <Link
                   to={catalogHref({ grup: g.id })}
-                  className="ui-popover__item"
+                  className="ui-mega__item"
                   aria-current={activeId === g.id ? 'page' : undefined}
                 >
-                  <span className="ui-popover__grow">{g.name}</span>
-                  <span className="muted num">{g.productCount}</span>
+                  <GroupThumb src={g.thumbUrl} />
+                  <span className="ui-mega__name">{g.name}</span>
+                  <span className="ui-mega__count num">{g.productCount}</span>
                 </Link>
               </li>
             ))}
@@ -424,6 +429,27 @@ const TRUST: { icon: IconName; title: string; text: string }[] = [
   { icon: 'headset', title: 'Hızlı destek', text: `Telefon ve WhatsApp: ${CONTACT.phone}` },
 ]
 
+/** Alt bilgi sütunu: telefonda akordeon (<details>), geniş ekranda açık liste. */
+function FooterColumn({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const wide = useMediaQuery('(min-width: 40rem)')
+  if (wide)
+    return (
+      <nav aria-labelledby={id} className="ui-footer__col">
+        <h2 id={id}>{title}</h2>
+        {children}
+      </nav>
+    )
+  return (
+    <details className="ui-footer__col ui-footer__acc">
+      <summary>
+        <h2 id={id}>{title}</h2>
+        <Icon name="chevronDown" />
+      </summary>
+      <nav aria-labelledby={id}>{children}</nav>
+    </details>
+  )
+}
+
 function Footer() {
   const [text, setText] = useState<string | null>(null)
   const textButton = (label: string) => (
@@ -453,11 +479,10 @@ function Footer() {
       <div className="ui-footer__main">
         <div className="ui-shop__container ui-footer__cols">
           <div className="ui-footer__brand">
-            <BrandLogo />
+            <BrandLogo size="lg" />
             <p className="muted">Amisos Züccaciye bayileri için ön sipariş portalı. Fiyatlar KDV hariçtir.</p>
           </div>
-          <nav aria-labelledby="f-bayi">
-            <h2 id="f-bayi">Bayi işlemleri</h2>
+          <FooterColumn id="f-bayi" title="Bayi işlemleri">
             <ul>
               <li>
                 <Link to="/katalog" className="ui-footer__link">
@@ -475,22 +500,20 @@ function Footer() {
                 </Link>
               </li>
             </ul>
-          </nav>
-          <nav aria-labelledby="f-yardim">
-            <h2 id="f-yardim">Yardım</h2>
+          </FooterColumn>
+          <FooterColumn id="f-yardim" title="Yardım">
             <ul>
               {textButton('Sipariş nasıl verilir')}
               {textButton('Teslimat şekilleri')}
             </ul>
-          </nav>
-          <nav aria-labelledby="f-yasal">
-            <h2 id="f-yasal">Yasal</h2>
+          </FooterColumn>
+          <FooterColumn id="f-yasal" title="Yasal">
             <ul>
               {textButton('KVKK aydınlatma metni')}
               {textButton('Kullanım koşulları')}
             </ul>
-          </nav>
-          <section aria-labelledby="f-iletisim">
+          </FooterColumn>
+          <section aria-labelledby="f-iletisim" className="ui-footer__col">
             <h2 id="f-iletisim">İletişim</h2>
             <ul className="ui-footer__contact">
               <li>
@@ -596,6 +619,16 @@ export function ShopLayout({ children }: { children: ReactNode }) {
         <div className="ui-shop__container ui-shop__content">{children}</div>
       </main>
       <Footer />
+      <a
+        href={WHATSAPP_HREF}
+        className="ui-wafab"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="WhatsApp ile yazın (yeni sekmede açılır)"
+        title="WhatsApp ile yazın"
+      >
+        <Icon name="whatsapp" />
+      </a>
       <CartToast />
       <Drawer
         open={drawer}

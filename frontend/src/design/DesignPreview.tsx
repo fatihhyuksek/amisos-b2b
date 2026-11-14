@@ -64,9 +64,12 @@ const COLORS = [
   ['--color-border', 'Kenarlık'],
   ['--color-text', 'Metin'],
   ['--color-text-muted', 'İkincil metin'],
-  ['--color-accent', 'Vurgu (kiremit)'],
-  ['--color-accent-soft', 'Vurgu, yumuşak'],
-  ['--color-accent-strong', 'Vurgu, metin'],
+  ['--color-accent', 'Birincil (siyah)'],
+  ['--color-accent-soft', 'Seçili zemin (krem-altın)'],
+  ['--color-accent-strong', 'Seçili metin (koyu bronz)'],
+  ['--color-gold', 'Altın (yalnız süs)'],
+  ['--color-bronze', 'Bronz (bağlantı)'],
+  ['--color-badge-bg', 'İskonto rozeti'],
   ['--color-strip-bg', 'Duyuru şeridi'],
   ['--color-success', 'Başarılı'],
   ['--color-warning', 'Uyarı'],
@@ -84,8 +87,8 @@ function SystemSection() {
       <section className="preview-section">
         <h2>Renkler</h2>
         <p className="muted">
-          Beyaz zemin, sıcak koyu gri metin, tek sıcak vurgu (kiremit / bakır). Kontrast ölçümleri
-          docs/design/README.md içinde.
+          Logodan: siyah, krem, altın. Altın yalnızca süs; metin ve bağlantı için koyu bronz. Kontrast
+          ölçümleri docs/design/README.md içinde.
         </p>
         <ul className="swatches">
           {COLORS.map(([token, name]) => (
@@ -100,9 +103,12 @@ function SystemSection() {
 
       <section className="preview-section">
         <h2>Yazı</h2>
-        <p className="muted">Plus Jakarta Sans (OFL), @fontsource ile uygulamanın içinden sunulur.</p>
+        <p className="muted">
+          Başlık: Playfair Display (serif, 22 px ve üzeri). Gövde: Plus Jakarta Sans. İkisi de OFL,
+          @fontsource ile.
+        </p>
         <div className="type-scale">
-          <p style={{ fontSize: 'var(--font-size-3xl)', fontWeight: 800, letterSpacing: '-0.02em' }}>
+          <p style={{ fontSize: 'var(--font-size-3xl)', fontFamily: 'var(--font-serif)', fontWeight: 600 }}>
             Vitrin başlığı · 36
           </p>
           <p style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700 }}>Başlık 1 · 28</p>
@@ -276,7 +282,7 @@ export function DesignPreview() {
           <h1>
             <BrandLogo size="lg" suffix="Tasarım" />
           </h1>
-          <p className="muted">Kimlik: beyaz zemin, sıcak gri, kiremit vurgu · Plus Jakarta Sans</p>
+          <p className="muted">Kimlik: siyah · krem · altın · Playfair Display + Plus Jakarta Sans</p>
         </div>
         <div className="theme-switch" role="group" aria-label="Tema">
           {(['system', 'light', 'dark'] as Theme[]).map((t) => (
