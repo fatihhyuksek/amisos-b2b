@@ -1,54 +1,63 @@
 /*
  * Amisos B2B tasarım belirteçleri (design tokens).
- * Tüm renk, yazı, boşluk ve köşe değerleri yalnızca burada tanımlanır.
- * Nötr palet: marka kimliği geldiğinde --accent* değerleri değiştirilir.
- * Belge: docs/design/README.md
+ * Tüm renk, yazı, boşluk, köşe ve gölge değerleri yalnızca burada tanımlanır.
+ * Kimlik: beyaz zemin, sıcak koyu gri metin, tek sıcak vurgu (kiremit/bakır).
+ * Marka kimliği netleşince yalnızca --color-accent* ve --font-sans değişir.
+ * Belge ve kontrast ölçümleri: docs/design/README.md
  */
 
 :root {
   /* --- Renk: yüzeyler --- */
-  --color-bg: #f5f6f8;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-sunken: #eef0f3;
-  --color-surface-hover: #f2f4f6;
-  --color-border: #dde1e6;
-  --color-border-strong: #b9c0c8;
+  --color-surface-sunken: #f6f4f1;
+  --color-surface-hover: #f1eee9;
+  --color-border: #e9e4dd;
+  --color-border-strong: #8c847a; /* form ve buton kenarı: yüzeye karşı en az 3:1 */
 
   /* --- Renk: metin --- */
-  --color-text: #15191e;
-  --color-text-muted: #545c67;
+  --color-text: #2b2a28;
+  --color-text-muted: #665f57;
   --color-text-on-accent: #ffffff;
   --color-text-on-danger: #ffffff;
 
-  /* --- Renk: vurgu (birincil eylem). Marka rengi buraya gelecek. --- */
-  --color-accent: #1d2733;
-  --color-accent-hover: #2d3a49;
-  --color-accent-soft: #e4e8ee;
+  /* --- Renk: vurgu (kiremit / bakır; tek vurgu rengi) --- */
+  --color-accent: #a3461f;
+  --color-accent-hover: #87391a;
+  --color-accent-soft: #f9ece5;
+  --color-accent-strong: #8a3a18; /* yumuşak vurgu zemini üzerindeki metin */
 
   /* --- Renk: durum --- */
-  --color-success: #17713a;
-  --color-success-soft: #e3f3e8;
-  --color-warning: #7d5100;
-  --color-warning-soft: #fdf1d3;
+  --color-success: #1f6e3d;
+  --color-success-soft: #e5f2e8;
+  --color-warning: #7a4700;
+  --color-warning-soft: #fcefd2;
   --color-danger: #b42318;
   --color-danger-soft: #fdeceb;
   --color-info: #1d55b3;
   --color-info-soft: #e5eefb;
 
-  --color-focus: #2f6feb;
+  --color-focus: #1f5fd6;
 
-  /* --- Yazı --- */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* --- Mağaza kabuğu: üst duyuru şeridi --- */
+  --color-strip-bg: #2b2a28;
+  --color-strip-text: #f4f1ec;
+
+  /* --- Yazı: açık lisanslı geometrik sans (OFL), @fontsource ile kendi içinden --- */
+  --font-sans:
+    'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-size-xs: 0.75rem; /* 12 */
   --font-size-sm: 0.875rem; /* 14 */
   --font-size-md: 1rem; /* 16 */
   --font-size-lg: 1.125rem; /* 18 */
   --font-size-xl: 1.375rem; /* 22 */
   --font-size-2xl: 1.75rem; /* 28 */
+  --font-size-3xl: 2.25rem; /* 36 */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --font-weight-heavy: 800;
   --line-height-tight: 1.25;
   --line-height-normal: 1.5;
 
@@ -62,19 +71,28 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
+  --space-16: 4rem;
 
-  /* --- Köşe, gölge, boyut --- */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-full: 999px;
-  --shadow-sm: 0 1px 2px rgb(16 24 40 / 6%);
-  --shadow-md: 0 4px 12px rgb(16 24 40 / 8%), 0 1px 3px rgb(16 24 40 / 6%);
+  /* --- Köşe --- */
+  --radius-sm: 8px; /* rozet içi, küçük öğe */
+  --radius-md: 12px; /* buton, giriş alanı, görsel */
+  --radius-lg: 16px; /* kart, ürün kartı */
+  --radius-xl: 24px; /* kampanya alanı */
+  --radius-full: 999px; /* hap: arama, çip, rozet */
+
+  /* --- Gölge (sıcak, düşük yoğunluk) --- */
+  --shadow-sm: 0 1px 2px rgb(43 42 40 / 6%);
+  --shadow-md: 0 6px 18px rgb(43 42 40 / 9%), 0 1px 3px rgb(43 42 40 / 6%);
+  --shadow-lg: 0 16px 40px rgb(43 42 40 / 14%), 0 2px 6px rgb(43 42 40 / 6%);
+
+  /* --- Boyut --- */
   --control-height: 44px; /* en az 44 piksel dokunma alanı */
   --control-height-sm: 36px;
-  --content-max: 76rem;
+  --content-max: 76rem; /* Admin */
+  --shop-max: 86rem; /* Mağaza */
 
   --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
 
   color-scheme: light;
 }
@@ -82,59 +100,67 @@
 /* Koyu tema: sistem tercihi (kullanıcı açık temayı seçmediyse) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-bg: #0f1216;
-    --color-surface: #171b21;
-    --color-surface-sunken: #11151a;
-    --color-surface-hover: #1e232a;
-    --color-border: #2b3139;
-    --color-border-strong: #434c57;
-    --color-text: #e8ebef;
-    --color-text-muted: #a4adb8;
-    --color-text-on-accent: #11151a;
-    --color-text-on-danger: #11151a;
-    --color-accent: #e8ebef;
-    --color-accent-hover: #ffffff;
-    --color-accent-soft: #262c34;
-    --color-success: #5cc67c;
-    --color-success-soft: #14301f;
-    --color-warning: #e6b84f;
-    --color-warning-soft: #33280f;
-    --color-danger: #ff8a80;
-    --color-danger-soft: #3a1714;
-    --color-info: #82b4ff;
-    --color-info-soft: #14243d;
-    --color-focus: #6aa1ff;
+    --color-bg: #161412;
+    --color-surface: #1f1c19;
+    --color-surface-sunken: #12100e;
+    --color-surface-hover: #292521;
+    --color-border: #36312b;
+    --color-border-strong: #7a7167;
+    --color-text: #f1ede7;
+    --color-text-muted: #b5ada3;
+    --color-text-on-accent: #1b120d;
+    --color-text-on-danger: #1b120d;
+    --color-accent: #e3956b;
+    --color-accent-hover: #eca883;
+    --color-accent-soft: #3a2519;
+    --color-accent-strong: #f0b391;
+    --color-success: #6cc98a;
+    --color-success-soft: #16301f;
+    --color-warning: #f0bf5a;
+    --color-warning-soft: #3a2c10;
+    --color-danger: #ff8f84;
+    --color-danger-soft: #3d1915;
+    --color-info: #8cb8ff;
+    --color-info-soft: #15253f;
+    --color-focus: #7aa7ff;
+    --color-strip-bg: #0c0b0a;
+    --color-strip-text: #e9e4dd;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-    --shadow-md: 0 6px 16px rgb(0 0 0 / 45%);
+    --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
+    --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
     color-scheme: dark;
   }
 }
 
 /* Koyu tema: kullanıcı elle seçtiyse */
 :root[data-theme='dark'] {
-  --color-bg: #0f1216;
-  --color-surface: #171b21;
-  --color-surface-sunken: #11151a;
-  --color-surface-hover: #1e232a;
-  --color-border: #2b3139;
-  --color-border-strong: #434c57;
-  --color-text: #e8ebef;
-  --color-text-muted: #a4adb8;
-  --color-text-on-accent: #11151a;
-  --color-text-on-danger: #11151a;
-  --color-accent: #e8ebef;
-  --color-accent-hover: #ffffff;
-  --color-accent-soft: #262c34;
-  --color-success: #5cc67c;
-  --color-success-soft: #14301f;
-  --color-warning: #e6b84f;
-  --color-warning-soft: #33280f;
-  --color-danger: #ff8a80;
-  --color-danger-soft: #3a1714;
-  --color-info: #82b4ff;
-  --color-info-soft: #14243d;
-  --color-focus: #6aa1ff;
+  --color-bg: #161412;
+  --color-surface: #1f1c19;
+  --color-surface-sunken: #12100e;
+  --color-surface-hover: #292521;
+  --color-border: #36312b;
+  --color-border-strong: #7a7167;
+  --color-text: #f1ede7;
+  --color-text-muted: #b5ada3;
+  --color-text-on-accent: #1b120d;
+  --color-text-on-danger: #1b120d;
+  --color-accent: #e3956b;
+  --color-accent-hover: #eca883;
+  --color-accent-soft: #3a2519;
+  --color-accent-strong: #f0b391;
+  --color-success: #6cc98a;
+  --color-success-soft: #16301f;
+  --color-warning: #f0bf5a;
+  --color-warning-soft: #3a2c10;
+  --color-danger: #ff8f84;
+  --color-danger-soft: #3d1915;
+  --color-info: #8cb8ff;
+  --color-info-soft: #15253f;
+  --color-focus: #7aa7ff;
+  --color-strip-bg: #0c0b0a;
+  --color-strip-text: #e9e4dd;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-  --shadow-md: 0 6px 16px rgb(0 0 0 / 45%);
+  --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
   color-scheme: dark;
 }

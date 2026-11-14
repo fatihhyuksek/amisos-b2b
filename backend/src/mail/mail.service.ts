@@ -6,6 +6,67 @@ import { isProductionLike, type Env } from '../config/env.js';
 
 export const MAIL_SERVICE = Symbol('MAIL_SERVICE');
 
+/** Ön sipariş e-postalarının içeriği (GR-BLD-001, K-26, K-17 yedek yolu). Tutarlar KDV hariç, metin. */
+export interface OrderMail {
+  orderNo: number;
+  submittedAt: Date;
+  dealerCompany: string;
+  dealerContact: string;
+  dealerEmail: string;
+  dealerPhone: string;
+  deliveryMethod: 'carrier' | 'pickup' | 'truck';
+  deliveryAddress: string | null;
+  carrierName: string | null;
+  carrierBranch: string | null;
+  note: string | null;
+  lines: {
+    barcode: string;
+    code: string | null;
+    name: string;
+    quantity: number;
+    unitPrice: string;
+    outOfStock: boolean;
+  }[];
+  netTotal: string;
+  vatTotal: string;
+  grandTotal: string;
+}
+
+const DELIVERY_LABELS = {
+  carrier: 'Ambar ile',
+  pickup: 'Bayi kendisi alır',
+  truck: 'Tır yüklemesi',
+} as const;
+
+/** Teslimat bilgisi metni: ambar ise adres/ambar/şube, değilse "adres görüşmede belirlenecek" (K-37). */
+export function formatDelivery(order: OrderMail): string {
+  const label = DELIVERY_LABELS[order.deliveryMethod];
+  if (order.deliveryMethod === 'carrier') {
+    return `${label}; adres: ${order.deliveryAddress}; ambar: ${order.carrierName} / ${order.carrierBranch}`;
+  }
+  return `${label}; adres görüşmede belirlenecek`;
+}
+
+/**
+ * Ekibe giden e-postanın gövdesi: BizimHesap'a elle giriş için satır özeti (barkod, ad, adet, birim fiyat,
+ * stokta yok işareti) ve teslimat bilgisi (K-17 yedek yolu, GR-SIP-003).
+ */
+export function formatOrderForTeam(order: OrderMail): string {
+  const rows = order.lines.map(
+    (l) =>
+      `${l.barcode}${l.code ? ` (${l.code})` : ''} | ${l.name} | ${l.quantity} adet | ${l.unitPrice} TL${
+        l.outOfStock ? ' | STOKTA YOK' : ''
+      }`,
+  );
+  return [
+    `Ön sipariş #${order.orderNo} - ${order.dealerCompany} (${order.dealerContact}, ${order.dealerEmail}, ${order.dealerPhone})`,
+    `Teslimat: ${formatDelivery(order)}`,
+    ...(order.note ? [`Not: ${order.note}`] : []),
+    ...rows,
+    `KDV hariç ${order.netTotal} TL, KDV ${order.vatTotal} TL, genel toplam ${order.grandTotal} TL`,
+  ].join('\n');
+}
+
 export interface MailService {
   /** K-39: bağlantı 1 saat geçerli. */
   sendPasswordReset(to: string, link: string): Promise<void>;
@@ -27,6 +88,10 @@ export interface MailService {
    * mümkündür.
    */
   sendRejection(to: string): Promise<void>;
+  /** GR-BLD-001, K-26: ön sipariş gönderilince bayiye onay. */
+  sendOrderConfirmation(to: string, order: OrderMail): Promise<void>;
+  /** GR-BLD-001, K-26, K-17: ekibe "Yeni ön sipariş #no"; BizimHesap'a elle giriş için satır özeti içerir. */
+  sendNewOrderToTeam(to: string, order: OrderMail): Promise<void>;
 }
 
 @Injectable()
@@ -75,6 +140,20 @@ export class DevMailService implements MailService {
       to,
       'Başvurunuz onaylanmadı. Bilgi için bizimle iletişime geçebilir, yeniden başvurabilirsiniz.',
     );
+    return Promise.resolve();
+  }
+
+  sendOrderConfirmation(to: string, order: OrderMail): Promise<void> {
+    this.log(
+      `Ön sipariş #${order.orderNo} alındı`,
+      to,
+      `${order.lines.length} kalem, KDV hariç ${order.netTotal} TL, genel toplam ${order.grandTotal} TL; ${formatDelivery(order)}`,
+    );
+    return Promise.resolve();
+  }
+
+  sendNewOrderToTeam(to: string, order: OrderMail): Promise<void> {
+    this.log(`Yeni ön sipariş #${order.orderNo}`, to, formatOrderForTeam(order));
     return Promise.resolve();
   }
 

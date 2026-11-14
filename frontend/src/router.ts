@@ -48,3 +48,8 @@ export function matchPath(path: string, pattern: string): Record<string, string>
   }
   return params
 }
+
+/** Geçmişe kayıt ekleyerek yönlendirir (arama gönderme gibi kullanıcı eylemleri). */
+export function navigate(to: string): void {
+  location.hash = to
+}

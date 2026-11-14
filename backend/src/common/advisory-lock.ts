@@ -27,3 +27,13 @@ export async function runExclusive<T>(
     return { ran: true as const, result: await work(tx) };
   });
 }
+
+/**
+ * Bayi bazında sepet/sipariş kilidi (K-41, GR-SIP-005): sepeti değiştiren ve sipariş gönderen işlemler
+ * aynı bayi için sıraya girer; transaction bitince kilit kendiliğinden bırakılır. Çift gönderimde
+ * ikinci istek kilidi bekler, sepetin boşaldığını görür (EMPTY_CART) ve tek sipariş oluşur.
+ * Kilit kimliği bayi id'sinden türetilir; bayiler birbirini beklemez.
+ */
+export async function lockDealerCart(tx: Tx, dealerId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`dealer-cart:${dealerId}`}, 0))`);
+}
