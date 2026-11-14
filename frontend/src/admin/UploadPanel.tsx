@@ -3,10 +3,11 @@ import { useRef, useState, type DragEvent } from 'react'
 import { ApiError, uploadMedia, type Media } from '../api'
 import { Alert, Button } from '../ui/components'
 import { Icon } from '../ui/Icon'
-import {} from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
 
 const CHUNK = 10
+const MAX_BYTES = 8 * 1024 * 1024
+const TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const FILE_ERROR = 'Yüklenemedi. Dosya jpeg, png veya webp olmalı ve en fazla 8 MB olmalı.'
 
 interface FileError {
@@ -24,12 +25,25 @@ export function UploadPanel({ onUploaded }: { onUploaded: (items: Media[]) => vo
   const busy = progress !== null
 
   async function start(list: FileList | File[]) {
-    const files = Array.from(list)
-    if (files.length === 0 || busy) return
+    const all = Array.from(list)
+    if (all.length === 0 || busy) return
     setErrors([])
     setGeneral(null)
     setOkCount(null)
     const errs: FileError[] = []
+    // Göndermeden önce erken uyarı; asıl kontrol backend'dedir.
+    const files: File[] = []
+    for (const f of all) {
+      if (!TYPES.includes(f.type))
+        errs.push({ filename: f.name, text: 'Desteklenmeyen biçim. jpeg, png veya webp olmalı.' })
+      else if (f.size > MAX_BYTES) errs.push({ filename: f.name, text: 'Dosya 8 MB sınırını aşıyor.' })
+      else files.push(f)
+    }
+    if (files.length === 0) {
+      setErrors(errs)
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
     let ok = 0
     setProgress({ done: 0, total: files.length })
     for (let i = 0; i < files.length; i += CHUNK) {
@@ -42,7 +56,9 @@ export function UploadPanel({ onUploaded }: { onUploaded: (items: Media[]) => vo
       } catch (err) {
         const text =
           err instanceof ApiError && err.status === 413
-            ? 'Dosya çok büyük.'
+            ? err.code === 'TOO_MANY_FILES'
+              ? 'Tek seferde çok fazla dosya gönderildi.'
+              : 'Dosya çok büyük.'
             : networkMessage(err, 'Yüklenemedi. Lütfen tekrar deneyin.')
         for (const f of part) errs.push({ filename: f.name, text })
       }

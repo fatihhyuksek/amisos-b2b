@@ -358,8 +358,11 @@ export interface ImportReport {
   total: number
   created: number
   updated: number
+  /** Dosyadaki değerleri mevcutla aynı olan, değişmeyecek ürünler. */
+  unchanged: number
   groupsCreated: string[]
   errors: { row: number; column: string; message: string }[]
+  warnings: { row: number; message: string }[]
 }
 
 /** Şablonu blob olarak indirir (K-59). */
@@ -386,8 +389,10 @@ export async function importProducts(file: File, dryRun: boolean): Promise<Impor
           total: body.total ?? 0,
           created: body.created ?? 0,
           updated: body.updated ?? 0,
+          unchanged: body.unchanged ?? 0,
           groupsCreated: body.groupsCreated ?? [],
           errors: body.errors,
+          warnings: body.warnings ?? [],
         }
       }
     } catch {
@@ -396,7 +401,8 @@ export async function importProducts(file: File, dryRun: boolean): Promise<Impor
     throw new ApiError(422)
   }
   if (!res.ok) throw await toError(res)
-  return (await res.json()) as ImportReport
+  const body = (await res.json()) as ImportReport
+  return { ...body, unchanged: body.unchanged ?? 0, warnings: body.warnings ?? [] }
 }
 
 // Bayi grup iskontoları (K-12, K-13)

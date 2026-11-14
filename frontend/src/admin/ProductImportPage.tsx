@@ -1,9 +1,8 @@
 // K-59, K-60: Excel'den toplu ürün yükleme. Şablon indir, kontrol et (dryRun), içe aktar.
-import { useRef, useState } from 'react'
+import { useRef, useState, type DragEvent } from 'react'
 import { ApiError, fetchImportTemplate, importProducts, type ImportReport } from '../api'
 import { Link } from '../Link'
 import { Alert, Button } from '../ui/components'
-import {} from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
 import { formatInt } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
@@ -24,6 +23,9 @@ function ReportView({ report, done }: { report: ImportReport; done: boolean }) {
           {done ? 'İçe aktarma tamamlandı.' : 'Dosyada hata yok. İçe aktarabilirsiniz.'}
         </Alert>
       )}
+      {done && hasErrors && (
+        <Alert tone="warning">Kontrolden sonra veriler değişmiş olabilir. Dosyayı tekrar kontrol edin.</Alert>
+      )}
       <dl className="ui-summary-list">
         <div>
           <dt>Toplam satır</dt>
@@ -37,12 +39,28 @@ function ReportView({ report, done }: { report: ImportReport; done: boolean }) {
           <dt>{done ? 'Güncellenen' : 'Güncellenecek'}</dt>
           <dd>{formatInt(report.updated)}</dd>
         </div>
+        <div>
+          <dt>{done ? 'Değişmeyen' : 'Değişmeyecek'}</dt>
+          <dd>{formatInt(report.unchanged)}</dd>
+        </div>
       </dl>
       {report.groupsCreated.length > 0 && (
         <p>
           {done ? 'Oluşturulan' : 'Oluşturulacak'} ürün grupları:{' '}
           <strong>{report.groupsCreated.join(', ')}</strong>
         </p>
+      )}
+      {report.warnings.length > 0 && (
+        <Alert tone="warning">
+          <strong>{formatInt(report.warnings.length)} uyarı:</strong>
+          <ul className="ui-list-plain">
+            {report.warnings.map((w, i) => (
+              <li key={`${w.row}-${i}`}>
+                Satır {w.row} — {w.message}
+              </li>
+            ))}
+          </ul>
+        </Alert>
       )}
       {hasErrors && (
         <div className="ui-table-wrap">
@@ -80,6 +98,7 @@ export function ProductImportPage() {
   const [busy, setBusy] = useState<'template' | 'check' | 'import' | null>(null)
   const [report, setReport] = useState<{ data: ImportReport; done: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [over, setOver] = useState(false)
 
   function pick(f: File | null) {
     setReport(null)
@@ -96,6 +115,12 @@ export function ProductImportPage() {
       return
     }
     setFile(f)
+  }
+
+  function onDrop(e: DragEvent) {
+    e.preventDefault()
+    setOver(false)
+    pick(e.dataTransfer.files[0] ?? null)
   }
 
   async function downloadTemplate() {
@@ -162,21 +187,33 @@ export function ProductImportPage() {
         </li>
         <li className="ui-card ui-card__body">
           <h2>Dosyayı seçin</h2>
-          <input
-            ref={inputRef}
-            type="file"
-            className="ui-file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            aria-label="Excel dosyası"
-            aria-invalid={fileError ? true : undefined}
-            onChange={(e) => pick(e.target.files?.[0] ?? null)}
-          />
+          <div
+            className="ui-dropzone"
+            data-over={over}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setOver(true)
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={onDrop}
+          >
+            <p>{file ? file.name : 'Dosya seçilmedi'}</p>
+            <input
+              ref={inputRef}
+              type="file"
+              className="visually-hidden"
+              tabIndex={-1}
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              aria-label="Excel dosyası"
+              onChange={(e) => pick(e.target.files?.[0] ?? null)}
+            />
+            <Button variant="secondary" onClick={() => inputRef.current?.click()}>
+              Dosya seç
+            </Button>
+            <span className="ui-help">veya .xlsx dosyasını buraya sürükleyin</span>
+          </div>
           {fileError && <span className="ui-error">{fileError}</span>}
-          {file && (
-            <p className="muted">
-              {file.name} ({Math.max(1, Math.round(file.size / 1024))} KB)
-            </p>
-          )}
+          {file && <p className="muted">{Math.max(1, Math.round(file.size / 1024))} KB</p>}
         </li>
         <li className="ui-card ui-card__body">
           <h2>Kontrol edin</h2>
