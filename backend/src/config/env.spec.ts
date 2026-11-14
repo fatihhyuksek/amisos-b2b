@@ -15,10 +15,10 @@ describe('validateEnv güvenli varsayılanlar', () => {
       /APP_URL/,
     );
     expect(validateEnv({ ...base, NODE_ENV: 'development' }).APP_URL).toBe(
-      'http://localhost:5173',
+      'http://localhost:5180',
     );
     expect(validateEnv({ ...base, NODE_ENV: 'test' }).APP_URL).toBe(
-      'http://localhost:5173',
+      'http://localhost:5180',
     );
   });
 

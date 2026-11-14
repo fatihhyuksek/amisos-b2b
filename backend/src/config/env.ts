@@ -48,7 +48,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     throw new Error(`Geçersiz NODE_ENV: ${String(nodeEnv)}`);
   }
 
-  const port = Number(raw.PORT ?? 3000);
+  const port = Number(raw.PORT ?? 3100);
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error(`Geçersiz PORT: ${String(raw.PORT)}`);
   }
@@ -71,7 +71,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   const appUrl =
     typeof raw.APP_URL === 'string' && raw.APP_URL
       ? raw.APP_URL
-      : 'http://localhost:5173';
+      : 'http://localhost:5180';
 
   return {
     NODE_ENV: nodeEnv,
@@ -80,7 +80,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     CORS_ORIGIN:
       typeof raw.CORS_ORIGIN === 'string'
         ? raw.CORS_ORIGIN
-        : 'http://localhost:5173',
+        : 'http://localhost:5180',
     APP_URL: appUrl.replace(/\/+$/, ''),
     MAIL_FROM:
       typeof raw.MAIL_FROM === 'string' && raw.MAIL_FROM

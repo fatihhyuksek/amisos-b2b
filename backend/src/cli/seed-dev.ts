@@ -84,10 +84,10 @@ async function main(): Promise<void> {
 
     console.log('Geliştirme hesapları hazır:');
     console.log(
-      `  Admin  (http://localhost:5173/#/yonetim/giris): ${DEV_ADMIN.email} / ${DEV_ADMIN.password}`,
+      `  Admin  (http://localhost:5180/#/yonetim/giris): ${DEV_ADMIN.email} / ${DEV_ADMIN.password}`,
     );
     console.log(
-      `  Bayi   (http://localhost:5173/#/giris):         ${DEV_DEALER.email} / ${DEV_DEALER.password}`,
+      `  Bayi   (http://localhost:5180/#/giris):         ${DEV_DEALER.email} / ${DEV_DEALER.password}`,
     );
   } finally {
     await pool.end();

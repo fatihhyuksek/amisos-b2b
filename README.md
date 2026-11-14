@@ -15,7 +15,7 @@ Amisos Züccaciye bayi ön sipariş portalı. Gereksinimler: `docs/requirements/
 
 **Windows'ta tek tıkla:** Docker Desktop'ı açın, sonra repo kökündeki `baslat.cmd` dosyasına çift tıklayın.
 Veritabanını başlatır, eksik paketleri kurar, migration ve geliştirme hesaplarını hazırlar, backend ve
-frontend'i iki ayrı pencerede açar (pencereleri kapatmayın). Adres: http://localhost:5173/#/yonetim/giris
+frontend'i iki ayrı pencerede açar (pencereleri kapatmayın). Adres: http://localhost:5180/#/yonetim/giris
 
 Elle çalıştırmak için:
 
@@ -36,7 +36,7 @@ Elle çalıştırmak için:
    npm run start:dev
    ```
 
-   Kontrol: http://localhost:3000/api/health → `{"status":"ok","database":"up"}`
+   Kontrol: http://localhost:3100/api/health → `{"status":"ok","database":"up"}`
 
 3. Frontend (ayrı terminalde):
 
@@ -46,7 +46,7 @@ Elle çalıştırmak için:
    npm run dev
    ```
 
-   http://localhost:5173 açılır. `/api` istekleri backend'e yönlendirilir.
+   http://localhost:5180 açılır. `/api` istekleri backend'e yönlendirilir.
 
 ## Komutlar
 
