@@ -13,36 +13,42 @@ Son güncelleme: 2026-11-14
 7. Geliştirme ajanları: `backend-developer`, `frontend-developer`, `code-reviewer`,
    `test-engineer`, `solution-architect`, `qa-reviewer`, `ui-ux-designer`
    (`.claude/agents/`). Branch: `claude/dev-agents`
+8. Veri modeli: 13 tablo, ilk migration, kısıt ve durum geçişi testleri
+   (`docs/veri-modeli.md`). Branch: `claude/data-model`
 
 ## Sıradaki adım
 
-**Veri modeli** (backend-developer, ardından code-reviewer):
-- Tablolar: bayi (başvuru ve hesap durumları), Admin kullanıcı, ürün grubu, ürün
-  (barkod tekil, koli içi adedi), liste fiyatı, bayi iskontosu (genel oran ve ürün grubu
-  oranı), ön sipariş ve satırları, sipariş durum geçmişi, KVKK onay kayıtları,
-  işlem kaydı (audit).
-- İlgili gereksinimler: GR-BAYI-001…008, GR-URN-001, GR-FIY-001…002, GR-SIP-004…008,
-  GR-KVK-001, GR-YON-001.
-- Çıktı: Drizzle şeması, ilk migration, şema testleri.
+**Tasarım sistemi ve ana ekran taslakları** (ui-ux-designer):
+- Renk, tipografi, boşluk ve bileşenler; `frontend/` içinde CSS değişkenleri, `docs/design/` altında belge.
+- Ana akışların taslakları: başvuru, giriş, katalog, sepet, ön sipariş, sipariş geçmişi;
+  Admin onay kuyruğu, ürün/fiyat yönetimi, raporlar.
+- Marka kimliği gelmediyse nötr palet; marka sonra uygulanır.
 
 ## Sonraki adımlar (sırayla)
 
-1. Tasarım sistemi ve ana ekran taslakları (ui-ux-designer). Frontend ekranları bu
-   sisteme göre yapılır ve her ekran ui-ux-designer tarafından görsel olarak denetlenir.
-2. Kimlik doğrulama: bayi ve Admin girişi, e-posta doğrulama, şifre sıfırlama (GR-BAYI-007).
-3. Bayi başvurusu ve Admin onay akışı (GR-BAYI-001…006, 008, GR-KVK-001).
-4. Ürün kataloğu ve Admin ürün/fiyat yönetimi (GR-URN-001…003).
-5. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
-6. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
-7. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
-8. BizimHesap entegrasyonu: sipariş aktarımı ve stok (GR-SIP-001…002, GR-URN-002).
-9. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+1. Kimlik doğrulama: bayi ve Admin girişi, e-posta doğrulama, şifre sıfırlama (GR-BAYI-007).
+2. Bayi başvurusu ve Admin onay akışı (GR-BAYI-001…006, 008, GR-KVK-001).
+3. Ürün kataloğu ve Admin ürün/fiyat yönetimi (GR-URN-001…003).
+4. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
+5. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
+6. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
+7. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+8. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+   - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
+   - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
+   - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı
+     oluştuğunun doğrulanması; stokta esas alınacak depo (`docs/research/bizimhesap-api.md`).
+   - Veri modelinde hazır alanlar: `orders.transfer_status`, `bizimhesap_guid`,
+     `transfer_error`, `transferred_at`; `products.stock_source`.
+   - O zamana kadar: siparişler `transfer_status = pending` kalır, ekip e-postayla
+     haberdar olur ve BizimHesap'a elle girer; stok ve durum Admin panelinden elle güncellenir.
 
 ## İş sahibinden beklenenler
 
 - BizimHesap desteğinden API token'ı, FirmID ve test hesabı.
 - KVKK aydınlatma metni ve kullanım koşulları metinleri.
-- Stokta esas alınacak BizimHesap deposu.
+- Stokta esas alınacak BizimHesap deposu (BizimHesap adımında).
+- Veri modeli açık soruları: `docs/veri-modeli.md` (reddedilen bayinin yeniden başvurusu).
 - Marka kimliği: logo, kurumsal renkler, varsa yazı tipi.
 
 ## Notlar

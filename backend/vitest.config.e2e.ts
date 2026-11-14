@@ -6,6 +6,8 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    globalSetup: ['./test/global-setup.ts'],
+    fileParallelism: false,
     // Çalışan bir PostgreSQL gerektirir: kökte `docker compose up -d db`.
     env: {
       DATABASE_URL:
