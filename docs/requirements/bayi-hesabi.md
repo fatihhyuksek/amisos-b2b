@@ -59,6 +59,10 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-40 | Ürün kataloğu | Ürün grubuna göre listeleme, ad veya barkodla arama, ürün başına birden çok görsel ve açıklama. |
 | K-41 | Sepet | Sepet kalıcıdır, çıkış yapılsa da korunur. Geçmiş sipariş "tekrar sipariş ver" ile sepete kopyalanabilir. |
 | K-42 | Yönetim rolleri | Şimdilik tek rol: Admin. Her işlemi yapar. |
+| K-43 | Ticari koşul adımı | Tek Admin olduğu için şimdilik Admin ticari koşulları doğrudan belirler (öneri + onay tek adım). |
+| K-44 | Tekrar sipariş fiyatı | "Tekrar sipariş ver" güncel fiyatı kullanır. |
+| K-45 | KVKK ve koşullar | Başvuruda KVKK aydınlatma metni ve kullanım koşulları için zorunlu onay; pazarlama e-postası için ayrı, isteğe bağlı onay. Metinleri iş sahibi / hukuk danışmanı hazırlar. |
+| K-46 | Raporlar | En az: tarih aralığına göre ön siparişler, bayi bazında sipariş sayısı ve toplam tutar, en çok sipariş edilen ürünler, Excel'e aktarma. İş sahibi daha kapsamlı rapor istiyor; kapsam netleşecek. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 
 ## 3. Gereksinimler
@@ -89,6 +93,11 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 **GR-BAYI-008 · Başvuru formu** · Öncelik: Yüksek · Kararlar: K-35
 - Kabul: Firma unvanı, yetkili adı soyadı, e-posta, telefon, il, ilçe ve açık adres alanlarından biri boşsa başvuru gönderilemez.
 - Kabul: E-posta ve telefon biçimi doğrulanır. Geçersiz biçimde başvuru gönderilemez.
+
+**GR-KVK-001 · KVKK ve kullanım koşulları onayı** · Öncelik: Yüksek · Kararlar: K-45
+- Kabul: KVKK aydınlatma metni ve kullanım koşulları onay kutuları işaretlenmeden başvuru gönderilemez.
+- Kabul: Pazarlama e-postası onayı ayrı ve isteğe bağlıdır, varsayılan olarak işaretsiz gelir. Onay vermeyen bayiye pazarlama e-postası gönderilmez.
+- Kabul: Her onay, metnin sürümü ve onay zamanıyla kaydedilir.
 
 **GR-BAYI-005 · Tek kullanıcı** · Öncelik: Orta · Kararlar: K-07
 - Kabul: Her bayi hesabına tam olarak bir e-posta (giriş bilgisi) bağlanır.
@@ -125,6 +134,11 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 - Kabul: Admin hesap onayı, pasife alma/aktif etme, ticari koşullar, ürün/fiyat/stok ve sipariş durumu işlemlerinin tamamını yapabilir.
 - Kabul: Bayi kullanıcısı yönetim paneline hiçbir yoldan erişemez (%100 engellenir).
 - Kabul: Admin işlemleri kimin yaptığı ve zamanla kaydedilir, böylece ileride roller ayrıldığında geçmiş izlenebilir.
+
+**GR-RAP-001 · Raporlar** · Öncelik: Orta · Kararlar: K-46
+- Kabul: Admin tarih aralığına göre ön sipariş listesini; bayi bazında sipariş sayısını ve KDV hariç toplam tutarı; en çok sipariş edilen ürünleri görür.
+- Kabul: Her rapor Excel'e aktarılabilir ve aktarılan dosyadaki toplamlar ekrandakiyle birebir aynıdır.
+- Açık: Ek raporların kapsamı.
 
 ### Ürün ve stok
 
@@ -190,15 +204,11 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 
 ## 4. Onay bekleyen varsayımlar
 
-V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı.
-
-| ID | Varsayım | İlgili |
-|---|---|---|
-| V-06 | Tek Admin olduğu için "temsilci önerir, finans onaylar" adımı şimdilik tek adıma iner: Admin ticari koşulları doğrudan belirler. | GR-BAYI-003 |
-| V-07 | "Tekrar sipariş ver" eski fiyatı değil güncel fiyatı kullanır. | GR-SIP-008 |
+V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı. Yok. V-06 ve V-07 onaylandı ve K-43, K-44 olarak kararlara taşındı.
 
 ## 5. Açık konular
 
 - BizimHesap API araştırması: sipariş aktarımı, stok ve durum okumanın mümkün olup olmadığı (GR-SIP-001, GR-URN-002, GR-SIP-006).
 - BizimHesap sipariş durumlarının portaldaki altı duruma eşlenmesi.
-- Henüz konuşulmamış konular: KVKK / kullanım koşulları onayı, raporlama.
+- Ek raporların kapsamı (K-46).
+- KVKK aydınlatma metni ve kullanım koşulları metinlerinin hazırlanması (iş sahibi / hukuk).
