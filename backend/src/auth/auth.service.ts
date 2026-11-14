@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  ForbiddenException,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { adminUsers, dealers } from '../database/schema.js';
 import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
 import {
   EMAIL_VERIFICATION_TTL_MS,
+  ACCOUNT_PASSIVE_MESSAGE,
   LOGIN_FAILED_MESSAGE,
   PASSWORD_RESET_COOLDOWN_MS,
   PASSWORD_RESET_TTL_MS,
@@ -67,8 +69,9 @@ export class AuthService {
   }
 
   /**
-   * Bayi girişi. Yalnızca status='active' bayi girebilir (GR-BAYI-006, K-08); pending/rejected/passive
-   * ve yanlış şifre aynı genel hatayı alır.
+   * Bayi girişi. Yalnızca status='active' bayi girebilir (GR-BAYI-006, K-08).
+   * Pasif bayi, şifresi DOĞRUYSA açık mesaj alır (K-54, 403 ACCOUNT_PASSIVE); böylece hesap durumu
+   * yalnızca şifreyi bilene görünür. Yanlış şifre, pending ve rejected aynı genel hatayı alır.
    */
   async loginDealer(email: string, password: string): Promise<LoginResult> {
     const normalized = normalizeEmail(email);
@@ -84,6 +87,14 @@ export class AuthService {
       dealer?.passwordHash,
       password,
     );
+    if (dealer && passwordOk && dealer.status === 'passive') {
+      this.limiter.reset('dealer', normalized);
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'ACCOUNT_PASSIVE',
+        message: ACCOUNT_PASSIVE_MESSAGE,
+      });
+    }
     if (!dealer || !passwordOk || dealer.status !== 'active') {
       this.limiter.recordFailure('dealer', normalized);
       throw new UnauthorizedException(LOGIN_FAILED_MESSAGE);

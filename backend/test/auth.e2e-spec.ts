@@ -191,12 +191,7 @@ describe('Kimlik doğrulama (e2e)', () => {
       expect(wrong.headers['set-cookie']).toBeUndefined();
     });
 
-    it.each([
-      'passive',
-      'pending_email',
-      'pending_approval',
-      'rejected',
-    ] as const)(
+    it.each(['pending_email', 'pending_approval', 'rejected'] as const)(
       'GR-BAYI-006: %s bayi giriş yapamaz, yanıt genel hata ile aynı',
       async (status) => {
         const name = `st-${status}`;
@@ -215,6 +210,20 @@ describe('Kimlik doğrulama (e2e)', () => {
         expect(res.body).toEqual(unknown.body);
       },
     );
+
+    it('K-54: şifresi doğru pasif bayi açık mesaj (403 ACCOUNT_PASSIVE) alır; yanlış şifrede genel hata', async () => {
+      await makeDealer('pasif-mesaj', 'passive');
+      const res = await dealerLogin(request, email('pasif-mesaj')).expect(403);
+      expect(res.body.code).toBe('ACCOUNT_PASSIVE');
+      expect(res.headers['set-cookie']).toBeUndefined();
+      const wrong = await dealerLogin(
+        request,
+        email('pasif-mesaj'),
+        'Yanlis-Sifre-1',
+      ).expect(401);
+      const unknown = await dealerLogin(request, email('yok3')).expect(401);
+      expect(wrong.body).toEqual(unknown.body);
+    });
 
     it('GR-BAYI-006: pasife alınan bayinin açık oturumu sonraki istekte reddedilir; yeniden aktif edilince yeni girişle döner', async () => {
       const d = await makeDealer('pasife');
@@ -535,7 +544,9 @@ describe('Kimlik doğrulama (e2e)', () => {
         send('Yeni-Sifre-1111'),
         send('Yeni-Sifre-2222'),
       ]);
-      expect(results.map((r) => r.status).sort((a, b) => a - b)).toEqual([204, 400]);
+      expect(results.map((r) => r.status).sort((a, b) => a - b)).toEqual([
+        204, 400,
+      ]);
     });
 
     it('GR-BAYI-007: pasif bayiye sıfırlama e-postası gönderilmez; 202 döner', async () => {
@@ -564,7 +575,7 @@ describe('Kimlik doğrulama (e2e)', () => {
       );
     });
 
-    it('GR-BAYI-007: 10 karakterden kısa yeni şifre 400 döner ve token harcanmaz', async () => {
+    it('K-53: kurala uymayan yeni şifre 400 döner ve token harcanmaz', async () => {
       await makeDealer('sifirla7');
       await resetRequest({ email: email('sifirla7'), type: 'dealer' });
       const token = lastToken(email('sifirla7'));
@@ -572,6 +583,12 @@ describe('Kimlik doğrulama (e2e)', () => {
         .post('/api/auth/password-reset/confirm')
         .send({ token, password: 'kisa' })
         .expect(400);
+      for (const weak of ['kucukharf123', 'BUYUKHARF123', 'SadeceHarf']) {
+        await request(app.getHttpServer())
+          .post('/api/auth/password-reset/confirm')
+          .send({ token, password: weak })
+          .expect(400);
+      }
       await request(app.getHttpServer())
         .post('/api/auth/password-reset/confirm')
         .send({ token, password: 'Yeni-Sifre-9876' })

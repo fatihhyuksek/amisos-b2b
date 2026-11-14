@@ -1,17 +1,17 @@
-// Girdi doğrulaması sunucuda (Zod). Şifre uzunluğu varsayım (açık soru).
+// Girdi doğrulaması sunucuda (Zod). Şifre kuralı: K-53.
 import { z } from 'zod';
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './auth.constants.js';
+import { PASSWORD_MAX_LENGTH, passwordPolicyError } from './auth.constants.js';
 import { normalizeEmail } from './email.js';
 
 const email = z.string().max(254).transform(normalizeEmail).pipe(z.email());
 const token = z.string().min(20).max(200);
 const newPassword = z
   .string()
-  .min(
-    PASSWORD_MIN_LENGTH,
-    `Şifre en az ${PASSWORD_MIN_LENGTH} karakter olmalı.`,
-  )
-  .max(PASSWORD_MAX_LENGTH);
+  .max(PASSWORD_MAX_LENGTH)
+  .superRefine((value, ctx) => {
+    const error = passwordPolicyError(value);
+    if (error) ctx.addIssue({ code: 'custom', message: error });
+  });
 
 export const loginSchema = z.object({
   email,

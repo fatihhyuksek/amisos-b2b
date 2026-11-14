@@ -1,7 +1,7 @@
 // GR-BAYI-007: şifre sıfırlama bağlantısı 1 saat geçerlidir (K-39); geçersiz/süresi dolmuş token 400 döner.
 import { useState, type FormEvent } from 'react'
 import { ApiError, confirmPasswordReset } from '../api'
-import { MIN_PASSWORD_LENGTH, validateNewPassword } from '../auth/validation'
+import { PASSWORD_RULE_TEXT, validateNewPassword } from '../auth/validation'
 import { Link } from '../Link'
 import { useRoute } from '../router'
 import { Alert, AuthCard, Button, Field, PasswordInput } from '../ui/components'
@@ -70,12 +70,7 @@ export function ResetPasswordPage() {
       ) : (
         <form className="ui-auth__form" onSubmit={onSubmit} noValidate>
           {formError && <Alert tone="danger">{formError}</Alert>}
-          <Field
-            label="Yeni şifre"
-            htmlFor="new-password"
-            help={`En az ${MIN_PASSWORD_LENGTH} karakter.`}
-            error={errors.password}
-          >
+          <Field label="Yeni şifre" htmlFor="new-password" help={PASSWORD_RULE_TEXT} error={errors.password}>
             <PasswordInput
               id="new-password"
               autoComplete="new-password"

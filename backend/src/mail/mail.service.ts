@@ -1,4 +1,5 @@
-// E-posta gönderimi. Sağlayıcı seçilmedi (açık soru); şimdilik yalnızca log'a yazan geliştirme uygulaması.
+// E-posta gönderimi. Gönderen: MAIL_FROM (K-56, onay@amisosb2b.com). SMTP henüz kurulmadı;
+// şimdilik yalnızca log'a yazan geliştirme uygulaması.
 import { Global, Inject, Injectable, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isProductionLike, type Env } from '../config/env.js';
@@ -37,7 +38,8 @@ export class DevMailService implements MailService {
       );
       return;
     }
-    this.logger.log(`${subject} -> ${to}: ${link}`);
+    const from = this.config.get('MAIL_FROM', { infer: true });
+    this.logger.log(`${subject} (${from}) -> ${to}: ${link}`);
   }
 }
 

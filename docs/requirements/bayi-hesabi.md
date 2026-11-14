@@ -67,6 +67,11 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-48 | Rapor görünümü | Tablo ve Excel'e ek olarak grafikler (aylık sipariş tutarı trendi, ürün grubu dağılımı) ve panel açılışında özet ana sayfa. |
 | K-49 | Dönem karşılaştırması | Raporlar seçilen dönemi, bir önceki dönemle ve geçen yılın aynı dönemiyle karşılaştırır. |
 | K-50 | Pasif bayi eşiği | Son siparişi 60 günden eski olan bayi "uzun süredir sipariş vermeyen" listesine düşer. |
+| K-52 | Oturum süresi | 7 gün işlem yapılmazsa oturum kapanır; en geç 30 günde yeniden giriş gerekir. |
+| K-53 | Şifre kuralı | En az 8 karakter; en az bir büyük harf, bir küçük harf ve bir rakam. |
+| K-54 | Pasif bayi mesajı | Şifresi doğru olan pasif bayiye "Hesabınız pasif durumda. Bilgi için bizimle iletişime geçin." gösterilir. Yanlış şifrede genel hata. |
+| K-55 | E-posta doğrulama süresi | Doğrulama bağlantısı 24 saat geçerlidir. |
+| K-56 | Gönderen e-posta | onay@amisosb2b.com (adres henüz kurulmadı; SMTP sağlayıcısı sonra belirlenecek). |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 

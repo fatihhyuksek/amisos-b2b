@@ -15,10 +15,24 @@ export const PASSWORD_RESET_COOLDOWN_MS = 2 * 60 * 1000;
 /** Gereksinimde yok, varsayım (24 saat). */
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Gereksinimde yok, varsayım. */
-export const PASSWORD_MIN_LENGTH = 10;
+/** K-53: en az 8 karakter; büyük harf, küçük harf ve rakam zorunlu. */
+export const PASSWORD_MIN_LENGTH = 8;
+
+/** K-53 şifre kuralı. Uygunsa undefined, değilse Türkçe hata mesajı döner. */
+export function passwordPolicyError(password: string): string | undefined {
+  if (password.length < PASSWORD_MIN_LENGTH)
+    return `Şifre en az ${PASSWORD_MIN_LENGTH} karakter olmalı.`;
+  if (!/\p{Lu}/u.test(password)) return 'Şifre en az bir büyük harf içermeli.';
+  if (!/\p{Ll}/u.test(password)) return 'Şifre en az bir küçük harf içermeli.';
+  if (!/\p{Nd}/u.test(password)) return 'Şifre en az bir rakam içermeli.';
+  return undefined;
+}
 export const PASSWORD_MAX_LENGTH = 200;
 
-/** Tüm başarısız girişlerde aynı mesaj: hesap durumu sızdırılmaz. */
+/** Başarısız girişlerde ortak mesaj; hesap durumu sızdırılmaz (pasif bayi istisnası: K-54). */
 export const LOGIN_FAILED_MESSAGE =
   'Giriş yapılamadı. E-posta veya şifre hatalı olabilir.';
+
+/** K-54: şifresi doğru olan pasif bayiye gösterilen mesaj. */
+export const ACCOUNT_PASSIVE_MESSAGE =
+  'Hesabınız pasif durumda. Bilgi için bizimle iletişime geçin.';

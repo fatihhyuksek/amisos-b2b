@@ -1,5 +1,5 @@
 // GR-BAYI-007, K-29: e-posta ve şifre ile giriş. Bayi (/giris) ve Admin (/yonetim/giris) ayrı ekranlardır.
-// GR-BAYI-006: pasif bayi sunucuda reddedilir; ayrım yapılmayan genel hata gösterilir.
+// GR-BAYI-006, K-54: pasif bayi reddedilir; şifresi doğruysa sunucu 403 döner ve açık mesaj gösterilir.
 import { useState, type FormEvent } from 'react'
 import { ApiError, login, type UserType } from '../api'
 import { useAuth } from '../auth/useAuth'
@@ -10,6 +10,7 @@ import { Alert, AuthCard, Button, Field, PasswordInput } from '../ui/components'
 
 function loginErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
+    if (err.status === 403) return 'Hesabınız pasif durumda. Bilgi için bizimle iletişime geçin.'
     if (err.status === 401) return 'E-posta veya şifre hatalı ya da hesabınız giriş için uygun değil.'
     if (err.status === 429) return 'Çok fazla deneme yaptınız. Bir dakika sonra tekrar deneyin.'
   }

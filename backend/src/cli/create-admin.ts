@@ -8,7 +8,7 @@ import { createInterface } from 'node:readline';
 import { hash } from '@node-rs/argon2';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { PASSWORD_MIN_LENGTH } from '../auth/auth.constants.js';
+import { passwordPolicyError } from '../auth/auth.constants.js';
 import { normalizeEmail } from '../auth/email.js';
 import { z } from 'zod';
 import * as schema from '../database/schema.js';
@@ -73,9 +73,8 @@ async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL tanımlı değil.');
 
   const password = await readPassword();
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    throw new Error(`Şifre en az ${PASSWORD_MIN_LENGTH} karakter olmalı.`);
-  }
+  const policyError = passwordPolicyError(password);
+  if (policyError) throw new Error(policyError);
 
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   try {

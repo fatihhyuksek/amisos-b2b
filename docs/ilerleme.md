@@ -22,8 +22,9 @@ Son güncelleme: 2026-11-14
    - Frontend: `/giris`, `/yonetim/giris`, `/sifremi-unuttum`, `/sifre-sifirla`,
      `/eposta-dogrula`, korumalı karşılama sayfaları.
    - Kod incelemesi yapıldı; bulgular düzeltildi.
-   - Açık sorular (iş sahibi): oturum süresi, şifre kuralı, pasif bayi mesajı,
-     e-posta sağlayıcısı, e-posta doğrulama süresi (24 saat).
+   - İş sahibi kararları: K-52 (oturum 7/30 gün), K-53 (şifre: 8 karakter, büyük/küçük harf,
+     rakam), K-54 (pasif bayiye açık mesaj), K-55 (doğrulama 24 saat), K-56 (gönderen
+     onay@amisosb2b.com). PR: fatihhyuksek/amisos-b2b#5
 
 ## Sıradaki adım
 
@@ -55,7 +56,7 @@ Son güncelleme: 2026-11-14
 - BizimHesap desteğinden API token'ı, FirmID ve test hesabı.
 - KVKK aydınlatma metni ve kullanım koşulları metinleri.
 - Stokta esas alınacak BizimHesap deposu (BizimHesap adımında).
-- E-posta sağlayıcısı (şifre sıfırlama ve doğrulama e-postaları için).
+- onay@amisosb2b.com e-posta adresinin kurulması ve SMTP bilgileri (K-56).
 - Marka kimliği: logo, kurumsal renkler, varsa yazı tipi.
 
 ## Notlar
