@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
+import { BrandLogo } from '../shop/brand'
 import { replace, useRoute } from '../router'
 import { Button } from '../ui/components'
 
@@ -32,7 +33,9 @@ export function AdminLayout({
   return (
     <div className="ui-admin">
       <header className="ui-admin__top">
-        <div className="ui-admin__brand">Amisos B2B Yönetim</div>
+        <div className="ui-admin__brand">
+          <BrandLogo size="sm" suffix="Yönetim" />
+        </div>
         <div className="ui-admin__user">
           <span>{name}</span>
           <Button

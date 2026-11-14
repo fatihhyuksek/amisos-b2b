@@ -1,5 +1,6 @@
 // GR-BAYI-001, GR-BAYI-008 (K-35), GR-KVK-001 (K-45), K-02, K-03: herkese açık bayi başvuru formu.
 import { useRef, useState, type FormEvent } from 'react'
+import { BrandLogo } from '../shop/brand'
 import { ApiError, submitApplication, type DealerInput } from '../api'
 import { DealerFields } from '../dealers/DealerFields'
 import {
@@ -103,7 +104,9 @@ export function ApplyPage() {
 
   return (
     <main className="ui-page">
-      <div className="ui-auth__brand">Amisos B2B</div>
+      <div className="ui-auth__brand">
+        <BrandLogo size="lg" />
+      </div>
       <section className="ui-card ui-page__card" aria-labelledby="apply-title">
         <div className="ui-card__body ui-auth__body">
           <div className="ui-auth__head">

@@ -31,10 +31,13 @@ const STROKES = {
   tag: 'M20.5 13.5 13.5 20.5a2 2 0 0 1-2.8 0L3 12.8V3.5h9.3l8.2 8.2a2 2 0 0 1 0 1.8ZM7.5 7.5h.01',
   boxes: 'M3.5 7.5 12 3.2l8.5 4.3v9L12 20.8l-8.5-4.3v-9Zm0 0L12 12l8.5-4.5M12 12v8.8',
   shield: 'M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Zm-3 9 2 2 4-4',
-  headset: 'M4 15v-3a8 8 0 0 1 16 0v3M4 14h3v5H5a1 1 0 0 1-1-1v-4Zm16 0h-3v5h2a1 1 0 0 0 1-1v-4Zm-3 5c0 1.1-1.3 2-3 2h-1.5',
-  percent: 'M18.5 5.5l-13 13M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm9 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
+  headset:
+    'M4 15v-3a8 8 0 0 1 16 0v3M4 14h3v5H5a1 1 0 0 1-1-1v-4Zm16 0h-3v5h2a1 1 0 0 0 1-1v-4Zm-3 5c0 1.1-1.3 2-3 2h-1.5',
+  percent:
+    'M18.5 5.5l-13 13M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm9 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
   phone:
     'M5.5 4h3.2l1.8 4.6-2.2 1.4a11 11 0 0 0 5.7 5.7l1.4-2.2 4.6 1.8v3.2a2 2 0 0 1-2.1 2A16 16 0 0 1 3.5 6.1a2 2 0 0 1 2-2.1Z',
+  chat: 'M4 20l1.3-3.9A8 8 0 1 1 8 19l-4 1Zm5-8h.01M12 12h.01M15 12h.01',
   mail: 'M3.5 6h17v12h-17V6Zm0 .5 8.5 6.5 8.5-6.5',
   pin: 'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   grid: 'M4 4h6.5v6.5H4V4Zm9.5 0H20v6.5h-6.5V4ZM4 13.5h6.5V20H4v-6.5Zm9.5 0H20V20h-6.5v-6.5Z',
@@ -45,7 +48,11 @@ const STROKES = {
 export type IconName = keyof typeof PATHS | keyof typeof STROKES
 
 export function Icon({ name, label }: { name: IconName; label?: string }) {
-  const a11y = { 'aria-hidden': label ? undefined : true, role: label ? 'img' : undefined, 'aria-label': label }
+  const a11y = {
+    'aria-hidden': label ? undefined : true,
+    role: label ? 'img' : undefined,
+    'aria-label': label,
+  }
   if (name in STROKES)
     return (
       <svg

@@ -5,19 +5,13 @@ import type { CatalogGroup } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
 import { navigate, replace, useRoute } from '../router'
-import { BrandLogo, CONTACT } from '../shop/brand'
+import { BrandLogo } from '../shop/brand'
+import { catalogHref } from '../shop/catalogHref'
+import { CONTACT, PHONE_HREF, WHATSAPP_HREF } from '../shop/contact'
 import { useCartCount } from '../shop/cartCount'
 import { useCatalogGroups } from '../shop/useCatalogGroups'
 import { Button, Modal } from '../ui/components'
 import { Icon, type IconName } from '../ui/Icon'
-
-export function catalogHref(params: { grup?: string; q?: string }): string {
-  const qs = new URLSearchParams()
-  if (params.q) qs.set('q', params.q)
-  if (params.grup) qs.set('grup', params.grup)
-  const s = qs.toString()
-  return s ? `/katalog?${s}` : '/katalog'
-}
 
 function useLogout() {
   const { logout } = useAuth()
@@ -29,14 +23,18 @@ function useLogout() {
 
 // ---------- Duyuru şeridi (sabit metin, dönmez) ----------
 function AnnouncementStrip() {
-  const phone = CONTACT.phone ?? 'telefon eklenecek'
   return (
     <div className="ui-strip">
-      <p className="ui-strip__full">
-        Fiyatlar KDV hariçtir <span aria-hidden="true">·</span> Siparişler koli adedinin katları halinde
-        verilir <span aria-hidden="true">·</span> Destek: {phone}
+      <p>
+        <span className="ui-strip__full">
+          Fiyatlar KDV hariçtir <span aria-hidden="true">·</span> Siparişler koli adedinin katları halinde
+          verilir <span aria-hidden="true">·</span>{' '}
+        </span>
+        <span className="ui-strip__short">
+          KDV hariç fiyat <span aria-hidden="true">·</span>{' '}
+        </span>
+        Destek: <a href={PHONE_HREF}>{CONTACT.phone}</a>
       </p>
-      <p className="ui-strip__short">Fiyatlar KDV hariç · Koli katlarıyla sipariş</p>
     </div>
   )
 }
@@ -60,7 +58,7 @@ function SearchForm({ initial, idSuffix }: { initial: string; idSuffix: string }
         type="search"
         enterKeyHint="search"
         autoComplete="off"
-        placeholder="Ürün adı, barkod veya kod"
+        placeholder="Ürün adı, barkod, kod"
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
@@ -166,7 +164,7 @@ function CartLink({ compact }: { compact?: boolean }) {
 }
 
 // ---------- Kategori menüsü (masaüstü): sığmayan gruplar yalnızca "Tüm kategoriler"de ----------
-function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId: string }) {
+function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId: string | null }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -221,7 +219,11 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
         <div id="all-categories" className="ui-popover ui-popover--wide">
           <ul className="ui-popover__grid">
             <li>
-              <Link to="/katalog" className="ui-popover__item" aria-current={activeId === '' ? 'page' : undefined}>
+              <Link
+                to="/katalog"
+                className="ui-popover__item"
+                aria-current={activeId === '' ? 'page' : undefined}
+              >
                 Tüm ürünler
               </Link>
             </li>
@@ -244,7 +246,7 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
   )
 }
 
-function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: string }) {
+function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: string | null }) {
   const listRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLUListElement>(null)
   const [fit, setFit] = useState(groups.length)
@@ -316,7 +318,7 @@ function Drawer({
   open: boolean
   onClose: () => void
   groups: CatalogGroup[]
-  activeId: string
+  activeId: string | null
   name: string
 }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -365,7 +367,14 @@ function Drawer({
         </p>
         <ul className="ui-drawer__list">
           {link('/siparislerim', 'orders', 'Siparişlerim')}
-          {link('/sepet', 'bag', 'Sepetim', <span className="ui-countbadge ui-countbadge--inline">{count}</span>)}
+          {link(
+            '/sepet',
+            'bag',
+            'Sepetim',
+            <span className="ui-countbadge ui-countbadge--inline" data-empty={count === 0}>
+              {count}
+            </span>,
+          )}
           {link('/hesabim', 'user', 'Hesap bilgileri')}
         </ul>
         <h2 className="ui-drawer__title">Kategoriler</h2>
@@ -405,11 +414,13 @@ function Drawer({
 }
 
 // ---------- Alt bilgi ----------
+const YEAR = new Date().getFullYear()
+
 const TRUST: { icon: IconName; title: string; text: string }[] = [
   { icon: 'percent', title: 'KDV hariç net fiyat', text: 'İskontonuz fiyata yansıtılmış olarak' },
   { icon: 'boxes', title: 'Koli bazlı sipariş', text: 'Miktarlar koli içi adedin katlarıyla' },
   { icon: 'shield', title: 'Güvenli bayi girişi', text: 'Fiyatlar yalnızca onaylı bayilere açık' },
-  { icon: 'headset', title: 'Hızlı destek', text: 'Sorularınız için bize ulaşın' },
+  { icon: 'headset', title: 'Hızlı destek', text: `Telefon ve WhatsApp: ${CONTACT.phone}` },
 ]
 
 function Footer() {
@@ -421,7 +432,6 @@ function Footer() {
       </button>
     </li>
   )
-  const pending = <span className="muted">eklenecek</span>
   return (
     <footer className="ui-footer">
       <div className="ui-shop__container">
@@ -484,15 +494,26 @@ function Footer() {
             <ul className="ui-footer__contact">
               <li>
                 <Icon name="phone" />
-                <span>Telefon: {CONTACT.phone ?? pending}</span>
+                <a href={PHONE_HREF} className="ui-footer__link">
+                  <span className="visually-hidden">Telefon: </span>
+                  {CONTACT.phone}
+                </a>
+              </li>
+              <li>
+                <Icon name="chat" />
+                <a href={WHATSAPP_HREF} className="ui-footer__link" target="_blank" rel="noopener noreferrer">
+                  WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
+                </a>
               </li>
               <li>
                 <Icon name="mail" />
-                <span>E-posta: {CONTACT.email ?? pending}</span>
+                <a href={`mailto:${CONTACT.email}`} className="ui-footer__link">
+                  {CONTACT.email}
+                </a>
               </li>
               <li>
                 <Icon name="pin" />
-                <span>Adres: {CONTACT.address ?? pending}</span>
+                <span>{CONTACT.address}</span>
               </li>
             </ul>
           </section>
@@ -500,7 +521,7 @@ function Footer() {
       </div>
       <div className="ui-footer__bottom">
         <div className="ui-shop__container">
-          <span>© {new Date().getFullYear()} Amisos Züccaciye</span>
+          <span>© {YEAR} Amisos Züccaciye</span>
           <span>Fiyatlar KDV hariçtir · Stok yalnızca Var / Yok olarak gösterilir</span>
         </div>
       </div>
@@ -527,16 +548,14 @@ export function ShopLayout({ children }: { children: ReactNode }) {
   const email = state.status === 'authenticated' ? state.user.email : ''
   const onCatalog = path === '/katalog'
   const q = onCatalog ? (query.get('q') ?? '') : ''
-  const activeGroup = onCatalog ? (query.get('grup') ?? '') : ''
+  // null: katalog dışında (hiçbir kategori "geçerli sayfa" değil)
+  const activeGroup = onCatalog ? (query.get('grup') ?? '') : null
 
   return (
     <div className="ui-shop">
-      <a href="#icerik" className="ui-skip" onClick={(e) => {
-        e.preventDefault()
-        document.getElementById('icerik')?.focus()
-      }}>
+      <button type="button" className="ui-skip" onClick={() => document.getElementById('icerik')?.focus()}>
         İçeriğe geç
-      </a>
+      </button>
       <AnnouncementStrip />
       <header className="ui-shophead">
         <div className="ui-shop__container ui-shophead__row">
@@ -550,7 +569,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
           >
             <Icon name="menu" />
           </button>
-          <Link to="/" className="ui-shophead__logo" aria-label="Amisos B2B ana sayfa">
+          <Link to="/" className="ui-shophead__logo" aria-label="AMİSOS B2B ana sayfa">
             <BrandLogo />
           </Link>
           <div className="ui-shophead__search ui-shophead__search--wide">

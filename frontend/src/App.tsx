@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { BrandLogo } from './shop/brand'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
@@ -11,6 +12,8 @@ import { ProductGroupsPage } from './admin/ProductGroupsPage'
 import { ProductImportPage } from './admin/ProductImportPage'
 import { ProductListPage } from './admin/ProductListPage'
 import { CatalogPage } from './pages/CatalogPage'
+import { HomePage } from './pages/HomePage'
+import { AccountPage, ComingSoonPage } from './pages/ShopPlaceholderPages'
 import { ProductDetailPage } from './pages/ProductDetailPage'
 import { DesignPreview } from './design/DesignPreview'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -25,7 +28,9 @@ import { Alert, AuthCard, Button } from './ui/components'
 function LoadingScreen() {
   return (
     <main className="ui-auth" aria-busy="true">
-      <div className="ui-auth__brand">Amisos B2B</div>
+      <div className="ui-auth__brand">
+        <BrandLogo size="lg" />
+      </div>
       <div className="ui-card ui-auth__card">
         <div className="ui-card__body ui-auth__body">
           <div className="ui-skeleton" style={{ height: '1.75rem', width: '60%' }} />
@@ -126,7 +131,31 @@ function Routes() {
     case '/':
       return (
         <Protected area="dealer">
+          <HomePage />
+        </Protected>
+      )
+    case '/katalog':
+      return (
+        <Protected area="dealer">
           <CatalogPage />
+        </Protected>
+      )
+    case '/sepet':
+      return (
+        <Protected area="dealer">
+          <ComingSoonPage title="Sepetim" />
+        </Protected>
+      )
+    case '/siparislerim':
+      return (
+        <Protected area="dealer">
+          <ComingSoonPage title="Siparişlerim" />
+        </Protected>
+      )
+    case '/hesabim':
+      return (
+        <Protected area="dealer">
+          <AccountPage />
         </Protected>
       )
     case '/yonetim':

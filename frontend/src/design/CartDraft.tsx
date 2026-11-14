@@ -34,7 +34,7 @@ export function CartDraft() {
   return (
     <div className="draft">
       <header className="app-bar">
-        <span className="app-bar__brand">Amisos B2B</span>
+        <span className="app-bar__brand">AMİSOS B2B</span>
         <h1 className="app-bar__title">Sepet</h1>
       </header>
 

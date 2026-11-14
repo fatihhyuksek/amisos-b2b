@@ -1,20 +1,16 @@
-// GR-URN-003, GR-FIY-001, K-40, K-18, K-10, K-11: Bayi ürün kataloğu. (Sepet sonraki adımda.)
-import { useCallback, useEffect, useState } from 'react'
-import {
-  ApiError,
-  fetchCatalogGroups,
-  fetchCatalogProducts,
-  type CatalogGroup,
-  type CatalogProduct,
-} from '../api'
+// GR-URN-003, GR-URN-002, GR-FIY-001, GR-FIY-003, K-40, K-18, K-10, K-11: Bayi ürün kataloğu.
+// Süzgeçler adres satırında (?q=, ?grup=): geri tuşu ve paylaşılan bağlantı aynı sonucu verir.
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiError, fetchCatalogProducts, type CatalogProduct } from '../api'
 import { useAuth } from '../auth/useAuth'
-import { useLoad } from '../admin/useLoad'
 import { Link } from '../Link'
-import { Button, EmptyState, Price, StockBadge } from '../ui/components'
-import { ErrorAlert, ProductImage } from '../ui/catalog'
+import { useRoute } from '../router'
+import { useCatalogGroups } from '../shop/useCatalogGroups'
+import { Button, EmptyState } from '../ui/components'
+import { ErrorAlert, ProductCard, ProductCardSkeleton } from '../ui/catalog'
 import { formatInt } from '../ui/format'
 import { Icon } from '../ui/Icon'
-import { useDebounced } from '../ui/useDebounced'
+import { catalogHref } from '../shop/catalogHref'
 import { ShopLayout } from './ShopLayout'
 
 const PAGE_SIZE = 24
@@ -27,39 +23,23 @@ interface Result {
   failed: boolean
 }
 
-export function ProductCard({ p }: { p: CatalogProduct }) {
-  const href = `/urun/${encodeURIComponent(p.id)}`
-  return (
-    <li className="ui-card ui-product">
-      <Link to={href} className="ui-product__media" tabIndex={-1} aria-hidden="true">
-        <ProductImage src={p.images[0]?.thumbUrl} alt={p.name} />
-      </Link>
-      <div className="ui-product__body">
-        <div className="ui-product__meta">
-          <StockBadge inStock={p.stock === 'in_stock'} />
-          <span className="muted num">Koli içi: {p.caseQuantity} adet</span>
-        </div>
-        <h3 className="ui-product__name">
-          <Link to={href}>{p.name}</Link>
-        </h3>
-        <p className="muted num ui-product__barcode">{p.barcode}</p>
-        <Price
-          value={p.price}
-          listValue={p.discountPercent ? p.listPrice : undefined}
-          discountPercent={p.discountPercent ?? undefined}
-        />
-      </div>
-    </li>
-  )
-}
-
 export function CatalogPage() {
   const { refresh } = useAuth()
-  const [search, setSearch] = useState('')
-  const q = useDebounced(search.trim())
-  const [groupId, setGroupId] = useState('')
-  const groups = useLoad<CatalogGroup[]>((s) => fetchCatalogGroups(s), 'groups')
+  const { query } = useRoute()
+  const q = (query.get('q') ?? '').trim()
+  const groupId = query.get('grup') ?? ''
+  const groups = useCatalogGroups()
+  const groupList = groups.state.status === 'ready' ? groups.state.data : []
+  const group = groupList.find((g) => g.id === groupId)
   const [tick, setTick] = useState(0)
+  const sideRef = useRef<HTMLUListElement>(null)
+  // Telefonda yatay çip şeridinde seçili grubu görünür alana getirir (sayfayı kaydırmadan).
+  useEffect(() => {
+    const list = sideRef.current
+    const chip = list?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!list || !chip || list.scrollWidth <= list.clientWidth) return
+    list.scrollLeft += chip.getBoundingClientRect().left - list.getBoundingClientRect().left - 16
+  }, [groupId, groupList.length])
   const [more, setMore] = useState(false)
   const key = `${q}|${groupId}|${tick}`
   const [result, setResult] = useState<Result | null>(null)
@@ -108,88 +88,121 @@ export function CatalogPage() {
     }
   }, [q, groupId, key, list.page])
 
-  const searchBox = (
-    <div className="ui-search">
-      <Icon name="search" />
-      <input
-        className="ui-input"
-        type="search"
-        placeholder="Ürün adı veya barkod"
-        aria-label="Ürün ara"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-    </div>
+  const title = q ? `“${q}” için sonuçlar` : (group?.name ?? 'Tüm ürünler')
+  const groupLink = (id: string, label: string, count?: number) => (
+    <Link
+      to={catalogHref({ grup: id, q })}
+      className="ui-chip"
+      aria-current={groupId === id ? 'page' : undefined}
+    >
+      <span className="ui-chip__label">{label}</span>
+      {count !== undefined && <span className="ui-chip__count num">{count}</span>}
+    </Link>
   )
 
   return (
-    <ShopLayout search={searchBox}>
-      {groups.state.status === 'ready' && groups.state.data.length > 0 && (
-        <div className="ui-chips" role="group" aria-label="Ürün grubu">
-          <button
-            type="button"
-            className="ui-chip"
-            aria-pressed={groupId === ''}
-            onClick={() => setGroupId('')}
-          >
-            Tümü
-          </button>
-          {groups.state.data.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className="ui-chip"
-              aria-pressed={groupId === g.id}
-              onClick={() => setGroupId(g.id)}
-            >
-              {g.name}
-            </button>
-          ))}
-        </div>
-      )}
+    <ShopLayout>
+      <nav className="ui-crumbs" aria-label="Konum">
+        <ol>
+          <li>
+            <Link to="/">Ana sayfa</Link>
+          </li>
+          <li>
+            {q || group ? <Link to="/katalog">Katalog</Link> : <span aria-current="page">Katalog</span>}
+          </li>
+          {(q || group) && (
+            <li>
+              <span aria-current="page">{q ? 'Arama' : group?.name}</span>
+            </li>
+          )}
+        </ol>
+      </nav>
 
-      <p className="muted" aria-live="polite">
-        {list.status === 'ready' ? `${formatInt(list.total)} ürün · ` : ''}Fiyatlar KDV hariçtir
-      </p>
+      <div className="ui-catalog">
+        {groupList.length > 0 && (
+          <aside className="ui-catalog__side" aria-labelledby="side-title">
+            <h2 id="side-title" className="ui-catalog__sidetitle">
+              Kategoriler
+            </h2>
+            <ul className="ui-sidelist" ref={sideRef}>
+              <li>{groupLink('', 'Tüm ürünler')}</li>
+              {groupList.map((g) => (
+                <li key={g.id}>{groupLink(g.id, g.name, g.productCount)}</li>
+              ))}
+            </ul>
+          </aside>
+        )}
 
-      {list.status === 'loading' && (
-        <ul className="ui-products" aria-busy="true">
-          {Array.from({ length: 6 }, (_, i) => (
-            <li key={i} className="ui-card ui-skeleton" style={{ height: '5.5rem' }} />
-          ))}
-          <span className="visually-hidden" role="status">
-            Yükleniyor…
-          </span>
-        </ul>
-      )}
-      {list.status === 'error' && list.items.length === 0 && (
-        <ErrorAlert onRetry={() => setTick((t) => t + 1)}>Ürünler alınamadı.</ErrorAlert>
-      )}
-      {list.status === 'ready' && list.items.length === 0 && (
-        <div className="ui-card">
-          <EmptyState title="Ürün bulunamadı">Aramanızı veya ürün grubunu değiştirin.</EmptyState>
-        </div>
-      )}
-      {list.items.length > 0 && (
-        <>
-          <ul className="ui-products">
-            {list.items.map((p) => (
-              <ProductCard key={p.id} p={p} />
-            ))}
-          </ul>
-          {list.loadMoreFailed && <ErrorAlert onRetry={loadMore}>Daha fazla ürün alınamadı.</ErrorAlert>}
-          {list.items.length < list.total && (
-            <div className="ui-more">
-              <span className="muted">
-                {formatInt(list.items.length)} / {formatInt(list.total)} ürün gösteriliyor
+        <div className="ui-catalog__main">
+          <header className="ui-catalog__head">
+            <div>
+              <h1>{title}</h1>
+              <p className="muted" aria-live="polite">
+                {list.status === 'ready' ? `${formatInt(list.total)} ürün · ` : ''}Fiyatlar KDV hariçtir
+              </p>
+            </div>
+            {q && (
+              <Link
+                to={catalogHref({ grup: groupId })}
+                className="ui-button ui-button--secondary ui-button--sm"
+              >
+                <Icon name="close" />
+                Aramayı temizle
+              </Link>
+            )}
+          </header>
+
+          {list.status === 'loading' && (
+            <>
+              <ul className="ui-pgrid" aria-hidden="true">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <ProductCardSkeleton key={i} />
+                ))}
+              </ul>
+              <span className="visually-hidden" role="status">
+                Yükleniyor…
               </span>
-              <Button variant="secondary" onClick={loadMore} disabled={more}>
-                {more ? 'Yükleniyor…' : 'Daha fazla göster'}
-              </Button>
+            </>
+          )}
+          {list.status === 'error' && list.items.length === 0 && (
+            <ErrorAlert onRetry={() => setTick((t) => t + 1)}>Ürünler alınamadı.</ErrorAlert>
+          )}
+          {list.status === 'ready' && list.items.length === 0 && (
+            <div className="ui-card">
+              <EmptyState
+                title="Ürün bulunamadı"
+                action={
+                  <Link to="/katalog" className="ui-button ui-button--secondary">
+                    Tüm ürünlere dön
+                  </Link>
+                }
+              >
+                {q ? 'Başka bir ad, barkod veya kod deneyin.' : 'Bu kategoride şu an ürün yok.'}
+              </EmptyState>
             </div>
           )}
-        </>
-      )}
+          {list.items.length > 0 && (
+            <>
+              <ul className="ui-pgrid">
+                {list.items.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </ul>
+              {list.loadMoreFailed && <ErrorAlert onRetry={loadMore}>Daha fazla ürün alınamadı.</ErrorAlert>}
+              {list.items.length < list.total && (
+                <div className="ui-more">
+                  <span className="muted">
+                    {formatInt(list.items.length)} / {formatInt(list.total)} ürün gösteriliyor
+                  </span>
+                  <Button variant="secondary" onClick={loadMore} disabled={more}>
+                    {more ? 'Yükleniyor…' : 'Daha fazla göster'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </ShopLayout>
   )
 }

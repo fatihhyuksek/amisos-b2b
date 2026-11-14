@@ -411,3 +411,18 @@
     padding: 0;
   }
 }
+
+.radius-sample {
+  display: grid;
+  place-items: center;
+  width: 7rem;
+  height: 5rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.preview .ui-chip {
+  min-height: var(--control-height);
+}
