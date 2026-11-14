@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import { eq, inArray, like, or } from 'drizzle-orm';
+import { eq, gte, inArray, like, or } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { hash } from '@node-rs/argon2';
@@ -16,6 +16,7 @@ import {
   cartItems,
   dealerGroupDiscounts,
   dealers,
+  notificationOutbox,
   orderLines,
   orders,
   orderStatusHistory,
@@ -25,12 +26,14 @@ import {
 } from '../src/database/schema.js';
 import { companyTitleKey } from '../src/dealers/company-title.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
+import { NotificationsService } from '../src/notifications/notifications.service.js';
 
 const PASSWORD = 'Sifre-12345';
 const run = randomUUID().slice(0, 8);
 const bc = (n: number | string) => `O${run}-${n}`;
 
 describe('Sepet ve ön sipariş (e2e)', () => {
+  const startedAt = new Date(Date.now() - 1000);
   let app: INestApplication<App>;
   let db: Database;
   const adminIds: string[] = [];
@@ -130,6 +133,12 @@ describe('Sepet ve ön sipariş (e2e)', () => {
     ...over,
   });
 
+  /** POST /api/orders; `expectedVersion` verilmediyse sepetin güncel sürümü eklenir. */
+  const orderReq = async (agent: ReturnType<typeof request.agent>, body: Record<string, unknown>) => {
+    const expectedVersion = body.expectedVersion ?? (await agent.get('/api/cart')).body.version;
+    return { req: agent.post('/api/orders').send({ ...body, expectedVersion }) };
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(MAIL_SERVICE)
@@ -155,6 +164,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const orderIds = dealerIds.length
         ? (await db.select({ id: orders.id }).from(orders).where(inArray(orders.dealerId, dealerIds))).map((o) => o.id)
         : [];
+      await db.delete(notificationOutbox).where(gte(notificationOutbox.createdAt, startedAt));
       const entityIds = [...adminIds, ...dealerIds, ...prodIds, ...groupIds, ...orderIds];
       await db.delete(auditLog).where(or(inArray(auditLog.actorId, entityIds), inArray(auditLog.entityId, entityIds)));
       await db.delete(sessions).where(inArray(sessions.subjectId, [...adminIds, ...dealerIds]));
@@ -208,6 +218,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const p = await createProduct(groupA);
       const empty = await agent.get('/api/cart').expect(200);
       expect(empty.body).toEqual({
+        version: expect.stringMatching(/^[0-9a-f]{16}$/),
         lines: [],
         summary: { grossTotal: '0.00', discountTotal: '0.00', netTotal: '0.00', vatTotal: '0.00', grandTotal: '0.00' },
         warnings: [],
@@ -365,7 +376,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       expect(res.body.summary).toMatchObject({ netTotal: '20.04', vatTotal: '3.02', grandTotal: '23.06' });
     });
 
-    it('K-44: koli içi adedi sepetteyken değişirse miktar yukarı yuvarlanır ve adjusted bildirir', async () => {
+    it('K-21: koli içi adedi sepetteyken değişirse miktar yukarı yuvarlanır ve adjusted bildirir', async () => {
       const { agent } = await dealerAgent('sepet-koli-degisti');
       const p = await createProduct(groupA, { caseQuantity: 6 });
       await put(agent, p.id, 12).expect(200);
@@ -383,11 +394,11 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const p = await createProduct(groupA);
       await put(agent, p.id, 12).expect(200);
       const total = (await agent.get('/api/cart')).body.summary.grandTotal;
-      await agent.post('/api/orders').send(carrierBody(total, { carrierName: 'Eski Ambar', carrierBranch: 'Eski Şube' })).expect(201);
+      await (await orderReq(agent, carrierBody(total, { carrierName: 'Eski Ambar', carrierBranch: 'Eski Şube' }))).req.expect(201);
       await put(agent, p.id, 12).expect(200);
-      await agent.post('/api/orders').send(carrierBody(total, { carrierName: 'Yeni Ambar', carrierBranch: 'Merkez' })).expect(201);
+      await (await orderReq(agent, carrierBody(total, { carrierName: 'Yeni Ambar', carrierBranch: 'Merkez' }))).req.expect(201);
       await put(agent, p.id, 12).expect(200);
-      await agent.post('/api/orders').send({ deliveryMethod: 'pickup', expectedTotal: total }).expect(201);
+      await (await orderReq(agent, { deliveryMethod: 'pickup', expectedTotal: total })).req.expect(201);
       const last = await agent.get('/api/cart/checkout-defaults').expect(200);
       expect(last.body.lastCarrier).toEqual({ name: 'Yeni Ambar', branch: 'Merkez' });
     });
@@ -403,7 +414,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       expect(seen).toBe('704.16');
       await admin.agent.patch(`/api/admin/products/${p.id}`).send({ listPrice: '50' }).expect(200);
 
-      const res = await agent.post('/api/orders').send(carrierBody(seen)).expect(409);
+      const res = await (await orderReq(agent, carrierBody(seen))).req.expect(409);
       expect(res.body.code).toBe('PRICE_CHANGED');
       expect(res.body.cart.summary.grandTotal).toBe('720.00');
       expect(res.body.cart.lines[0].unitPrice).toBe('50.00');
@@ -411,7 +422,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       expect((await agent.get('/api/cart')).body.lines).toHaveLength(1);
 
       // Bayi güncel toplamı onaylayınca gönderilir.
-      await agent.post('/api/orders').send(carrierBody('720')).expect(201);
+      await (await orderReq(agent, carrierBody('720'))).req.expect(201);
     });
 
     it('GR-FIY-001: pasif ürün sepetten düşmüşse toplam aynı olsa da 409 PRICE_CHANGED; hepsi düşerse removed ile 409', async () => {
@@ -420,21 +431,23 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const free = await createProduct(groupA, { listPrice: '0', caseQuantity: 1 });
       await put(agent, p1.id, 12).expect(200);
       await put(agent, free.id, 1).expect(200);
-      const seen = (await agent.get('/api/cart')).body.summary.grandTotal as string;
+      const seenCart = (await agent.get('/api/cart')).body;
+      const seen = seenCart.summary.grandTotal as string;
+      const seenVersion = seenCart.version as string;
       await admin.agent.patch(`/api/admin/products/${free.id}`).send({ isActive: false }).expect(200);
-      const res = await agent.post('/api/orders').send(carrierBody(seen)).expect(409);
+      const res = await (await orderReq(agent, carrierBody(seen, { expectedVersion: seenVersion }))).req.expect(409);
       expect(res.body.cart.removed).toEqual([{ productId: free.id, name: free.name }]);
 
       await admin.agent.patch(`/api/admin/products/${p1.id}`).send({ isActive: false }).expect(200);
-      const all = await agent.post('/api/orders').send(carrierBody(seen)).expect(409);
+      const all = await (await orderReq(agent, carrierBody(seen, { expectedVersion: seenVersion }))).req.expect(409);
       expect(all.body.cart.lines).toEqual([]);
       expect(all.body.cart.removed).toHaveLength(1);
-      await agent.post('/api/orders').send(carrierBody(seen)).expect(400).expect((r) => expect(r.body.code).toBe('EMPTY_CART'));
+      await (await orderReq(agent, carrierBody(seen))).req.expect(400).expect((r) => expect(r.body.code).toBe('EMPTY_CART'));
     });
 
     it('GR-SIP-007: boş sepet 400 EMPTY_CART', async () => {
       const { agent } = await dealerAgent('gonder-bos');
-      const res = await agent.post('/api/orders').send({ deliveryMethod: 'pickup', expectedTotal: '0.00' }).expect(400);
+      const res = await (await orderReq(agent, { deliveryMethod: 'pickup', expectedTotal: '0.00' })).req.expect(400);
       expect(res.body.code).toBe('EMPTY_CART');
     });
 
@@ -444,7 +457,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       await put(agent, p.id, 12).expect(200);
       const total = '704.16';
       const bad = async (body: Record<string, unknown>) => {
-        const res = await agent.post('/api/orders').send(body).expect(400);
+        const res = await (await orderReq(agent, body)).req.expect(400);
         expect(res.body.code).toBe('VALIDATION');
         return res.body.fields as Record<string, string>;
       };
@@ -467,7 +480,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const p = await createProduct(groupA);
       for (const method of ['pickup', 'truck']) {
         await put(agent, p.id, 12).expect(200);
-        const res = await agent.post('/api/orders').send(carrierBody('704.16', { deliveryMethod: method })).expect(201);
+        const res = await (await orderReq(agent, carrierBody('704.16', { deliveryMethod: method }))).req.expect(201);
         const detail = await agent.get(`/api/orders/${res.body.id}`).expect(200);
         expect(detail.body).toMatchObject({
           deliveryMethod: method,
@@ -495,7 +508,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
         grandTotal: '654.71',
       });
 
-      const res = await agent.post('/api/orders').send(carrierBody(cart.summary.grandTotal)).expect(201);
+      const res = await (await orderReq(agent, carrierBody(cart.summary.grandTotal))).req.expect(201);
       expect(res.body).toEqual({ id: expect.any(String), orderNo: expect.any(Number) });
       expect(res.body.orderNo).toBeGreaterThanOrEqual(1000);
 
@@ -562,15 +575,91 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       expect(detail.lines.find((l: { productId: string }) => l.productId === out.id).outOfStock).toBe(true);
     });
 
+    it('GR-FIY-001: sepet sürümü (version) deterministik; içerik veya miktar değişince değişir', async () => {
+      const { agent } = await dealerAgent('surum');
+      const p = await createProduct(groupA);
+      const empty = (await agent.get('/api/cart')).body.version as string;
+      expect(empty).toMatch(/^[0-9a-f]{16}$/);
+      await put(agent, p.id, 12).expect(200);
+      const v12 = (await agent.get('/api/cart')).body.version as string;
+      expect((await agent.get('/api/cart')).body.version).toBe(v12);
+      expect(v12).not.toBe(empty);
+      await put(agent, p.id, 24).expect(200);
+      const v24 = (await agent.get('/api/cart')).body.version as string;
+      expect(v24).not.toBe(v12);
+      await put(agent, p.id, 12).expect(200);
+      expect((await agent.get('/api/cart')).body.version).toBe(v12);
+    });
+
+    it('GR-FIY-001: expectedVersion zorunlu (400 VALIDATION)', async () => {
+      const { agent } = await dealerAgent('surum-zorunlu');
+      const p = await createProduct(groupA);
+      await put(agent, p.id, 12).expect(200);
+      const res = await agent.post('/api/orders').send({ deliveryMethod: 'pickup', expectedTotal: '704.16' }).expect(400);
+      expect(res.body.code).toBe('VALIDATION');
+      expect(Object.keys(res.body.fields)).toEqual(['expectedVersion']);
+    });
+
+    it('GR-FIY-001: toplam aynı ama sepet içeriği farklıysa 409 PRICE_CHANGED (sürüm uyuşmazlığı); doğru sürümle gönderilir', async () => {
+      const { agent, dealer } = await dealerAgent('surum-icerik');
+      const x = await createProduct(groupA, { listPrice: '10.00', caseQuantity: 1 });
+      const y = await createProduct(groupA, { listPrice: '20.00', caseQuantity: 1 });
+      await put(agent, x.id, 2).expect(200);
+      const before = (await agent.get('/api/cart')).body;
+      expect(before.summary.grandTotal).toBe('24.00');
+      // Aynı genel toplam (24.00), farklı içerik.
+      await agent.delete(`/api/cart/items/${x.id}`).expect(200);
+      await put(agent, y.id, 1).expect(200);
+      const after = (await agent.get('/api/cart')).body;
+      expect(after.summary.grandTotal).toBe(before.summary.grandTotal);
+      expect(after.version).not.toBe(before.version);
+
+      const res = await (await orderReq(agent, carrierBody('24.00', { expectedVersion: before.version }))).req.expect(409);
+      expect(res.body.code).toBe('PRICE_CHANGED');
+      expect(res.body.cart.version).toBe(after.version);
+      expect(await db.select().from(orders).where(eq(orders.dealerId, dealer.id))).toHaveLength(0);
+      await (await orderReq(agent, carrierBody('24.00', { expectedVersion: after.version }))).req.expect(201);
+    });
+
+    it('K-21, GR-SIP-004: gönderim anında koli katı düzeltilmişse (adjusted) toplam aynı olsa da 409; sipariş oluşmaz', async () => {
+      const { agent, dealer } = await dealerAgent('gonder-adjusted');
+      const p = await createProduct(groupA, { caseQuantity: 6, listPrice: '0' });
+      await put(agent, p.id, 12).expect(200);
+      const seen = (await agent.get('/api/cart')).body;
+      expect(seen.summary.grandTotal).toBe('0.00');
+      await admin.agent.patch(`/api/admin/products/${p.id}`).send({ caseQuantity: 5 }).expect(200);
+      const res = await (await orderReq(agent, carrierBody('0.00', { expectedVersion: seen.version }))).req.expect(409);
+      expect(res.body.code).toBe('PRICE_CHANGED');
+      expect(res.body.cart.adjusted).toEqual([{ productId: p.id, name: p.name, from: 12, to: 15, caseQuantity: 5 }]);
+      expect(res.body.cart.lines[0].quantity).toBe(15);
+      expect(await db.select().from(orders).where(eq(orders.dealerId, dealer.id))).toHaveLength(0);
+      // Bayi güncel sepeti görüp onaylayınca gönderilir.
+      await (await orderReq(agent, carrierBody('0.00'))).req.expect(201);
+    });
+
+    it('GR-SIP-006, K-10: sipariş detayında iskonto yoksa discountPercent null, varsa oran', async () => {
+      const plain = await dealerAgent('iskonto-yok');
+      const disc = await dealerAgent('iskonto-var', { generalDiscountPercent: '15.00' });
+      const p = await createProduct(groupA);
+      for (const [d, expected] of [[plain, null], [disc, '15.00']] as const) {
+        await put(d.agent, p.id, 12).expect(200);
+        const created = (await (await orderReq(d.agent, carrierBody((await d.agent.get('/api/cart')).body.summary.grandTotal))).req.expect(201)).body;
+        const detail = (await d.agent.get(`/api/orders/${created.id}`).expect(200)).body;
+        expect(detail.lines[0].discountPercent).toBe(expected);
+        const adminDetail = (await admin.agent.get(`/api/admin/orders/${created.id}`).expect(200)).body;
+        expect(adminDetail.lines[0].discountPercent).toBe(expected);
+      }
+    });
+
     it('K-41, GR-SIP-005: çift gönderim (paralel iki POST) tek sipariş oluşturur; diğeri 400 EMPTY_CART', async () => {
       const { agent, dealer } = await dealerAgent('gonder-cift');
       const p = await createProduct(groupA);
       await put(agent, p.id, 12).expect(200);
       const body = carrierBody('704.16');
       const results = await Promise.all([
-        agent.post('/api/orders').send(body),
-        agent.post('/api/orders').send(body),
-        agent.post('/api/orders').send(body),
+        (await orderReq(agent, body)).req,
+        (await orderReq(agent, body)).req,
+        (await orderReq(agent, body)).req,
       ]);
       expect(results.map((r) => r.status).sort((x, y) => x - y)).toEqual([201, 400, 400]);
       expect(results.filter((r) => r.status === 400).every((r) => r.body.code === 'EMPTY_CART')).toBe(true);
@@ -590,7 +679,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const total = (await agent.get('/api/cart')).body.summary.grandTotal as string;
       mail.sendOrderConfirmation.mockClear();
       mail.sendNewOrderToTeam.mockClear();
-      const res = await agent.post('/api/orders').send(carrierBody(total)).expect(201);
+      const res = await (await orderReq(agent, carrierBody(total))).req.expect(201);
 
       await vi.waitFor(() => {
         expect(mail.sendOrderConfirmation).toHaveBeenCalledTimes(1);
@@ -619,15 +708,20 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       );
     });
 
-    it('e-posta gönderimi başarısız olsa da sipariş oluşur (201)', async () => {
-      const { agent } = await dealerAgent('bildirim-hata');
+    it('GR-BLD-001: e-posta gönderimi başarısız olsa da sipariş oluşur (201); bildirim outbox te pending kalır', async () => {
+      const { agent, dealer } = await dealerAgent('bildirim-hata');
       const p = await createProduct(groupA);
       await put(agent, p.id, 12).expect(200);
       mail.sendOrderConfirmation.mockRejectedValueOnce(new Error('smtp down'));
       mail.sendNewOrderToTeam.mockRejectedValue(new Error('smtp down'));
       try {
-        await agent.post('/api/orders').send(carrierBody('704.16')).expect(201);
-        await vi.waitFor(() => expect(mail.sendNewOrderToTeam).toHaveBeenCalled());
+        const res = await (await orderReq(agent, carrierBody('704.16'))).req.expect(201);
+        await app.get(NotificationsService).whenIdle();
+        expect(await db.select().from(orders).where(eq(orders.id, res.body.id))).toHaveLength(1);
+        const rows = await db.select().from(notificationOutbox).where(eq(notificationOutbox.recipient, dealer.email));
+        expect(rows).toEqual([expect.objectContaining({ kind: 'order_confirmation', status: 'pending', attempts: 1, lastError: 'smtp down' })]);
+        const team = await db.select().from(notificationOutbox).where(eq(notificationOutbox.recipient, admin.admin.email));
+        expect(team.filter((r) => r.kind === 'new_order_team' && r.status === 'pending').length).toBeGreaterThanOrEqual(1);
       } finally {
         mail.sendNewOrderToTeam.mockReset().mockResolvedValue(undefined);
       }
@@ -639,7 +733,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
     async function placeOrder(agent: ReturnType<typeof request.agent>, productId: string, qty = 12) {
       await put(agent, productId, qty).expect(200);
       const total = (await agent.get('/api/cart')).body.summary.grandTotal as string;
-      return (await agent.post('/api/orders').send(carrierBody(total)).expect(201)).body as { id: string; orderNo: number };
+      return (await (await orderReq(agent, carrierBody(total))).req.expect(201)).body as { id: string; orderNo: number };
     }
 
     it('liste sayfalı ve en yeni önce; detay satırlar/toplamlar/teslimat/durum geçmişi içerir', async () => {
@@ -716,7 +810,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       await put(agent, p.id, 12).expect(200);
       await put(agent, q.id, 6).expect(200);
       const total = (await agent.get('/api/cart')).body.summary.grandTotal as string;
-      const order = (await agent.post('/api/orders').send(carrierBody(total)).expect(201)).body;
+      const order = (await (await orderReq(agent, carrierBody(total))).req.expect(201)).body;
 
       // Fiyat artar; sepette zaten 12 adet p var.
       await admin.agent.patch(`/api/admin/products/${p.id}`).send({ listPrice: '60' }).expect(200);
@@ -745,7 +839,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const groupGone = await createProduct(grp, { caseQuantity: 1 });
       for (const [p, q] of [[keep, 12], [gone, 6], [changed, 12], [groupGone, 3]] as const) await put(agent, p.id, q).expect(200);
       const total = (await agent.get('/api/cart')).body.summary.grandTotal as string;
-      const order = (await agent.post('/api/orders').send(carrierBody(total)).expect(201)).body;
+      const order = (await (await orderReq(agent, carrierBody(total))).req.expect(201)).body;
       expect((await agent.get('/api/cart')).body.lines).toEqual([]);
 
       await admin.agent.patch(`/api/admin/products/${gone.id}`).send({ isActive: false }).expect(200);
@@ -770,12 +864,26 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       expect(old.lines).toHaveLength(4);
     });
 
+    it('GR-SIP-008: toplanan miktar sınırı (100000) aşarsa koli katına kırpılır ve adjusted bildirir', async () => {
+      const { agent } = await dealerAgent('tekrar-sinir');
+      const p = await createProduct(groupA, { listPrice: '1.00' });
+      await put(agent, p.id, 99_996).expect(200); // 12 x 8333
+      const total = (await agent.get('/api/cart')).body.summary.grandTotal as string;
+      const order = (await (await orderReq(agent, carrierBody(total))).req.expect(201)).body;
+      await put(agent, p.id, 99_996).expect(200);
+      const res = await agent.post(`/api/orders/${order.id}/reorder`).expect(200);
+      expect(res.body.adjusted).toEqual([{ productId: p.id, name: p.name, from: 199_992, to: 99_996, caseQuantity: 12 }]);
+      expect(res.body.cart.lines[0].quantity).toBe(99_996);
+      // Sınırı aşan satır sepete yazılabilir değerde kalır.
+      await put(agent, p.id, 99_996).expect(200);
+    });
+
     it('koli içi adedi değişse de miktar yeni koli katıysa yuvarlama yok', async () => {
       const { agent } = await dealerAgent('tekrar-ayni');
       const p = await createProduct(groupA, { caseQuantity: 6 });
       await put(agent, p.id, 12).expect(200);
       const total = (await agent.get('/api/cart')).body.summary.grandTotal as string;
-      const order = (await agent.post('/api/orders').send(carrierBody(total)).expect(201)).body;
+      const order = (await (await orderReq(agent, carrierBody(total))).req.expect(201)).body;
       await admin.agent.patch(`/api/admin/products/${p.id}`).send({ caseQuantity: 4 }).expect(200);
       const res = await agent.post(`/api/orders/${order.id}/reorder`).expect(200);
       expect(res.body.adjusted).toEqual([]);
@@ -791,7 +899,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       const p = await createProduct(groupA);
       const place = async (agent: ReturnType<typeof request.agent>) => {
         await put(agent, p.id, 12).expect(200);
-        return (await agent.post('/api/orders').send(carrierBody('704.16')).expect(201)).body as { id: string; orderNo: number };
+        return (await (await orderReq(agent, carrierBody('704.16'))).req.expect(201)).body as { id: string; orderNo: number };
       };
       const a1 = await place(a.agent);
       const a2 = await place(a.agent);

@@ -1,6 +1,7 @@
 // Kalıcı sepet. GR-SIP-003, GR-SIP-004, GR-SIP-008, GR-FIY-001, GR-FIY-003; K-20, K-21, K-38, K-41, K-44.
 // Fiyat sepette saklanmaz: her görünümde güncel iskontoyla hesaplanır. Pasif ürünler sepetten düşer,
 // koli içi adedi değişen satırlar yeni koli katına yukarı yuvarlanır (ikisi de yanıtta bildirilir).
+import { createHash } from 'node:crypto';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { catalogImageDto, loadImages } from '../catalog/product-images.js';
@@ -24,6 +25,8 @@ export interface CartLine extends LinePricing {
 }
 
 export interface CartView {
+  /** Satırların (productId, quantity, unitPrice) özeti; sipariş gönderiminde `expectedVersion` ile doğrulanır. */
+  version: string;
   lines: CartLine[];
   summary: OrderSummary;
   warnings: { code: 'OUT_OF_STOCK'; productId: string; name: string }[];
@@ -195,6 +198,7 @@ export class CartService {
     const lines = items.map((i) => i.line);
     return {
       view: {
+        version: cartVersion(lines),
         lines,
         summary: summarize(lines),
         warnings: lines
@@ -210,4 +214,12 @@ export class CartService {
   private async removeRow(tx: Tx, dealerId: string, productId: string): Promise<void> {
     await tx.delete(cartItems).where(and(eq(cartItems.dealerId, dealerId), eq(cartItems.productId, productId)));
   }
+}
+
+/** Deterministik sepet sürümü: productId sıralı (productId, quantity, unitPrice) listesinin sha256'sı (ilk 16 hex). */
+export function cartVersion(lines: Pick<CartLine, 'productId' | 'quantity' | 'unitPrice'>[]): string {
+  const canonical = lines
+    .map((l) => [l.productId, l.quantity, l.unitPrice] as const)
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex').slice(0, 16);
 }

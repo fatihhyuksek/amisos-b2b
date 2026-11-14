@@ -22,6 +22,7 @@ Satır başına (fiyat sepette saklanmaz, her istekte güncel iskontoyla hesapla
 
 ```json
 {
+  "version": "4f53cda18c2baa0c",
   "lines": [
     {
       "productId": "uuid",
@@ -44,6 +45,7 @@ Satır başına (fiyat sepette saklanmaz, her istekte güncel iskontoyla hesapla
 }
 ```
 
+- `version`: sepetin sürümü (16 hex). Satırların `productId`, `quantity` ve `unitPrice` değerlerinden deterministik hesaplanır; aynı içerik aynı sürümü verir, ürün/miktar/fiyat değişince değişir. Sipariş gönderirken `expectedVersion` olarak geri gönderilir.
 - `thumbUrl`: ürünün ilk görseli, yoksa `null` (varsayılan görseli frontend koyar). `discountPercent`: iskonto yoksa `null` (`unitPrice` = `listPrice`).
 - `stock`: `in_stock | out_of_stock`; adet dönmez (K-18). `out_of_stock` satırlar sepette tutulur ve `warnings`'a `OUT_OF_STOCK` olarak düşer;
   frontend "Tedarik süresi görüşülecek" uyarısını gösterir (K-20, GR-SIP-003).
@@ -79,7 +81,8 @@ Satır başına (fiyat sepette saklanmaz, her istekte güncel iskontoyla hesapla
   "carrierName": "Yurtiçi Kargo",
   "carrierBranch": "Kayseri Şube",
   "note": "Sabah teslim olursa iyi olur.",
-  "expectedTotal": "598.61"
+  "expectedTotal": "598.61",
+  "expectedVersion": "4f53cda18c2baa0c"
 }
 ```
 
@@ -88,12 +91,14 @@ Satır başına (fiyat sepette saklanmaz, her istekte güncel iskontoyla hesapla
   `pickup`/`truck` ise bu üç alan **yok sayılır** (kaydedilmez); sipariş "adres görüşmede belirlenecek" olarak işlenir (K-37).
 - `note`: isteğe bağlı, en fazla 1000 karakter.
 - `expectedTotal`: bayinin ekranda gördüğü **genel toplam** (`summary.grandTotal`). Zorunlu.
+- `expectedVersion`: bayinin ekranda gördüğü sepetin `version` değeri. **Zorunlu** (yoksa 400 `VALIDATION`). Toplam aynı kalsa bile sepet içeriği (ürün, miktar, birim fiyat) farklıysa sipariş oluşmaz.
 
 Sunucu sepeti güncel fiyatla yeniden hesaplar (GR-FIY-001). Sonuçlar:
 
+
 - **201** `{ "id": "uuid", "orderNo": 1001 }`. Tek transaction'da: sipariş + satır kopyaları (ürün bilgisi, fiyat, iskonto, `outOfStockAtOrder`) +
   durum geçmişi (`submitted`, kaynak sistem) yazılır, sepet boşalır. BizimHesap aktarım durumu `pending`. Ardından arka planda bayiye onay, tüm aktif Admin'lere "Yeni ön sipariş #orderNo" e-postası gider (GR-BLD-001, K-26).
-- **409** `{ code: "PRICE_CHANGED", cart: Cart }`: güncel genel toplam `expectedTotal`'dan farklı **veya** sepette `removed`/`adjusted` oluştu.
+- **409** `{ code: "PRICE_CHANGED", cart: Cart }`: güncel genel toplam `expectedTotal`'dan farklı, **veya** `version` `expectedVersion`'dan farklı, **veya** sepette `removed`/`adjusted` oluştu.
   Sipariş oluşmaz; frontend güncel `cart`'ı gösterip bayiden yeniden onay ister, onayla yeni `expectedTotal` ile tekrar gönderir.
 - **400** `EMPTY_CART`: sepet boş. (Sepetteki tüm ürünler pasif olup düşerse sepet boşalır ama `removed` dolu olduğundan yanıt 409 `PRICE_CHANGED` olur.)
 - **400** `VALIDATION`: gövde hatası.
@@ -127,6 +132,7 @@ Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22, GR-SIP-005): bayi
   "history": [{ "fromStatus": null, "toStatus": "submitted", "source": "system", "createdAt": "ISO" }]
 }
 ```
+Satırda iskonto yoksa `discountPercent` **`null`** döner (sepet satırıyla aynı; K-10), `unitPrice` = `listPrice`.
 `deliveryAddress/carrierName/carrierBranch` yalnızca `carrier` ise dolu, aksi `null` (arayüz "adres görüşmede belirlenecek" yazar). `unitPrice` sipariş anındaki iskontolu birim fiyattır (kopya); ürün fiyatı sonradan değişse de sipariş değişmez.
 `status`: `submitted | negotiating | approved | shipped | delivered | cancelled` (K-25). Dahili not ve Admin kimliği bayiye dönmez.
 
@@ -142,7 +148,8 @@ Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22, GR-SIP-005): bayi
 }
 ```
 - Satırlar **güncel fiyat** ve stokla sepete eklenir (K-44); sepetteki aynı ürünün miktarına **eklenir** (toplanır).
-- Pasif/kaldırılmış (ürün veya grubu pasif) ürünler eklenmez, `skipped`'te `reason: "INACTIVE"` ile döner.
+- Pasif/kaldırılmış (ürün veya grubu pasif) ürünler eklenmez, `skipped`'te `reason: "INACTIVE"` ile döner. (Koli içi adedi tek başına 100000'i aşan üründe `reason: "QUANTITY_LIMIT"`.)
+- Toplanan miktar satır sınırını (100000) aşarsa, sınırı aşmayan en büyük koli katına kırpılır ve `adjusted`'ta bildirilir (`from` istenen, `to` kırpılan).
 - Ürünün koli içi adedi değiştiyse ve miktar yeni koli katı değilse miktar yukarı yuvarlanır; `adjusted`'ta `from` (eski miktar + sepetteki), `to` (yeni) döner.
 - `cart.removed/adjusted` bu isteğin kendi `adjusted` listesinden ayrıdır (sepette önceden kalmış satırların düzeltmesi).
 
@@ -159,3 +166,15 @@ Durum güncelleme sonraki adımdır; bu uçlar salt okunurdur.
 ```
 `GET /api/admin/orders/:id` -> bayi detayındaki tüm alanlar + `dealer { id, companyTitle, contactName, email, phone }`,
 `transferStatus`, `transferError`, `bizimhesapGuid`, `transferredAt`; `history` öğelerinde ek olarak `changedBy` (Admin id) ve `note`. Olmayan id **404**.
+
+## Bildirimler (outbox, GR-BLD-001, AdminGuard)
+
+Tüm e-postalar (sipariş, başvuru, davet, ret, şifre sıfırlama, doğrulama, hatırlatma) önce iş transaction'ında `notification_outbox`'a yazılır,
+commit sonrası bir kez denenir; başarısızsa dakikada bir çalışan iş 1, 5, 15, 60 dk (sonra 60 dk) aralıkla en fazla 8 denemeye kadar yeniden dener,
+ardından `failed` olur ve log'a error yazılır. Token içeren e-postalarda bağlantı gönderilince (veya `failed` ise 24 saat sonra) payload'dan silinir.
+
+- `GET /api/admin/notifications?status=pending|sent|failed&page=1&pageSize=20` -> `{ items, total, page, pageSize }`, en yeni önce.
+  Öğe: `{ id, kind, recipient, status, attempts, lastError, nextAttemptAt, createdAt, sentAt }` (payload ve bağlantılar dönmez).
+  `kind`: `order_confirmation | new_order_team | new_application | invitation | rejection | password_reset | email_verification | approval_reminder`.
+- `POST /api/admin/notifications/:id/retry` -> **200** güncel öğe (sayacı sıfırlar, hemen bir kez dener). Zaten gönderilmişse **409** `ALREADY_SENT`;
+  bağlantısı silinmiş token'lı e-posta **409** `PAYLOAD_EXPIRED`; olmayan id **404**.

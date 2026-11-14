@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { DevMailService, formatOrderForTeam, type OrderMail } from './mail.service.js';
+import { DevMailService, formatOrderForTeam, oneLine, type OrderMail } from './mail.service.js';
 
 const configFor = (env: string) => ({ get: () => env }) as never;
 
@@ -42,5 +42,27 @@ describe('formatOrderForTeam', () => {
     expect(text).toContain('869001 | Bardak | 12 adet | 41.57 TL | STOKTA YOK');
     expect(text).toContain('adres görüşmede belirlenecek');
     expect(text).toContain('#1001');
+  });
+});
+
+describe('oneLine (log enjeksiyonu)', () => {
+  it('satır sonları ve kontrol karakterleri boşluğa çevrilir, boşluklar sadeleşir', () => {
+    expect(oneLine('Firma\r\nSahte satır\u001b[31m Son\tkısım  x ')).toBe('Firma Sahte satır [31m Son kısım x');
+    expect(oneLine('düz metin')).toBe('düz metin');
+  });
+
+  it('bayi girdisi (not, adres, ad) ekip e-postasında tek satırda kalır', () => {
+    const text = formatOrderForTeam({
+      orderNo: 1, submittedAt: new Date(), dealerCompany: 'Firma\nÖn sipariş #999 - Sahte', dealerContact: 'A\r\nB',
+      dealerEmail: 'a@b.co', dealerPhone: '0532', deliveryMethod: 'carrier',
+      deliveryAddress: 'Adres\nSahte: satır', carrierName: 'Ambar\n', carrierBranch: 'Şube\r',
+      note: 'Not\n\nSahte not',
+      lines: [{ barcode: '1', code: null, name: 'Ürün\nAdı', quantity: 1, unitPrice: '1.00', outOfStock: false }],
+      netTotal: '1.00', vatTotal: '0.20', grandTotal: '1.20',
+    });
+    // Beklenen satırlar: başlık, teslimat, not, 1 ürün, toplam.
+    expect(text.split('\n')).toHaveLength(5);
+    expect(text).toContain('Firma Ön sipariş #999 - Sahte');
+    expect(text).toContain('Ürün Adı');
   });
 });

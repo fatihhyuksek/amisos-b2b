@@ -32,7 +32,7 @@ import {
   countApprovalUrgency,
 } from '../common/business-days.js';
 import { EMAIL_VERIFICATION_TTL_MS } from '../auth/auth.constants.js';
-import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { companyTitleKey } from './company-title.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthService } from '../auth/auth.service.js';
@@ -111,7 +111,7 @@ export class DealersService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(SessionsService) private readonly sessions: SessionsService,
-    @Inject(MAIL_SERVICE) private readonly mail: MailService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
   ) {}
 
   // --- Başvuru (K-02, K-35) -------------------------------------------------
@@ -177,7 +177,7 @@ export class DealersService {
     input: DealerFieldsInput,
     adminId: string,
   ): Promise<DealerSummary> {
-    let created: { row: DealerRow; link: string };
+    let created: { row: DealerRow; outboxId: string };
     try {
       created = await this.db.transaction(async (tx) => {
         const [row] = await tx
@@ -202,13 +202,14 @@ export class DealersService {
           },
           tx,
         );
-        return { row, link };
+        const outboxId = await this.auth.enqueueInvitation(row.email, link, tx);
+        return { row, outboxId };
       });
     } catch (error) {
       if (isUniqueViolation(error)) throw duplicate();
       throw error;
     }
-    this.auth.queueInvitationEmail(created.row.email, created.link);
+    this.notifications.dispatchSoon([created.outboxId]);
     return this.toSummary(created.row);
   }
 
@@ -332,17 +333,18 @@ export class DealersService {
 
   /** pending_approval -> active; davet token'ı aynı transaction'da üretilir, e-posta commit sonrası gider. */
   async approve(id: string, adminId: string): Promise<void> {
-    let link = '';
-    const dealer = await this.transition(id, adminId, {
+    let outboxId = '';
+    await this.transition(id, adminId, {
       from: ['pending_approval'],
       to: 'active',
       action: 'dealer.approved',
       set: { reviewedAt: this.clock.now(), reviewedBy: adminId },
-      afterUpdate: async (tx) => {
-        link = await this.auth.issueInvitationLink(id, tx);
+      afterUpdate: async (tx, dealer) => {
+        const link = await this.auth.issueInvitationLink(id, tx);
+        outboxId = await this.auth.enqueueInvitation(dealer.email, link, tx);
       },
     });
-    this.auth.queueInvitationEmail(dealer.email, link);
+    this.notifications.dispatchSoon([outboxId]);
   }
 
   /**
@@ -350,7 +352,8 @@ export class DealersService {
    * serbest). Adaya gerekçesiz bilgi e-postası gider.
    */
   async reject(id: string, adminId: string, reason: string): Promise<void> {
-    const dealer = await this.transition(id, adminId, {
+    let outboxId = '';
+    await this.transition(id, adminId, {
       from: ['pending_email', 'pending_approval'],
       to: 'rejected',
       action: 'dealer.rejected',
@@ -360,10 +363,12 @@ export class DealersService {
         reviewedBy: adminId,
         rejectionReason: reason,
       },
+      // Gerekçe (iç not) e-postaya yazılmaz; payload boş.
+      afterUpdate: async (tx, dealer) => {
+        outboxId = await this.notifications.enqueue('rejection', dealer.email, {}, tx);
+      },
     });
-    this.auth.runInBackground('Ret e-postası gönderilemedi', () =>
-      this.mail.sendRejection(dealer.email),
-    );
+    this.notifications.dispatchSoon([outboxId]);
   }
 
   /** active -> passive; açık oturumlar silinir (K-08). */
@@ -392,7 +397,7 @@ export class DealersService {
    * token üretildiği için paralel isteklerde yalnızca en sonuncusu geçerli kalır.
    */
   async resendInvitation(id: string, adminId: string): Promise<void> {
-    const { link, email } = await this.db.transaction(async (tx) => {
+    const outboxId = await this.db.transaction(async (tx) => {
       const [dealer] = await tx
         .select()
         .from(dealers)
@@ -412,9 +417,9 @@ export class DealersService {
         },
         tx,
       );
-      return { link, email: dealer.email };
+      return this.auth.enqueueInvitation(dealer.email, link, tx);
     });
-    this.auth.queueInvitationEmail(email, link);
+    this.notifications.dispatchSoon([outboxId]);
   }
 
   /** K-12, K-43: genel iskonto oranı; önceki ve yeni değer audit_log'a yazılır. */
@@ -537,7 +542,7 @@ export class DealersService {
       action: string;
       reason?: string;
       set?: Partial<typeof dealers.$inferInsert>;
-      afterUpdate?: (tx: Tx) => Promise<void>;
+      afterUpdate?: (tx: Tx, dealer: { email: string; companyTitle: string }) => Promise<void>;
     },
   ): Promise<{ email: string; companyTitle: string }> {
     return this.db.transaction(async (tx) => {
@@ -556,7 +561,7 @@ export class DealersService {
         .update(dealers)
         .set({ ...opts.set, status: opts.to })
         .where(and(eq(dealers.id, id), inArray(dealers.status, opts.from)));
-      await opts.afterUpdate?.(tx);
+      await opts.afterUpdate?.(tx, { email: dealer.email, companyTitle: dealer.companyTitle });
       await this.audit.record(
         {
           actorType: 'admin',

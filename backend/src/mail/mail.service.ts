@@ -35,6 +35,15 @@ export interface OrderMail {
 /** K-64: bayi e-postalarındaki iletişim bilgisi. */
 export const CONTACT_INFO = 'İletişim: 0552 492 50 58, info@amisosb2b.com, İSTOÇ Z Blok No: 91';
 
+/**
+ * Bayi girdisini tek satıra indirir: kontrol karakterleri (satır sonları, sekme, ESC dahil) ve Unicode
+ * satır/paragraf ayırıcıları boşluğa çevrilir, art arda boşluklar teke iner (log/başlık enjeksiyonu).
+ */
+export function oneLine(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+}
+
 const DELIVERY_LABELS = {
   carrier: 'Ambar ile',
   pickup: 'Bayi kendisi alır',
@@ -45,7 +54,7 @@ const DELIVERY_LABELS = {
 export function formatDelivery(order: OrderMail): string {
   const label = DELIVERY_LABELS[order.deliveryMethod];
   if (order.deliveryMethod === 'carrier') {
-    return `${label}; adres: ${order.deliveryAddress}; ambar: ${order.carrierName} / ${order.carrierBranch}`;
+    return `${label}; adres: ${oneLine(order.deliveryAddress ?? '')}; ambar: ${oneLine(order.carrierName ?? '')} / ${oneLine(order.carrierBranch ?? '')}`;
   }
   return `${label}; adres görüşmede belirlenecek`;
 }
@@ -57,14 +66,14 @@ export function formatDelivery(order: OrderMail): string {
 export function formatOrderForTeam(order: OrderMail): string {
   const rows = order.lines.map(
     (l) =>
-      `${l.barcode}${l.code ? ` (${l.code})` : ''} | ${l.name} | ${l.quantity} adet | ${l.unitPrice} TL${
+      `${oneLine(l.barcode)}${l.code ? ` (${oneLine(l.code)})` : ''} | ${oneLine(l.name)} | ${l.quantity} adet | ${l.unitPrice} TL${
         l.outOfStock ? ' | STOKTA YOK' : ''
       }`,
   );
   return [
-    `Ön sipariş #${order.orderNo} - ${order.dealerCompany} (${order.dealerContact}, ${order.dealerEmail}, ${order.dealerPhone})`,
+    `Ön sipariş #${order.orderNo} - ${oneLine(order.dealerCompany)} (${oneLine(order.dealerContact)}, ${oneLine(order.dealerEmail)}, ${oneLine(order.dealerPhone)})`,
     `Teslimat: ${formatDelivery(order)}`,
-    ...(order.note ? [`Not: ${order.note}`] : []),
+    ...(order.note ? [`Not: ${oneLine(order.note)}`] : []),
     ...rows,
     `KDV hariç ${order.netTotal} TL, KDV ${order.vatTotal} TL, genel toplam ${order.grandTotal} TL`,
   ].join('\n');
@@ -133,7 +142,7 @@ export class DevMailService implements MailService {
   }
 
   sendNewApplication(to: string, companyTitle: string): Promise<void> {
-    this.log('Yeni başvuru', to, companyTitle);
+    this.log('Yeni başvuru', to, oneLine(companyTitle));
     return Promise.resolve();
   }
 

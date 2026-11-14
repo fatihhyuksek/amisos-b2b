@@ -1,7 +1,7 @@
 // Ön sipariş. GR-SIP-003…008, GR-FIY-001, GR-BLD-001; K-20 – K-22, K-25, K-26, K-33, K-36 – K-38, K-41, K-44.
 // Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22): bu serviste sipariş için yazma yoktur
 // (durum güncelleme Admin adımında, order-status.ts kurallarıyla eklenecek).
-import { ConflictException, BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import { lockDealerCart } from '../common/advisory-lock.js';
@@ -16,10 +16,13 @@ import {
   productGroups,
   products,
 } from '../database/schema.js';
-import { MAIL_SERVICE, type MailService, type OrderMail } from '../mail/mail.service.js';
+import type { OrderMail } from '../mail/mail.service.js';
+import { NotificationsService, serializeOrderMail } from '../notifications/notifications.service.js';
 import { calculateDealerPrice } from '../pricing/pricing.service.js';
 import { CartService, type CartView } from './cart.service.js';
+import { Money } from '../common/money.js';
 import { roundUpToCase } from './order-math.js';
+import { MAX_QUANTITY } from './orders.schemas.js';
 import type { AdminOrderListQuery, OrderListQuery, SubmitOrderInput } from './orders.schemas.js';
 
 type OrderRow = typeof orders.$inferSelect;
@@ -32,13 +35,11 @@ const lineCountSql = sql<number>`(select count(*)::int from order_lines where or
 
 @Injectable()
 export class OrdersService {
-  private readonly logger = new Logger(OrdersService.name);
-
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(CartService) private readonly cart: CartService,
     @Inject(AuditService) private readonly audit: AuditService,
-    @Inject(MAIL_SERVICE) private readonly mail: MailService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
   ) {}
 
   // --- Gönderim -------------------------------------------------------------
@@ -58,7 +59,8 @@ export class OrdersService {
         items.length === 0 ||
         view.removed.length > 0 ||
         view.adjusted.length > 0 ||
-        view.summary.grandTotal !== input.expectedTotal
+        view.summary.grandTotal !== input.expectedTotal ||
+        view.version !== input.expectedVersion
       ) {
         return { kind: 'changed' as const, cart: view };
       }
@@ -145,7 +147,17 @@ export class OrdersService {
         vatTotal: order.vatTotal,
         grandTotal: order.grandTotal,
       };
-      return { kind: 'ok' as const, id: order.id, orderNo: order.orderNo, mail };
+      // GR-BLD-001: e-postalar aynı transaction'da outbox'a yazılır (geri alınırsa e-posta da yoktur).
+      const outboxIds = [
+        await this.notifications.enqueue('order_confirmation', mail.dealerEmail, { order: serializeOrderMail(mail) }, tx),
+      ];
+      const admins = await tx.select({ email: adminUsers.email }).from(adminUsers).where(eq(adminUsers.isActive, true));
+      for (const admin of admins) {
+        outboxIds.push(
+          await this.notifications.enqueue('new_order_team', admin.email, { order: serializeOrderMail(mail) }, tx),
+        );
+      }
+      return { kind: 'ok' as const, id: order.id, orderNo: order.orderNo, outboxIds };
     });
 
     if (result.kind === 'empty') {
@@ -159,32 +171,9 @@ export class OrdersService {
         cart: result.cart,
       });
     }
-    // GR-BLD-001: e-postalar yanıtı bekletmeden arka planda gider; hata siparişi etkilemez.
-    void this.notify(result.mail);
+    // İlk deneme yanıtı bekletmeden arka planda; başarısızsa outbox işi yeniden dener.
+    this.notifications.dispatchSoon(result.outboxIds);
     return { id: result.id, orderNo: result.orderNo };
-  }
-
-  private async notify(mail: OrderMail): Promise<void> {
-    try {
-      await this.mail.sendOrderConfirmation(mail.dealerEmail, mail);
-    } catch (error) {
-      this.logger.error(`Sipariş #${mail.orderNo} bayi e-postası gönderilemedi`, error instanceof Error ? error.stack : error);
-    }
-    try {
-      const admins = await this.db
-        .select({ email: adminUsers.email })
-        .from(adminUsers)
-        .where(eq(adminUsers.isActive, true));
-      for (const admin of admins) {
-        try {
-          await this.mail.sendNewOrderToTeam(admin.email, mail);
-        } catch (error) {
-          this.logger.error(`Sipariş #${mail.orderNo} ekip e-postası gönderilemedi`, error instanceof Error ? error.stack : error);
-        }
-      }
-    } catch (error) {
-      this.logger.error(`Sipariş #${mail.orderNo} ekip bildirimi hazırlanamadı`, error instanceof Error ? error.stack : error);
-    }
   }
 
   // --- Bayi: geçmiş ---------------------------------------------------------
@@ -378,7 +367,7 @@ export class OrdersService {
       );
 
       const added: { productId: string; name: string; quantity: number }[] = [];
-      const skipped: { productId: string; name: string; barcode: string; reason: 'INACTIVE' }[] = [];
+      const skipped: { productId: string; name: string; barcode: string; reason: 'INACTIVE' | 'QUANTITY_LIMIT' }[] = [];
       const adjusted: { productId: string; name: string; from: number; to: number; caseQuantity: number }[] = [];
       for (const line of lines) {
         const c = byId.get(line.productId);
@@ -392,15 +381,22 @@ export class OrdersService {
           continue;
         }
         const requested = (existing.get(line.productId) ?? 0) + line.quantity;
-        const quantity =
-          requested % c.product.caseQuantity === 0 ? requested : roundUpToCase(requested, c.product.caseQuantity);
+        // Koli katına yukarı yuvarla; sınırı aşarsa sınırı aşmayan en büyük koli katına kırp.
+        const caseQty = c.product.caseQuantity;
+        const maxMultiple = Math.floor(MAX_QUANTITY / caseQty) * caseQty;
+        if (maxMultiple === 0) {
+          skipped.push({ productId: line.productId, name: line.productName, barcode: line.barcode, reason: 'QUANTITY_LIMIT' });
+          continue;
+        }
+        const rounded = requested % caseQty === 0 ? requested : roundUpToCase(requested, caseQty);
+        const quantity = Math.min(rounded, maxMultiple);
         if (quantity !== requested) {
           adjusted.push({
             productId: line.productId,
             name: c.product.name,
             from: requested,
             to: quantity,
-            caseQuantity: c.product.caseQuantity,
+            caseQuantity: caseQty,
           });
         }
         await tx
@@ -429,7 +425,8 @@ function lineDto(l: LineRow) {
     quantity: l.quantity,
     caseQuantity: l.caseQuantity,
     listPrice: l.unitListPrice,
-    discountPercent: l.discountPercent,
+    // K-10: iskonto yoksa null (sepetle tutarlı).
+    discountPercent: new Money(l.discountPercent).gt(0) ? l.discountPercent : null,
     // Sipariş anındaki iskontolu birim fiyat: aynı formülle, kopyalanan liste fiyatı ve orandan.
     unitPrice: calculateDealerPrice(l.unitListPrice, l.discountPercent, null).price,
     lineGross: l.grossAmount,

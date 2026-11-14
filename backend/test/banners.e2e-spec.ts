@@ -137,6 +137,23 @@ describe('Banner (e2e)', () => {
     expect(res.body.fields).toHaveProperty('mediaId');
   });
 
+  it('K-65: eşzamanlı oluşturmalar farklı sortOrder alır; silinmiş/olmayan görsel 400 VALIDATION (500 değil)', async () => {
+    const m = await upload('par');
+    const results = await Promise.all([1, 2, 3, 4, 5].map((n) => create(m, { title: `Paralel ${n}` })));
+    expect(results.map((r) => r.status)).toEqual([201, 201, 201, 201, 201]);
+    const orders = results.map((r) => r.body.sortOrder as number);
+    expect(new Set(orders).size).toBe(5);
+
+    const gone = await upload('gone');
+    await admin.delete(`/api/admin/media/${gone}`).expect(204);
+    mediaIds.splice(mediaIds.indexOf(gone), 1);
+    const res = await admin.post('/api/admin/banners').send({ mediaId: gone, title: 'x' }).expect(400);
+    expect(res.body).toMatchObject({ code: 'VALIDATION' });
+    expect(res.body.fields).toHaveProperty('mediaId');
+    const patch = await admin.patch(`/api/admin/banners/${results[0].body.id}`).send({ mediaId: gone }).expect(400);
+    expect(patch.body.fields).toHaveProperty('mediaId');
+  });
+
   it('K-65: linkPath yalnızca uygulama içi yol; https://, //, javascript:, ters eğik çizgi reddedilir', async () => {
     const m = await upload('l');
     for (const bad of ['https://kotu.com', '//kotu.com', 'javascript:alert(1)', 'katalog', '/\\kotu.com', '/a b', 'http://kotu.com/x', '/\tx']) {

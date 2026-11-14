@@ -1,6 +1,6 @@
 # Veri Modeli
 
-Kaynak: `backend/src/database/schema.ts` · Migration: `backend/drizzle/0000_init.sql`, `0002_auth_sessions.sql`, `0004_catalog.sql`
+Kaynak: `backend/src/database/schema.ts` · Migration: `backend/drizzle/0000_init.sql`, `0002_auth_sessions.sql`, `0004_catalog.sql`, `0005_banners.sql`, `0006_notification_outbox.sql`
 Gereksinimler: `docs/requirements/bayi-hesabi.md`
 
 ## Tablolar
@@ -22,6 +22,7 @@ Gereksinimler: `docs/requirements/bayi-hesabi.md`
 | `orders` | Ön sipariş: durum, teslimat, KDV hariç toplamlar, BizimHesap aktarım alanları | K-17, K-22, K-25, K-27, K-33, K-36 – K-38 |
 | `order_lines` | Sipariş satırı: ürün ve fiyatın sipariş anındaki kopyası, uygulanan iskonto | K-13, K-20, K-21 |
 | `order_status_history` | Durum değişiklikleri: kaynak (sistem / Admin / BizimHesap), kim, ne zaman | GR-SIP-006 |
+| `notification_outbox` | E-posta kuyruğu: tür, alıcı, payload (jsonb), durum (pending/sent/failed), deneme sayısı, son hata, sonraki deneme zamanı. Token'lı bağlantı gönderilince veya 24 saat sonra payload'dan silinir | GR-BLD-001, K-17, K-26, K-39 |
 | `audit_log` | Onay, red, pasife alma, koşul değişikliği gibi işlemlerin kaydı | GR-BAYI-002, 006, GR-YON-001 |
 
 ## Veritabanında korunan kurallar
@@ -46,6 +47,8 @@ Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/t
 - Ambar ile teslimatta adres, ambar adı veya şubesi eksik sipariş.
 - Tutarsız toplamlar (net = brüt − iskonto, genel toplam = net + KDV).
 - Kimin yaptığı belli olmayan Admin durum değişikliği.
+
+Bildirimler: tüm e-postalar iş transaction'ında `notification_outbox`'a yazılır (transaction geri alınırsa e-posta da yoktur), commit sonrası denenir, başarısızsa dakikada bir çalışan iş (advisory lock) en fazla 8 kez yeniden dener. Migration `0006_notification_outbox.sql`.
 
 Sepet/sipariş davranışı (şema değişmedi, migration yok): sipariş gönderimi bayi bazında `pg_advisory_xact_lock` ile
 sıralanır (çift gönderim tek sipariş); sipariş satırı birim fiyatı saklanmaz, `unit_list_price` ve `discount_percent`'ten

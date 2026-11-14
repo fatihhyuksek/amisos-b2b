@@ -4,6 +4,7 @@ import { AuditModule } from './audit/audit.service.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module.js';
 import { ClockModule } from './common/clock.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { MailModule } from './mail/mail.service.js';
 import { validateEnv } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -21,6 +22,7 @@ import { HealthController } from './health/health.controller.js';
     ClockModule,
     AuditModule,
     MailModule,
+    NotificationsModule,
     AuthModule,
     DealersModule,
     MediaModule,

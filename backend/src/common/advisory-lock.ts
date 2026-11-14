@@ -9,6 +9,10 @@ export const LOCK_APPROVAL_REMINDER = 7_301_001;
 export const LOCK_STALE_APPLICATIONS = 7_301_002;
 /** Excel ürün içe aktarmaları art arda (eşzamanlı değil) çalışır. */
 export const LOCK_PRODUCT_IMPORT = 7_301_003;
+/** E-posta outbox yeniden deneme işi (dakikada bir). */
+export const LOCK_NOTIFICATION_OUTBOX = 7_301_004;
+/** Banner sıralama numarası yarışı (K-65). */
+export const LOCK_BANNER_ORDER = 7_301_005;
 
 /**
  * `work`'ü transaction içinde, yalnızca kilit alınabilirse çalıştırır (kilit transaction bitince

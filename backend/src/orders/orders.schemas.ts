@@ -18,6 +18,8 @@ export const submitOrderSchema = z
     carrierName: text(200).nullish(),
     carrierBranch: text(200).nullish(),
     note: text(1000).nullish(),
+    /** Sepet sürümü (GET /api/cart `version`): içerik farklıysa toplam aynı olsa da 409. */
+    expectedVersion: z.string().trim().min(1).max(64),
     expectedTotal: z
       .string()
       .trim()
@@ -48,6 +50,7 @@ export const submitOrderSchema = z
       carrierBranch: carrier ? (v.carrierBranch ?? null) : null,
       note: v.note ? v.note : null,
       expectedTotal: v.expectedTotal,
+      expectedVersion: v.expectedVersion,
     };
   });
 export type SubmitOrderInput = z.infer<typeof submitOrderSchema>;
