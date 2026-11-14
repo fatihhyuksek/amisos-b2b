@@ -56,4 +56,17 @@ describe('Hız sınırı (e2e)', () => {
       .send(body)
       .expect(429);
   });
+
+  it('GR-BAYI-007: başvuru ucu hız sınırlıdır, 6. istek 429 alır', async () => {
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post('/api/applications')
+        .send({})
+        .expect(400);
+    }
+    await request(app.getHttpServer())
+      .post('/api/applications')
+      .send({})
+      .expect(429);
+  });
 });

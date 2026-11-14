@@ -1,22 +1,35 @@
 // Bayi başvuru ve yönetim girdileri (GR-BAYI-001…008, GR-KVK-001; K-35, K-12, K-43).
 import { z } from 'zod';
 import { normalizeEmail } from '../auth/email.js';
+import { normalizeCompanyTitle } from './company-title.js';
+import { normalizePhone } from '../common/phone.js';
 import { Money } from '../common/money.js';
 
 const email = z.string().max(254).transform(normalizeEmail).pipe(z.email());
 const text = (max: number) => z.string().trim().min(1).max(max);
 
-/** Rakam dışındakiler atılır; 10 veya 11 hane (başında 0 olabilir). */
+/** K-35: `0XXXXXXXXXX` biçimine normalize edilir (bkz. normalizePhone). */
 const phone = z
   .string()
   .max(40)
-  .transform((v) => v.replace(/\D/g, ''))
-  .refine((v) => v.length === 10 || v.length === 11, {
-    message: 'Telefon 10 veya 11 haneli olmalı.',
+  .transform((v, ctx) => {
+    const normalized = normalizePhone(v);
+    if (!normalized) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Geçerli bir telefon numarası girin.',
+      });
+      return z.NEVER;
+    }
+    return normalized;
   });
 
 const dealerFields = {
-  companyTitle: text(200),
+  companyTitle: z
+    .string()
+    .max(200)
+    .transform(normalizeCompanyTitle)
+    .pipe(z.string().min(1)),
   contactName: text(200),
   email,
   phone,

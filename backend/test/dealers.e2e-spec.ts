@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import { eq, inArray, like } from 'drizzle-orm';
+import { and, eq, inArray, isNull, like, sql } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { hash } from '@node-rs/argon2';
@@ -19,18 +19,31 @@ import {
 } from '../src/database/schema.js';
 import { ApprovalReminderService } from '../src/dealers/approval-reminder.service.js';
 import { DealersService } from '../src/dealers/dealers.service.js';
+import {
+  LOCK_APPROVAL_REMINDER,
+  runExclusive,
+} from '../src/common/advisory-lock.js';
+import { companyTitleKey } from '../src/dealers/company-title.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
 
 const PASSWORD = 'Sifre-12345';
 const run = randomUUID().slice(0, 8);
+/** Europe/Istanbul (UTC+3) duvar saatinden an. */
+const ist = (day: number, hour: number, minute: number) =>
+  new Date(Date.UTC(2026, 10, day, hour - 3, minute));
+const CONSENTS = { kvkk: true, terms: true, marketing: false };
 const email = (name: string) => `${name}-${run}@test.example`;
 
 describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
   let app: INestApplication<App>;
   let db: Database;
   let fixedNow: Date | null = null;
-  const mails: { kind: string; to: string; link: string; count?: number }[] =
-    [];
+  const mails: {
+    kind: string;
+    to: string;
+    link: string;
+    counts?: { dueSoon: number; overdue: number };
+  }[] = [];
   const adminIds: string[] = [];
 
   const server = () => app.getHttpServer();
@@ -64,7 +77,8 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
     const rows = await db
       .select()
       .from(dealers)
-      .where(eq(dealers.email, email(name)));
+      .where(eq(dealers.email, email(name)))
+      .orderBy(dealers.createdAt);
     return rows[rows.length - 1];
   };
 
@@ -120,8 +134,19 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
           mails.push({ kind: 'invite', to, link });
           return Promise.resolve();
         },
-        sendApprovalReminder: (to: string, count: number) => {
-          mails.push({ kind: 'reminder', to, link: '', count });
+        sendApprovalReminder: (
+          to: string,
+          counts: { dueSoon: number; overdue: number },
+        ) => {
+          mails.push({ kind: 'reminder', to, link: '', counts });
+          return Promise.resolve();
+        },
+        sendNewApplication: (to: string, companyTitle: string) => {
+          mails.push({ kind: 'newapp', to, link: companyTitle });
+          return Promise.resolve();
+        },
+        sendRejection: (to: string) => {
+          mails.push({ kind: 'reject', to, link: '' });
           return Promise.resolve();
         },
       })
@@ -407,17 +432,17 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       // Pazartesi 2026-11-09 10:00 yerel saatte doğrulandı.
       await db
         .update(dealers)
-        .set({ emailVerifiedAt: new Date(2026, 10, 9, 10, 0) })
+        .set({ emailVerifiedAt: ist(9, 10, 0) })
         .where(eq(dealers.id, d.id));
       const overdueOf = async () =>
         (await agent.get(`/api/admin/dealers/${d.id}`).expect(200)).body
           .approvalOverdue;
 
-      fixedNow = new Date(2026, 10, 10, 10, 0); // Salı
+      fixedNow = ist(10, 10, 0); // Salı
       expect(await overdueOf()).toBe(false);
-      fixedNow = new Date(2026, 10, 11, 10, 0); // Çarşamba 10:00: tam 2 iş günü
+      fixedNow = ist(11, 10, 0); // Çarşamba 10:00: tam 2 iş günü
       expect(await overdueOf()).toBe(false);
-      fixedNow = new Date(2026, 10, 11, 10, 1);
+      fixedNow = ist(11, 10, 1);
       expect(await overdueOf()).toBe(true);
       const sum = (await agent.get('/api/admin/dealers/summary').expect(200))
         .body;
@@ -426,11 +451,11 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       // Cuma doğrulanan Salı'ya kadar gecikmez
       await db
         .update(dealers)
-        .set({ emailVerifiedAt: new Date(2026, 10, 13, 10, 0) })
+        .set({ emailVerifiedAt: ist(13, 10, 0) })
         .where(eq(dealers.id, d.id));
-      fixedNow = new Date(2026, 10, 17, 10, 0);
+      fixedNow = ist(17, 10, 0);
       expect(await overdueOf()).toBe(false);
-      fixedNow = new Date(2026, 10, 17, 10, 1);
+      fixedNow = ist(17, 10, 1);
       expect(await overdueOf()).toBe(true);
     });
 
@@ -477,11 +502,11 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       const token = tokenFrom('invite', email('onay'));
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token, password: 'zayif' })
+        .send({ token, password: 'zayif', consents: CONSENTS })
         .expect(400);
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token, password: PASSWORD })
+        .send({ token, password: PASSWORD, consents: CONSENTS })
         .expect(204);
       await request(server())
         .post('/api/auth/dealer/login')
@@ -489,7 +514,7 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
         .expect(200);
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token, password: 'Baska-Sifre-9' })
+        .send({ token, password: 'Baska-Sifre-9', consents: CONSENTS })
         .expect(400);
       const detail = await agent.get(`/api/admin/dealers/${d.id}`).expect(200);
       expect(detail.body.hasPassword).toBe(true);
@@ -504,12 +529,12 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       fixedNow = new Date(Date.now() + 73 * 3600_000);
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token, password: PASSWORD })
+        .send({ token, password: PASSWORD, consents: CONSENTS })
         .expect(400);
       fixedNow = null;
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token: 'x'.repeat(43), password: PASSWORD })
+        .send({ token: 'x'.repeat(43), password: PASSWORD, consents: CONSENTS })
         .expect(400);
       // Süresi dolan token şifre belirlemez
       expect((await dealerByName('sureli')).passwordHash).toBeNull();
@@ -543,11 +568,11 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       expect(second).not.toBe(first);
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token: first, password: PASSWORD })
+        .send({ token: first, password: PASSWORD, consents: CONSENTS })
         .expect(400);
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token: second, password: PASSWORD })
+        .send({ token: second, password: PASSWORD, consents: CONSENTS })
         .expect(204);
       const res = await agent
         .post(`/api/admin/dealers/${d.id}/resend-invitation`)
@@ -576,7 +601,11 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       // Davet kabulü e-posta erişimini kanıtlar: e-posta doğrulanmış sayılır.
       await request(server())
         .post('/api/auth/invitation/accept')
-        .send({ token: tokenFrom('invite', email('davetli')), password: PASSWORD })
+        .send({
+          token: tokenFrom('invite', email('davetli')),
+          password: PASSWORD,
+          consents: CONSENTS,
+        })
         .expect(204);
       expect((await dealerByName('davetli')).emailVerifiedAt).not.toBeNull();
       const dup = await agent
@@ -762,14 +791,16 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       // Mevcut gecikmişleri tek başına olmayan veritabanında dışarıda bırakmak için sayıyı hesapla.
       const d1 = await pendingApproval('hatirlatma-1');
       const d2 = await pendingApproval('hatirlatma-2');
-      const old = new Date(2026, 10, 2, 10, 0); // Pazartesi
+      const old = ist(2, 10, 0); // Pazartesi
       await db
         .update(dealers)
         .set({ emailVerifiedAt: old })
         .where(inArray(dealers.id, [d1.id, d2.id]));
-      fixedNow = new Date(2026, 10, 9, 9, 0);
-      const expected = await app.get(DealersService).countOverdue(fixedNow);
-      expect(expected).toBeGreaterThanOrEqual(2);
+      fixedNow = ist(9, 9, 0);
+      const expected = await app
+        .get(DealersService)
+        .approvalUrgencyCounts(fixedNow);
+      expect(expected.overdue).toBeGreaterThanOrEqual(2);
 
       mails.length = 0;
       await reminder.sendReminders();
@@ -777,10 +808,446 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
         (m) => m.kind === 'reminder' && m.to === active.email,
       );
       expect(toActive).toHaveLength(1);
-      expect(toActive[0].count).toBe(expected);
+      expect(toActive[0].counts).toEqual(expected);
       expect(
         mails.some((m) => m.kind === 'reminder' && m.to === inactive.email),
       ).toBe(false);
+    });
+  });
+
+  describe('K-57 davet kabulünde onaylar', () => {
+    it('K-57, GR-KVK-001: kvkk/terms olmadan veya false ile davet kabulü 400 VALIDATION', async () => {
+      const { agent } = await adminAgent();
+      const d = await pendingApproval('k57red');
+      await agent.post(`/api/admin/dealers/${d.id}/approve`).expect(204);
+      await idle();
+      const token = tokenFrom('invite', email('k57red'));
+      const send = (b: Record<string, unknown>) =>
+        request(server())
+          .post('/api/auth/invitation/accept')
+          .send({ token, password: PASSWORD, ...b });
+      const noConsents = await send({}).expect(400);
+      expect(noConsents.body.code).toBe('VALIDATION');
+      expect(noConsents.body.fields['consents']).toBeDefined();
+      const noKvkk = await send({
+        consents: { kvkk: false, terms: true },
+      }).expect(400);
+      expect(noKvkk.body.fields['consents.kvkk']).toBeDefined();
+      await send({ consents: { kvkk: true, terms: false } }).expect(400);
+      // Token harcanmadı
+      await send({ consents: CONSENTS }).expect(204);
+    });
+
+    it('K-57: başvurudan gelen onaylar tekrar yazılmaz; yeni pazarlama onayı eklenir', async () => {
+      const { agent } = await adminAgent();
+      const d = await pendingApproval('k57basvuru');
+      await agent.post(`/api/admin/dealers/${d.id}/approve`).expect(204);
+      await idle();
+      await request(server())
+        .post('/api/auth/invitation/accept')
+        .send({
+          token: tokenFrom('invite', email('k57basvuru')),
+          password: PASSWORD,
+          consents: { kvkk: true, terms: true, marketing: true },
+        })
+        .expect(204);
+      const rows = await db
+        .select()
+        .from(consents)
+        .where(eq(consents.dealerId, d.id));
+      expect(rows.filter((r) => r.type === 'kvkk')).toHaveLength(1);
+      expect(rows.filter((r) => r.type === 'terms')).toHaveLength(1);
+      const marketing = rows.filter((r) => r.type === 'marketing');
+      expect(marketing.map((r) => r.granted)).toEqual(
+        expect.arrayContaining([false, true]),
+      );
+      expect(marketing).toHaveLength(2);
+    });
+
+    it('K-57: davetle oluşturulan bayide onaylar kabulde yazılır (sürüm taslak-1)', async () => {
+      const { agent } = await adminAgent();
+      const { consents: _c, ...fields } = body('k57davet');
+      const created = await agent
+        .post('/api/admin/dealers')
+        .send(fields)
+        .expect(201);
+      await idle();
+      await request(server())
+        .post('/api/auth/invitation/accept')
+        .send({
+          token: tokenFrom('invite', email('k57davet')),
+          password: PASSWORD,
+          consents: { kvkk: true, terms: true },
+        })
+        .expect(204);
+      const rows = await db
+        .select()
+        .from(consents)
+        .where(eq(consents.dealerId, created.body.id));
+      expect(
+        rows
+          .map((r) => [r.type, r.granted, r.documentVersion])
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      ).toEqual([
+        ['kvkk', true, 'taslak-1'],
+        ['marketing', false, 'taslak-1'],
+        ['terms', true, 'taslak-1'],
+      ]);
+    });
+
+    it('K-04: pasif bayinin davet kabulü 400 ve şifre belirlenmez', async () => {
+      const { agent } = await adminAgent();
+      const d = await pendingApproval('pasifdavet');
+      await agent.post(`/api/admin/dealers/${d.id}/approve`).expect(204);
+      await idle();
+      await agent
+        .post(`/api/admin/dealers/${d.id}/deactivate`)
+        .send({ reason: 'Deneme' })
+        .expect(204);
+      await request(server())
+        .post('/api/auth/invitation/accept')
+        .send({
+          token: tokenFrom('invite', email('pasifdavet')),
+          password: PASSWORD,
+          consents: CONSENTS,
+        })
+        .expect(400);
+      expect((await dealerByName('pasifdavet')).passwordHash).toBeNull();
+    });
+
+    it('K-04: aynı anda iki resend-invitation sonrası yalnızca bir geçerli davet token ı kalır', async () => {
+      const { agent } = await adminAgent();
+      const d = await pendingApproval('paralelresend');
+      await agent.post(`/api/admin/dealers/${d.id}/approve`).expect(204);
+      await idle();
+      const results = await Promise.all(
+        [1, 2, 3].map(() =>
+          agent
+            .post(`/api/admin/dealers/${d.id}/resend-invitation`)
+            .then((r) => r.status),
+        ),
+      );
+      expect(results).toEqual([204, 204, 204]);
+      await idle();
+      const valid = await db
+        .select()
+        .from(authTokens)
+        .where(
+          and(
+            eq(authTokens.subjectId, d.id),
+            eq(authTokens.purpose, 'invitation'),
+            isNull(authTokens.usedAt),
+          ),
+        );
+      expect(valid).toHaveLength(1);
+    });
+  });
+
+  describe('24 saat kuralı (K-55)', () => {
+    const ageDealer = (id: string, hours: number) =>
+      db
+        .update(dealers)
+        .set({ createdAt: new Date(Date.now() - hours * 3600_000) })
+        .where(eq(dealers.id, id));
+
+    it('K-55: 24 saat dolmadan aynı e-posta/unvanla başvuru 409', async () => {
+      await apply('taze').expect(202);
+      const d = await dealerByName('taze');
+      await ageDealer(d.id, 23);
+      await apply('taze').expect(409);
+    });
+
+    it('K-55: 24 saatte doğrulanmamış başvuru silinir, aynı e-posta/unvanla yeniden başvuru 202', async () => {
+      await apply('eski').expect(202);
+      const old = await dealerByName('eski');
+      await ageDealer(old.id, 25);
+      await apply('eski').expect(202);
+      const rows = await db
+        .select()
+        .from(dealers)
+        .where(eq(dealers.email, email('eski')));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).not.toBe(old.id);
+      expect(
+        await db.select().from(consents).where(eq(consents.dealerId, old.id)),
+      ).toHaveLength(0);
+
+      // Yalnızca unvan aynı, e-posta farklı
+      await apply('eski2').expect(202);
+      const old2 = await dealerByName('eski2');
+      await ageDealer(old2.id, 30);
+      await apply('eski2', { email: email('eski2yeni') }).expect(202);
+      expect(
+        await db.select().from(dealers).where(eq(dealers.id, old2.id)),
+      ).toHaveLength(0);
+    });
+
+    it('K-55: doğrulanmış (pending_approval) eski başvuru silinmez', async () => {
+      const d = await pendingApproval('eskidogru');
+      await ageDealer(d.id, 48);
+      await apply('eskidogru').expect(409);
+    });
+
+    it('K-55: günlük temizlik süresi geçmiş doğrulanmamış başvuruları siler', async () => {
+      await apply('temizlik').expect(202);
+      const d = await dealerByName('temizlik');
+      await idle();
+      await ageDealer(d.id, 25);
+      await app.get(DealersService).scheduledCleanup();
+      expect(
+        await db.select().from(dealers).where(eq(dealers.id, d.id)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(authTokens)
+          .where(eq(authTokens.subjectId, d.id)),
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('Bildirimler', () => {
+    it('GR-BAYI-001, K-04: yeni başvuru bildirimi doğrulamada aktif Admin lere gider; başvuruda gitmez, çift tıklamada tekrar etmez', async () => {
+      const active = await newAdmin('bildirim-aktif');
+      const inactive = await newAdmin('bildirim-pasif');
+      await db
+        .update(adminUsers)
+        .set({ isActive: false })
+        .where(eq(adminUsers.id, inactive.id));
+      mails.length = 0;
+      await apply('bildirim').expect(202);
+      await idle();
+      expect(mails.some((m) => m.kind === 'newapp')).toBe(false);
+      const token = tokenFrom('verify', email('bildirim'));
+      await request(server())
+        .post('/api/auth/email/verify')
+        .send({ token })
+        .expect(204);
+      await idle();
+      await request(server())
+        .post('/api/auth/email/verify')
+        .send({ token })
+        .expect(204); // idempotent
+      await idle();
+      const sent = mails.filter((m) => m.kind === 'newapp');
+      expect(sent.filter((m) => m.to === active.email)).toHaveLength(1);
+      expect(sent.every((m) => m.link === `Firma bildirim ${run}`)).toBe(true);
+      expect(sent.some((m) => m.to === inactive.email)).toBe(false);
+    });
+
+    it('K-51: ret e-postası adaya gider ve gerekçeyi içermez', async () => {
+      const { agent } = await adminAgent();
+      const d = await pendingApproval('retmail');
+      mails.length = 0;
+      await agent
+        .post(`/api/admin/dealers/${d.id}/reject`)
+        .send({ reason: 'GIZLI-IC-NOT' })
+        .expect(204);
+      await idle();
+      const sent = mails.filter((m) => m.kind === 'reject');
+      expect(sent.map((m) => m.to)).toEqual([email('retmail')]);
+      expect(JSON.stringify(mails)).not.toContain('GIZLI-IC-NOT');
+    });
+
+    it('K-04: hatırlatma yaklaşan ve gecikmiş sayılarını birlikte gönderir; yalnızca yaklaşan varsa da gider', async () => {
+      const reminder = app.get(ApprovalReminderService);
+      const dealersSvc = app.get(DealersService);
+      const adm = await newAdmin('hatirlatma-iki');
+      const d1 = await pendingApproval('yaklasan-1');
+      const d2 = await pendingApproval('gecikmis-1');
+      await db
+        .update(dealers)
+        .set({ emailVerifiedAt: ist(9, 10, 0) })
+        .where(eq(dealers.id, d1.id)); // Pzt
+      await db
+        .update(dealers)
+        .set({ emailVerifiedAt: ist(2, 10, 0) })
+        .where(eq(dealers.id, d2.id)); // önceki Pzt
+      fixedNow = ist(10, 12, 0); // Salı 12:00: d1 yaklaşan (26 saat), d2 gecikmiş
+      const counts = await dealersSvc.approvalUrgencyCounts(fixedNow);
+      expect(counts.dueSoon).toBeGreaterThanOrEqual(1);
+      expect(counts.overdue).toBeGreaterThanOrEqual(1);
+      mails.length = 0;
+      await reminder.sendReminders();
+      const mine = mails.filter(
+        (m) => m.kind === 'reminder' && m.to === adm.email,
+      );
+      expect(mine).toHaveLength(1);
+      expect(mine[0].counts).toEqual(counts);
+    });
+  });
+
+  describe('Firma unvanı ve telefon', () => {
+    it('GR-BAYI-005: Türkçe büyük/küçük harf ve çift boşluk farkı 409; unvan sadeleştirilerek saklanır', async () => {
+      await apply('unvan', {
+        companyTitle: `Örnek  Züccaciye Ltd. Şti. ${run}`,
+      }).expect(202);
+      const d = await dealerByName('unvan');
+      expect(d.companyTitle).toBe(`Örnek Züccaciye Ltd. Şti. ${run}`);
+      for (const title of [
+        `ÖRNEK ZÜCCACİYE LTD. ŞTİ. ${run}`,
+        `Örnek Züccaciye Ltd. Şti. ${run}`,
+        `  örnek   züccaciye   ltd. şti.   ${run} `,
+      ]) {
+        const res = await apply('unvan-baska', { companyTitle: title }).expect(
+          409,
+        );
+        expect(res.body.code).toBe('DUPLICATE_APPLICATION');
+      }
+    });
+
+    it('GR-BAYI-005: migration SQL anahtarı ile uygulamadaki companyTitleKey aynı sonucu verir', async () => {
+      const samples = [
+        'ÖRNEK ZÜCCACİYE LTD. ŞTİ.',
+        'Işık Çini A.Ş.',
+        '  Ğ  ç  İ   ı I ',
+        'Örnek Züccaciye Ltd. Şti.',
+        'Bahçe & Ev (Toptan) - 2',
+      ];
+      for (const sample of samples) {
+        const res = await db.execute<{ k: string }>(
+          sql`select lower(translate(regexp_replace(btrim(${sample}, E' \t\r\n'), '\\s+', ' ', 'g'), 'İIÇĞÖŞÜ', 'iıçğöşü')) as k`,
+        );
+        expect(res.rows[0].k).toBe(companyTitleKey(sample));
+      }
+    });
+
+    it('K-35: telefon farklı yazımlardan 0XXXXXXXXXX olarak saklanır; geçersiz 400', async () => {
+      const cases: [string, string][] = [
+        ['+90 532 123 45 67', '05321234567'],
+        ['532-123-45-67', '05321234567'],
+        ['(0532) 123 45 67', '05321234567'],
+      ];
+      let i = 0;
+      for (const [input, expected] of cases) {
+        const name = `tel${i++}`;
+        await apply(name, { phone: input }).expect(202);
+        expect((await dealerByName(name)).phone).toBe(expected);
+      }
+      const bad = await apply('telbad', { phone: '12345678901' }).expect(400);
+      expect(bad.body.fields.phone).toBeDefined();
+    });
+  });
+
+  describe('Giriş ve yetki ek durumları', () => {
+    it('K-51, K-54: reddedilmiş eski kaydı olan, yeniden başvurup onaylanıp pasife alınan bayi doğru şifrede 403 ACCOUNT_PASSIVE alır', async () => {
+      const { agent } = await adminAgent();
+      const first = await pendingApproval('eskiret');
+      await agent
+        .post(`/api/admin/dealers/${first.id}/reject`)
+        .send({ reason: 'Eksik' })
+        .expect(204);
+      const second = await pendingApproval('eskiret');
+      expect(second.id).not.toBe(first.id);
+      await agent.post(`/api/admin/dealers/${second.id}/approve`).expect(204);
+      await idle();
+      await request(server())
+        .post('/api/auth/invitation/accept')
+        .send({
+          token: tokenFrom('invite', email('eskiret')),
+          password: PASSWORD,
+          consents: CONSENTS,
+        })
+        .expect(204);
+      await agent
+        .post(`/api/admin/dealers/${second.id}/deactivate`)
+        .send({ reason: 'Deneme' })
+        .expect(204);
+      const res = await request(server())
+        .post('/api/auth/dealer/login')
+        .send({ email: email('eskiret'), password: PASSWORD })
+        .expect(403);
+      expect(res.body.code).toBe('ACCOUNT_PASSIVE');
+    });
+
+    it('GR-BAYI-006: pending_email ve pending_approval bayi giriş yapamaz (401)', async () => {
+      await apply('girisbekle').expect(202);
+      const pe = await dealerByName('girisbekle');
+      await db
+        .update(dealers)
+        .set({ passwordHash: await hash(PASSWORD) })
+        .where(eq(dealers.id, pe.id));
+      await request(server())
+        .post('/api/auth/dealer/login')
+        .send({ email: email('girisbekle'), password: PASSWORD })
+        .expect(401);
+      await db
+        .update(dealers)
+        .set({ status: 'pending_approval' })
+        .where(eq(dealers.id, pe.id));
+      await request(server())
+        .post('/api/auth/dealer/login')
+        .send({ email: email('girisbekle'), password: PASSWORD })
+        .expect(401);
+    });
+
+    it('K-12: iskonto yalnızca pending_approval/active/passive bayide; diğerlerinde 409 INVALID_STATE', async () => {
+      const { agent } = await adminAgent();
+      await apply('iskontope').expect(202);
+      const pe = await dealerByName('iskontope');
+      const res = await agent
+        .patch(`/api/admin/dealers/${pe.id}/terms`)
+        .send({ generalDiscountPercent: '5' })
+        .expect(409);
+      expect(res.body.code).toBe('INVALID_STATE');
+      const rj = await pendingApproval('iskontorj');
+      await agent
+        .post(`/api/admin/dealers/${rj.id}/reject`)
+        .send({ reason: 'Uygun değil' })
+        .expect(204);
+      await agent
+        .patch(`/api/admin/dealers/${rj.id}/terms`)
+        .send({ generalDiscountPercent: '5' })
+        .expect(409);
+    });
+
+    it('GR-YON-001: reject/activate/resend-invitation ve GET :id anonim 401, bayi oturumu 403', async () => {
+      const d = await pendingApproval('yetki2');
+      await db
+        .update(dealers)
+        .set({ status: 'active', passwordHash: await hash(PASSWORD) })
+        .where(eq(dealers.id, d.id));
+      const base = `/api/admin/dealers/${d.id}`;
+      const anon = request(server());
+      await anon.post(`${base}/reject`).send({ reason: 'xxx' }).expect(401);
+      await anon.post(`${base}/activate`).send({}).expect(401);
+      await anon.post(`${base}/resend-invitation`).expect(401);
+      const dealerAgent = request.agent(server());
+      await dealerAgent
+        .post('/api/auth/dealer/login')
+        .send({ email: email('yetki2'), password: PASSWORD })
+        .expect(200);
+      await dealerAgent.get(base).expect(403);
+      await dealerAgent
+        .post(`${base}/reject`)
+        .send({ reason: 'xxx' })
+        .expect(403);
+      await dealerAgent.post(`${base}/activate`).send({}).expect(403);
+      await dealerAgent.post(`${base}/resend-invitation`).expect(403);
+      await dealerAgent.post('/api/admin/dealers').send({}).expect(403);
+    });
+  });
+
+  describe('Zamanlanmış işler (advisory lock)', () => {
+    it('runExclusive: kilit başka oturumda tutuluyorsa iş çalışmaz', async () => {
+      let innerRan: boolean | undefined;
+      const outer = await runExclusive(db, LOCK_APPROVAL_REMINDER, async () => {
+        const inner = await runExclusive(db, LOCK_APPROVAL_REMINDER, () =>
+          Promise.resolve('x'),
+        );
+        innerRan = inner.ran;
+        return 'outer';
+      });
+      expect(outer.ran).toBe(true);
+      expect(innerRan).toBe(false);
+      // Kilit transaction bitince bırakılır
+      expect(
+        (
+          await runExclusive(db, LOCK_APPROVAL_REMINDER, () =>
+            Promise.resolve(1),
+          )
+        ).ran,
+      ).toBe(true);
     });
   });
 });

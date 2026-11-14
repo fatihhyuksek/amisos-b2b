@@ -29,7 +29,13 @@ export const passwordResetConfirmSchema = z.object({
 export const emailVerifySchema = z.object({ token });
 
 export const passwordSchema = newPassword;
+// K-57: davet kabulünde KVKK ve koşul onayı zorunlu (GR-KVK-001).
 export const invitationAcceptSchema = z.object({
   token,
   password: newPassword,
+  consents: z.object({
+    kvkk: z.literal(true, { error: 'KVKK onayı zorunludur.' }),
+    terms: z.literal(true, { error: 'Kullanım koşulları onayı zorunludur.' }),
+    marketing: z.boolean().optional().default(false),
+  }),
 });

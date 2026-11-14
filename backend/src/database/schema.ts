@@ -112,6 +112,12 @@ export const dealers = pgTable(
   {
     id: uuid().primaryKey().defaultRandom(),
     companyTitle: text().notNull(),
+    /**
+     * Firma unvanı tekillik anahtarı (GR-BAYI-005, K-57 sonrası inceleme #7): Türkçe yerelle küçültülmüş,
+     * iç boşlukları tek boşluğa indirilmiş unvan. Uygulama `companyTitleKey()` ile üretir
+     * (src/dealers/company-title.ts); migration mevcut satırları aynı sonucu verecek SQL ile doldurur.
+     */
+    companyTitleKey: text().notNull(),
     contactName: text().notNull(),
     email: text().notNull(),
     phone: text().notNull(),
@@ -141,8 +147,8 @@ export const dealers = pgTable(
     uniqueIndex('dealers_email_uq')
       .on(sql`lower(${t.email})`)
       .where(sql`${t.status} <> 'rejected'`),
-    uniqueIndex('dealers_company_title_uq')
-      .on(sql`lower(${t.companyTitle})`)
+    uniqueIndex('dealers_company_title_key_uq')
+      .on(t.companyTitleKey)
       .where(sql`${t.status} <> 'rejected'`),
     index('dealers_status_idx').on(t.status),
     check(

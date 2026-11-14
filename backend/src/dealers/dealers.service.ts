@@ -4,24 +4,52 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, ilike, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  ilike,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { Cron } from '@nestjs/schedule';
+import { CONSENT_DOCUMENT_VERSION } from '../common/consents.js';
+import {
+  runExclusive,
+  LOCK_STALE_APPLICATIONS,
+  type Tx,
+} from '../common/advisory-lock.js';
+import {
+  BUSINESS_TIME_ZONE,
+  countApprovalUrgency,
+} from '../common/business-days.js';
+import { EMAIL_VERIFICATION_TTL_MS } from '../auth/auth.constants.js';
+import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
+import { companyTitleKey } from './company-title.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { SessionsService } from '../auth/sessions.service.js';
 import { isBusinessDaysOverdue } from '../common/business-days.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
-import { adminUsers, auditLog, consents, dealers } from '../database/schema.js';
+import {
+  adminUsers,
+  auditLog,
+  authTokens,
+  consents,
+  dealers,
+} from '../database/schema.js';
 import type {
   ApplicationInput,
   DealerFieldsInput,
   ListQuery,
 } from './dealers.schemas.js';
-
-/** GR-KVK-001: KVKK ve koşul metinleri iş sahibinden gelene kadar taslak sürüm. */
-export const CONSENT_DOCUMENT_VERSION = 'taslak-1';
 
 type DealerRow = typeof dealers.$inferSelect;
 type DealerStatus = DealerRow['status'];
@@ -61,6 +89,12 @@ function isUniqueViolation(error: unknown): boolean {
   return false;
 }
 
+const TERMS_EDITABLE: DealerStatus[] = [
+  'pending_approval',
+  'active',
+  'passive',
+];
+
 const duplicate = () =>
   new ConflictException({
     statusCode: 409,
@@ -76,12 +110,15 @@ const invalidState = () =>
 
 @Injectable()
 export class DealersService {
+  private readonly logger = new Logger(DealersService.name);
+
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(SessionsService) private readonly sessions: SessionsService,
+    @Inject(MAIL_SERVICE) private readonly mail: MailService,
   ) {}
 
   // --- Başvuru (K-02, K-35) -------------------------------------------------
@@ -95,10 +132,16 @@ export class DealersService {
     let dealerId: string;
     try {
       dealerId = await this.db.transaction(async (tx) => {
+        // 24 saatte doğrulanmamış eski başvurular e-posta/unvanı kilitlemesin (K-55).
+        await this.purgeStalePending(tx, {
+          email: input.email,
+          titleKey: companyTitleKey(input.companyTitle),
+        });
         const [dealer] = await tx
           .insert(dealers)
           .values({
             companyTitle: input.companyTitle,
+            companyTitleKey: companyTitleKey(input.companyTitle),
             contactName: input.contactName,
             email: input.email,
             phone: input.phone,
@@ -141,37 +184,39 @@ export class DealersService {
     input: DealerFieldsInput,
     adminId: string,
   ): Promise<DealerSummary> {
-    let row: DealerRow;
+    let created: { row: DealerRow; link: string };
     try {
-      row = await this.db.transaction(async (tx) => {
-        const [created] = await tx
+      created = await this.db.transaction(async (tx) => {
+        const [row] = await tx
           .insert(dealers)
           .values({
             ...input,
+            companyTitleKey: companyTitleKey(input.companyTitle),
             status: 'active',
             source: 'invitation',
             reviewedAt: this.clock.now(),
             reviewedBy: adminId,
           })
           .returning();
+        const link = await this.auth.issueInvitationLink(row.id, tx);
         await this.audit.record(
           {
             actorType: 'admin',
             actorId: adminId,
             action: 'dealer.created_by_invitation',
             entityType: 'dealers',
-            entityId: created.id,
+            entityId: row.id,
           },
           tx,
         );
-        return created;
+        return { row, link };
       });
     } catch (error) {
       if (isUniqueViolation(error)) throw duplicate();
       throw error;
     }
-    this.auth.queueInvitation(row.id);
-    return this.toSummary(row);
+    this.auth.queueInvitationEmail(created.row.email, created.link);
+    return this.toSummary(created.row);
   }
 
   // --- Admin: listeleme -----------------------------------------------------
@@ -228,15 +273,22 @@ export class DealersService {
     };
   }
 
-  /** K-04: 2 iş gününü aşmış onay bekleyen başvuru sayısı. */
-  async countOverdue(now: Date): Promise<number> {
+  /** K-04: onay bekleyen başvurularda yaklaşan (1 iş günü geçti) ve gecikmiş (2 iş günü aşıldı) sayıları. */
+  async approvalUrgencyCounts(
+    now: Date,
+  ): Promise<{ dueSoon: number; overdue: number }> {
     const rows = await this.db
       .select({ verifiedAt: dealers.emailVerifiedAt })
       .from(dealers)
       .where(eq(dealers.status, 'pending_approval'));
-    return rows.filter(
-      (r) => r.verifiedAt && isBusinessDaysOverdue(r.verifiedAt, now),
-    ).length;
+    return countApprovalUrgency(
+      rows.flatMap((r) => (r.verifiedAt ? [r.verifiedAt] : [])),
+      now,
+    );
+  }
+
+  async countOverdue(now: Date): Promise<number> {
+    return (await this.approvalUrgencyCounts(now)).overdue;
   }
 
   async detail(id: string) {
@@ -285,20 +337,27 @@ export class DealersService {
 
   // --- Admin: durum işlemleri (K-04, K-08, K-51) ----------------------------
 
-  /** pending_approval -> active; davet e-postası gider. */
+  /** pending_approval -> active; davet token'ı aynı transaction'da üretilir, e-posta commit sonrası gider. */
   async approve(id: string, adminId: string): Promise<void> {
-    await this.transition(id, adminId, {
+    let link = '';
+    const dealer = await this.transition(id, adminId, {
       from: ['pending_approval'],
       to: 'active',
       action: 'dealer.approved',
       set: { reviewedAt: this.clock.now(), reviewedBy: adminId },
+      afterUpdate: async (tx) => {
+        link = await this.auth.issueInvitationLink(id, tx);
+      },
     });
-    this.auth.queueInvitation(id);
+    this.auth.queueInvitationEmail(dealer.email, link);
   }
 
-  /** pending_email | pending_approval -> rejected; gerekçe zorunlu (K-51: yeniden başvuru serbest). */
+  /**
+   * pending_email | pending_approval -> rejected; gerekçe zorunlu ve iç nottur (K-51: yeniden başvuru
+   * serbest). Adaya gerekçesiz bilgi e-postası gider.
+   */
   async reject(id: string, adminId: string, reason: string): Promise<void> {
-    await this.transition(id, adminId, {
+    const dealer = await this.transition(id, adminId, {
       from: ['pending_email', 'pending_approval'],
       to: 'rejected',
       action: 'dealer.rejected',
@@ -309,6 +368,9 @@ export class DealersService {
         rejectionReason: reason,
       },
     });
+    this.auth.runInBackground('Ret e-postası gönderilemedi', () =>
+      this.mail.sendRejection(dealer.email),
+    );
   }
 
   /** active -> passive; açık oturumlar silinir (K-08). */
@@ -332,9 +394,12 @@ export class DealersService {
     });
   }
 
-  /** Aktif ve şifresi olmayan bayiye yeni davet; önceki davet geçersiz olur. */
+  /**
+   * Aktif ve şifresi olmayan bayiye yeni davet; önceki davet geçersiz olur. Satır kilidi altında
+   * token üretildiği için paralel isteklerde yalnızca en sonuncusu geçerli kalır.
+   */
   async resendInvitation(id: string, adminId: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    const { link, email } = await this.db.transaction(async (tx) => {
       const [dealer] = await tx
         .select()
         .from(dealers)
@@ -343,6 +408,7 @@ export class DealersService {
       if (!dealer) throw new NotFoundException('Bayi bulunamadı.');
       if (dealer.status !== 'active' || dealer.passwordHash)
         throw invalidState();
+      const link = await this.auth.issueInvitationLink(id, tx);
       await this.audit.record(
         {
           actorType: 'admin',
@@ -353,8 +419,9 @@ export class DealersService {
         },
         tx,
       );
+      return { link, email: dealer.email };
     });
-    await this.auth.sendInvitation(id);
+    this.auth.queueInvitationEmail(email, link);
   }
 
   /** K-12, K-43: genel iskonto oranı; önceki ve yeni değer audit_log'a yazılır. */
@@ -365,11 +432,16 @@ export class DealersService {
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       const [dealer] = await tx
-        .select({ previous: dealers.generalDiscountPercent })
+        .select({
+          previous: dealers.generalDiscountPercent,
+          status: dealers.status,
+        })
         .from(dealers)
         .where(eq(dealers.id, id))
         .for('update');
       if (!dealer) throw new NotFoundException('Bayi bulunamadı.');
+      // K-12: iskonto yalnızca incelenebilir/aktif/pasif bayide; reddedilen veya doğrulanmamışta yok.
+      if (!TERMS_EDITABLE.includes(dealer.status)) throw invalidState();
       await tx
         .update(dealers)
         .set({ generalDiscountPercent: percent })
@@ -399,14 +471,16 @@ export class DealersService {
       action: string;
       reason?: string;
       set?: Partial<typeof dealers.$inferInsert>;
-      afterUpdate?: (
-        tx: Parameters<Parameters<Database['transaction']>[0]>[0],
-      ) => Promise<void>;
+      afterUpdate?: (tx: Tx) => Promise<void>;
     },
-  ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+  ): Promise<{ email: string; companyTitle: string }> {
+    return this.db.transaction(async (tx) => {
       const [dealer] = await tx
-        .select({ status: dealers.status })
+        .select({
+          status: dealers.status,
+          email: dealers.email,
+          companyTitle: dealers.companyTitle,
+        })
         .from(dealers)
         .where(eq(dealers.id, id))
         .for('update');
@@ -429,7 +503,65 @@ export class DealersService {
         },
         tx,
       );
+      return { email: dealer.email, companyTitle: dealer.companyTitle };
     });
+  }
+
+  /**
+   * E-postasını 24 saat içinde doğrulamamış başvuruları (consents ve token'larıyla) siler (K-55).
+   * `match` verilirse yalnızca aynı e-posta veya aynı unvan anahtarına sahip kayıtlar silinir.
+   */
+  async purgeStalePending(
+    tx: Tx,
+    match?: { email: string; titleKey: string },
+  ): Promise<number> {
+    const cutoff = new Date(
+      this.clock.now().getTime() - EMAIL_VERIFICATION_TTL_MS,
+    );
+    const conditions: (SQL | undefined)[] = [
+      eq(dealers.status, 'pending_email'),
+      lt(dealers.createdAt, cutoff),
+    ];
+    if (match) {
+      conditions.push(
+        or(
+          sql`lower(${dealers.email}) = ${match.email}`,
+          eq(dealers.companyTitleKey, match.titleKey),
+        ),
+      );
+    }
+    const stale = await tx
+      .select({ id: dealers.id })
+      .from(dealers)
+      .where(and(...conditions));
+    if (stale.length === 0) return 0;
+    const ids = stale.map((d) => d.id);
+    await tx.delete(consents).where(inArray(consents.dealerId, ids));
+    await tx
+      .delete(authTokens)
+      .where(
+        and(
+          eq(authTokens.subjectType, 'dealer'),
+          inArray(authTokens.subjectId, ids),
+        ),
+      );
+    await tx.delete(dealers).where(inArray(dealers.id, ids));
+    return ids.length;
+  }
+
+  /** Günlük temizlik 03:00 (İstanbul); çok örnekli çalışmada advisory lock ile tek örnek. */
+  @Cron('0 3 * * *', { timeZone: BUSINESS_TIME_ZONE })
+  async scheduledCleanup(): Promise<void> {
+    try {
+      await runExclusive(this.db, LOCK_STALE_APPLICATIONS, (tx) =>
+        this.purgeStalePending(tx),
+      );
+    } catch (error) {
+      this.logger.error(
+        'Süresi geçmiş başvurular temizlenemedi',
+        error instanceof Error ? error.stack : error,
+      );
+    }
   }
 
   private async getOrThrow(id: string): Promise<DealerRow> {

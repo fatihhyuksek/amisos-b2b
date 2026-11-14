@@ -52,6 +52,7 @@ describe('Ortam ve ters vekil (e2e)', () => {
       .insert(schema.dealers)
       .values({
         companyTitle: `Prod ${run}`,
+        companyTitleKey: `prod ${run}`,
         contactName: 'Y',
         email,
         phone: '1',

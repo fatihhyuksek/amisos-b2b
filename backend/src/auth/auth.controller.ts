@@ -8,13 +8,13 @@ import {
   Post,
   Req,
   Res,
-  StandardSchemaValidationPipe,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { createValidationPipe } from '../common/validation.js';
 import { isProductionLike, type Env } from '../config/env.js';
 import { SESSION_COOKIE } from './auth.constants.js';
 import {
@@ -36,7 +36,7 @@ import { SessionsService, type AuthIdentity } from './sessions.service.js';
 
 @Controller('auth')
 @UseGuards(JsonOnlyGuard)
-@UsePipes(new StandardSchemaValidationPipe())
+@UsePipes(createValidationPipe())
 export class AuthController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
@@ -133,9 +133,10 @@ export class AuthController {
     body: {
       token: string;
       password: string;
+      consents: { kvkk: true; terms: true; marketing: boolean };
     },
   ): Promise<void> {
-    await this.auth.acceptInvitation(body.token, body.password);
+    await this.auth.acceptInvitation(body.token, body.password, body.consents);
   }
 
   private startSession(res: Response, result: LoginResult): AuthIdentity {

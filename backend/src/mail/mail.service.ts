@@ -12,8 +12,21 @@ export interface MailService {
   sendEmailVerification(to: string, link: string): Promise<void>;
   /** K-04: onaylanan/davet edilen bayiye şifre belirleme bağlantısı (72 saat). */
   sendInvitation(to: string, link: string): Promise<void>;
-  /** K-04: 2 iş gününü aşan onay bekleyen başvuru sayısını Admin'e bildirir. */
-  sendApprovalReminder(to: string, count: number): Promise<void>;
+  /**
+   * K-04: onay bekleyen başvurular için Admin hatırlatması. `dueSoon`: 1 iş günü geçmiş, 2'yi
+   * geçmemiş; `overdue`: 2 iş gününü aşmış.
+   */
+  sendApprovalReminder(
+    to: string,
+    counts: { dueSoon: number; overdue: number },
+  ): Promise<void>;
+  /** GR-BAYI-001, K-04: bayi e-postasını doğruladığında Admin'e yeni başvuru bildirimi. */
+  sendNewApplication(to: string, companyTitle: string): Promise<void>;
+  /**
+   * K-51: reddedilen adaya bilgi. Ret gerekçesi (iç not) e-postaya YAZILMAZ; yeniden başvuru
+   * mümkündür.
+   */
+  sendRejection(to: string): Promise<void>;
 }
 
 @Injectable()
@@ -39,8 +52,29 @@ export class DevMailService implements MailService {
     return Promise.resolve();
   }
 
-  sendApprovalReminder(to: string, count: number): Promise<void> {
-    this.log('Onay hatırlatması', to, `${count} başvuru 2 iş gününü aştı`);
+  sendApprovalReminder(
+    to: string,
+    counts: { dueSoon: number; overdue: number },
+  ): Promise<void> {
+    this.log(
+      'Onay hatırlatması',
+      to,
+      `${counts.overdue} başvuru 2 iş gününü aştı, ${counts.dueSoon} başvuru süreye yaklaşıyor`,
+    );
+    return Promise.resolve();
+  }
+
+  sendNewApplication(to: string, companyTitle: string): Promise<void> {
+    this.log('Yeni başvuru', to, companyTitle);
+    return Promise.resolve();
+  }
+
+  sendRejection(to: string): Promise<void> {
+    this.log(
+      'Başvuru sonucu',
+      to,
+      'Başvurunuz onaylanmadı. Bilgi için bizimle iletişime geçebilir, yeniden başvurabilirsiniz.',
+    );
     return Promise.resolve();
   }
 
