@@ -1,6 +1,6 @@
 # Amisos B2B – Bayi Hesabı ve Ön Sipariş Gereksinimleri
 
-Durum: Taslak · Son güncelleme: 2026-11-14
+Durum: İş sahibi kararları tamamlandı · Son güncelleme: 2026-11-14
 Kaynak: İş sahibiyle yapılan karar turları (requirements-analyst rolü)
 
 ## 1. Kapsam
@@ -65,6 +65,8 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-46 | Raporlar | En az: tarih aralığına göre ön siparişler, bayi bazında sipariş sayısı ve toplam tutar, en çok sipariş edilen ürünler, Excel'e aktarma. Ek raporlar K-47'de. |
 | K-47 | Ek raporlar | Ürün grubu bazında satış; bayi bazında en çok alınan ürünler, son sipariş tarihi ve uzun süredir sipariş vermeyen bayiler; sipariş durumu dağılımı ve ortalama bekleme süresi; stokta "Yok" iken sipariş edilen ürünler. |
 | K-48 | Rapor görünümü | Tablo ve Excel'e ek olarak grafikler (aylık sipariş tutarı trendi, ürün grubu dağılımı) ve panel açılışında özet ana sayfa. |
+| K-49 | Dönem karşılaştırması | Raporlar seçilen dönemi, bir önceki dönemle ve geçen yılın aynı dönemiyle karşılaştırır. |
+| K-50 | Pasif bayi eşiği | Son siparişi 60 günden eski olan bayi "uzun süredir sipariş vermeyen" listesine düşer. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 
 ## 3. Gereksinimler
@@ -140,11 +142,11 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 **GR-RAP-001 · Raporlar** · Öncelik: Orta · Kararlar: K-46
 - Kabul: Admin tarih aralığına göre ön sipariş listesini; bayi bazında sipariş sayısını ve KDV hariç toplam tutarı; en çok sipariş edilen ürünleri görür.
 - Kabul: Her rapor Excel'e aktarılabilir ve aktarılan dosyadaki toplamlar ekrandakiyle birebir aynıdır.
-- Açık: Dönem karşılaştırması olup olmayacağı.
+- Kabul: Her raporda seçilen dönem; bir önceki eşit uzunluktaki dönem ve geçen yılın aynı dönemiyle yan yana gösterilir, fark tutar ve yüzde olarak verilir (K-49).
 
-**GR-RAP-002 · Ek raporlar** · Öncelik: Orta · Kararlar: K-47
+**GR-RAP-002 · Ek raporlar** · Öncelik: Orta · Kararlar: K-47, K-50
 - Kabul: Ürün grubu bazında seçilen dönemde satılan adet ve KDV hariç tutar gösterilir.
-- Kabul: Her bayi için en çok alınan ürünler ve son sipariş tarihi gösterilir. Son siparişi `<gün>` günden eski olan bayiler ayrı listelenir.
+- Kabul: Her bayi için en çok alınan ürünler ve son sipariş tarihi gösterilir. Son siparişi 60 günden eski olan bayiler ayrı listelenir.
 - Kabul: Her sipariş durumundaki sipariş sayısı ve o durumda ortalama bekleme süresi gösterilir.
 - Kabul: Sipariş anında stokta "Yok" olan ürünler, sipariş adedi ve bayi sayısıyla listelenir.
 
@@ -222,6 +224,4 @@ V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşındı. Yok. V-06
 
 - BizimHesap API araştırması: sipariş aktarımı, stok ve durum okumanın mümkün olup olmadığı (GR-SIP-001, GR-URN-002, GR-SIP-006).
 - BizimHesap sipariş durumlarının portaldaki altı duruma eşlenmesi.
-- Raporlarda dönem karşılaştırması (önceki dönem / geçen yıl).
-- "Uzun süredir sipariş vermeyen bayi" için gün eşiği.
 - KVKK aydınlatma metni ve kullanım koşulları metinlerinin hazırlanması (iş sahibi / hukuk).
