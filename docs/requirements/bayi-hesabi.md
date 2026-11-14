@@ -49,6 +49,9 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 | K-34 | Stok güncelleme saatleri | Mesai saatlerinde (08:00–20:00) yaklaşık 2–2,5 saatte bir. |
 | K-35 | Başvuru bilgileri | Zorunlu alanlar: firma unvanı, yetkili adı soyadı, e-posta, telefon, il, ilçe, açık adres. Vergi bilgisi istenmez. |
 | K-36 | Teslimat şekilleri | Ambar ile, Bayi kendisi alır, Tır yüklemesi. |
+| K-37 | Tır yüklemesi adresi | Adres istenmez, görüşmede belirlenir. |
+| K-38 | Ambar adresi | Başvurudaki adres otomatik gelir, bayi değiştirebilir. Ayrıca ambar firmasının adı ve şubesi girilir. |
+| K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 
 ## 3. Gereksinimler
 
@@ -58,7 +61,7 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 - Aday portaldan başvuru gönderebilir. Başvuru tek başına hesap oluşturmaz.
 - Satış temsilcisi hesabı başvurudan ya da başvuru olmadan davetle açar.
 - Kabul: Temsilci onayı olmadan aktif hesap oluşma oranı %0'dır.
-- Kabul: Başvuru gönderilince sorumlu ekibe `<süre>` içinde bildirim gider.
+- Kabul: Başvuru gönderilince sorumlu ekibe en geç 5 dakika içinde bildirim gider.
 
 **GR-BAYI-002 · Yönetici onayı** · Öncelik: Yüksek · Kararlar: K-04
 - Durumlar: Başvuru → Satış yöneticisi onayı → Aktif / Reddedildi.
@@ -91,7 +94,7 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 
 **GR-BAYI-007 · Giriş ve şifre** · Öncelik: Yüksek · Kararlar: K-29
 - Kabul: Giriş e-posta ve şifre ile yapılır.
-- Kabul: Şifre sıfırlama bağlantısı yalnızca kayıtlı e-postaya gönderilir ve `<süre>` sonra geçersiz olur.
+- Kabul: Şifre sıfırlama bağlantısı yalnızca kayıtlı e-postaya gönderilir ve 1 saat sonra geçersiz olur.
 
 ### Fiyat
 
@@ -103,7 +106,7 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 **GR-FIY-002 · İskonto hesaplama** · Öncelik: Yüksek · Kararlar: K-12, K-13
 - Her üründe müşteri oranı ile ürün grubu oranı karşılaştırılır, yüksek olan uygulanır.
 - Kabul: Genel oranı %10, mutfak grubu oranı %15 olan müşteri mutfak ürünlerinde %15, diğerlerinde %10 iskonto alır. Test senaryolarının %100'ü doğru sonuç verir.
-- Kabul: Kuruş yuvarlaması `<kural>`a göre yapılır.
+- Kabul: Satır tutarı 2 ondalık basamağa standart yuvarlamayla (0,005 → 0,01) yuvarlanır. Toplam, yuvarlanmış satır tutarlarının toplamıdır.
 
 **GR-FIY-003 · KDV gösterimi** · Öncelik: Orta · Kararlar: K-11
 - Kabul: Ürün listesinde ve sepette birim fiyatlar KDV hariç gösterilir.
@@ -123,7 +126,7 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 ### Sipariş
 
 **GR-SIP-001 · BizimHesap aktarımı** · Öncelik: Yüksek · Kararlar: K-01, K-17
-- Kabul: Ön siparişlerin %100'ü BizimHesap'ta `<süre>` içinde görünür. Mükerrer kayıt %0.
+- Kabul: Ön siparişlerin %100'ü BizimHesap'ta en geç 15 dakika içinde görünür. Mükerrer kayıt %0.
 - Kabul: Aktarım başarısızsa ekibe bildirim gider, sipariş "elle girilecek" durumunda bekler. Bildirimsiz kalan sipariş olmaz.
 - Önkoşul: BizimHesap API'sinin varlığı ve yetenekleri teknik olarak doğrulanmalı.
 
@@ -147,20 +150,19 @@ programına düşer, süreç bayiyle görüşülerek tamamlanır. Portalda ödem
 - Kabul: Durum yalnızca tanımlı sırayla ilerler. İptal, Teslim edildi dışındaki her adımdan seçilebilir. Geçersiz geçiş %100 reddedilir.
 - Kabul: Her durum değişikliği zaman ve kaynakla (BizimHesap / kullanıcı) kaydedilir.
 
-**GR-SIP-007 · Teslimat şekli ve adres** · Öncelik: Orta · Kararlar: K-27, K-36
+**GR-SIP-007 · Teslimat şekli ve adres** · Öncelik: Orta · Kararlar: K-27, K-36, K-37, K-38
 - Kabul: Ön siparişte teslimat şekli seçilmeden sipariş gönderilemez. Seçenekler: Ambar ile, Bayi kendisi alır, Tır yüklemesi.
-- Kabul: "Ambar ile" seçilirse adres girilmeden sipariş gönderilemez.
-- Kabul: "Bayi kendisi alır" seçilirse adres istenmez.
-- Açık: "Tır yüklemesi" için adres istenip istenmeyeceği.
+- Kabul: "Ambar ile" seçilirse başvurudaki adres otomatik doldurulur, bayi değiştirebilir. Adres, ambar firması adı ve şubesi boşsa sipariş gönderilemez.
+- Kabul: "Bayi kendisi alır" ve "Tır yüklemesi" seçilirse adres istenmez, siparişte "adres görüşmede belirlenecek" bilgisi yer alır.
 
 ### Bildirim ve platform
 
 **GR-BLD-001 · E-posta bildirimleri** · Öncelik: Orta · Kararlar: K-26
-- Kabul: Ön sipariş gönderildikten sonra `<süre>` içinde ekibe ve bayiye e-posta gider.
+- Kabul: Ön sipariş gönderildikten sonra en geç 5 dakika içinde ekibe ve bayiye e-posta gider.
 - Kabul: Her durum değişikliğinde bayiye e-posta gider. Gönderilemeyen e-postalar kaydedilir ve yeniden denenir.
 
 **GR-PLT-001 · Web öncelikli platform** · Öncelik: Yüksek · Kararlar: K-28
-- Kabul: Portal güncel masaüstü ve mobil tarayıcılarda `<en küçük ekran genişliği>` ve üzerinde yatay kaydırma olmadan kullanılabilir.
+- Kabul: Portal güncel masaüstü ve mobil tarayıcılarda 360 piksel ve üzeri genişlikte yatay kaydırma olmadan kullanılabilir.
 - Mobil uygulama bu aşamanın kapsamı dışındadır.
 
 ## 4. Onay bekleyen varsayımlar
@@ -171,5 +173,4 @@ Yok. Önceki V-01 – V-05 onaylandı ve K-30 – K-34 olarak kararlara taşınd
 
 - BizimHesap API araştırması: sipariş aktarımı, stok ve durum okumanın mümkün olup olmadığı (GR-SIP-001, GR-URN-002, GR-SIP-006).
 - BizimHesap sipariş durumlarının portaldaki altı duruma eşlenmesi.
-- Tır yüklemesinde adres istenip istenmeyeceği; ambar seçiminde başvurudaki adresin varsayılan olarak kullanılıp kullanılmayacağı.
-- Doldurulacak süre ve kurallar: bildirim süreleri, aktarım süresi, şifre sıfırlama bağlantısı süresi, kuruş yuvarlama kuralı, en küçük ekran genişliği.
+- Henüz konuşulmamış konular: ürün kataloğu (arama, filtre, görsel), sepetin saklanması, yönetim paneli rolleri, KVKK / kullanım koşulları onayı, raporlama.
