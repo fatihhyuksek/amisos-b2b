@@ -26,22 +26,32 @@ Son güncelleme: 2026-11-14
      rakam), K-54 (pasif bayiye açık mesaj), K-55 (doğrulama 24 saat), K-56 (gönderen
      onay@amisosb2b.com). PR: fatihhyuksek/amisos-b2b#5
 
+10. Bayi başvurusu ve Admin onay akışı (branch `claude/dealer-onboarding`):
+   - Başvuru formu (K-35), KVKK/koşul/pazarlama onayları (sürümlü), e-posta doğrulama,
+     doğrulanmamış başvurunun 24 saat sonra düşmesi.
+   - Admin: ana sayfa özeti, bayi listesi (filtre, arama, sayfalama), bayi detayı (onay, ret
+     gerekçesi, pasife alma, aktif etme, daveti yeniden gönderme, genel iskonto, onaylar, geçmiş),
+     davetle bayi oluşturma.
+   - Davetle şifre belirleme + KVKK/koşul onayı (K-57); tek tıkla yeniden aktif etme (K-58).
+   - E-postalar: doğrulama, davet, ret, yeni başvuru bildirimi (doğrulamada), günlük hatırlatma
+     (yaklaşan + gecikmiş, Türkiye saati).
+   - Ürün grubu iskontoları katalog adımına bırakıldı.
+
 ## Sıradaki adım
 
-**Bayi başvurusu ve Admin onay akışı** (GR-BAYI-001…006, 008, GR-KVK-001):
-- Başvuru formu (K-35), KVKK/koşul/pazarlama onayları, e-posta doğrulama e-postası.
-- Admin onay kuyruğu: onay/red (gerekçe), 2 iş günü hatırlatması, pasife alma/aktif etme.
-- Davetle hesap açma ve ilk şifre belirleme (`invitation` token).
-- Ticari koşullar (genel ve grup iskontosu) Admin tarafından.
+**Ürün kataloğu ve Admin ürün/fiyat yönetimi** (GR-URN-001…003, K-14 – K-16, K-30 – K-32, K-40):
+- Admin: ürün grupları, ürün ekleme/düzenleme (barkod zorunlu ve tekil, kod, koli içi adedi,
+  liste fiyatı, KDV oranı, açıklama, görseller), stok durumu (elle Var/Yok), toplu içe aktarma (Excel).
+- Admin: bayiye ürün grubu iskontoları (K-12, K-13).
+- Bayi: katalog (grup filtresi, ad/barkod arama, görsel, KDV hariç fiyat, iskonto, stok Var/Yok).
 
 ## Sonraki adımlar (sırayla)
 
-1. Ürün kataloğu ve Admin ürün/fiyat yönetimi (GR-URN-001…003).
-2. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
-3. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
-4. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
-5. Raporlar ve özet ana sayfa (GR-RAP-001…003).
-6. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+1. Fiyat ve iskonto hesaplama (GR-FIY-001…003).
+2. Sepet ve ön sipariş (GR-SIP-003…005, 007, 008).
+3. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
+4. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+5. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
    - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
    - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
    - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı
