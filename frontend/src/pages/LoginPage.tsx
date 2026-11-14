@@ -8,12 +8,17 @@ import { Link } from '../Link'
 import { replace } from '../router'
 import { Alert, AuthCard, Button, Field, PasswordInput } from '../ui/components'
 
+const SERVER_UNREACHABLE = 'Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.'
+
 function loginErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 403) return 'Hesabınız pasif durumda. Bilgi için bizimle iletişime geçin.'
     if (err.status === 401) return 'E-posta veya şifre hatalı ya da hesabınız giriş için uygun değil.'
     if (err.status === 429) return 'Çok fazla deneme yaptınız. Bir dakika sonra tekrar deneyin.'
+    if (err.status >= 500) return SERVER_UNREACHABLE
   }
+  // fetch ağ hatasında TypeError fırlatır: sunucu kapalı veya ulaşılamıyor.
+  if (err instanceof TypeError) return SERVER_UNREACHABLE
   return 'Giriş yapılamadı. Lütfen daha sonra tekrar deneyin.'
 }
 
@@ -37,7 +42,11 @@ export function LoginPage({ type }: { type: UserType }) {
       await login(type, email.trim(), password)
       const user = await refresh()
       if (user) replace(user.type === 'admin' ? '/yonetim' : '/')
-      else setFormError('Giriş yapılamadı. Lütfen daha sonra tekrar deneyin.')
+      // Giriş kabul edildi ama oturum çerezi geri gelmedi (tarayıcı çerezi engellemiş olabilir).
+      else
+        setFormError(
+          'Giriş kabul edildi ancak oturum açılamadı. Tarayıcınızın çerezlere izin verdiğinden emin olun.',
+        )
     } catch (err) {
       setFormError(loginErrorMessage(err))
     } finally {
