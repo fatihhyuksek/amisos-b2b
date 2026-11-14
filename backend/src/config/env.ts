@@ -7,6 +7,27 @@ export interface Env {
   APP_URL: string;
   /** Giriş ve şifre sıfırlama uçlarında IP başına dakikadaki istek sınırı (GR-BAYI-007). */
   AUTH_RATE_LIMIT_PER_MINUTE: number;
+  /**
+   * Express `trust proxy` ayarı. Varsayılan kapalı: X-Forwarded-For dikkate alınmaz, hız sınırı
+   * gerçek bağlantı IP'sine göre çalışır. Ters vekil arkasında: atlama sayısı (ör. 1) veya
+   * virgülle ayrılmış IP/CIDR listesi.
+   */
+  TRUST_PROXY: boolean | number | string;
+}
+
+/** Çerez `Secure` ve token'lı bağlantı log'u: yalnızca açıkça development/test dışında güvenli mod. */
+export const isProductionLike = (nodeEnv: Env['NODE_ENV']): boolean =>
+  nodeEnv !== 'development' && nodeEnv !== 'test';
+
+export function parseTrustProxy(raw: unknown): boolean | number | string {
+  if (raw === undefined || raw === null) return false;
+  const value = (typeof raw === 'string' ? raw : JSON.stringify(raw)).trim();
+  if (value === '' || value === 'false') return false;
+  if (value === 'true') {
+    throw new Error('TRUST_PROXY=true güvenli değil (herkesin X-Forwarded-For değerine güvenir). Atlama sayısı veya IP/CIDR listesi verin.');
+  }
+  if (/^\d+$/.test(value)) return Number(value);
+  return value;
 }
 
 export function validateEnv(raw: Record<string, unknown>): Env {
@@ -15,7 +36,8 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     throw new Error('DATABASE_URL tanımlı değil. backend/.env.example dosyasına bakın.');
   }
 
-  const nodeEnv = (raw.NODE_ENV ?? 'development') as Env['NODE_ENV'];
+  // NODE_ENV verilmemişse güvenli tarafta kalınır: production gibi davranılır.
+  const nodeEnv = (raw.NODE_ENV ?? 'production') as Env['NODE_ENV'];
   if (!['development', 'test', 'production'].includes(nodeEnv)) {
     throw new Error(`Geçersiz NODE_ENV: ${String(nodeEnv)}`);
   }
@@ -30,6 +52,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     throw new Error(`Geçersiz AUTH_RATE_LIMIT_PER_MINUTE: ${String(raw.AUTH_RATE_LIMIT_PER_MINUTE)}`);
   }
 
+  if (isProductionLike(nodeEnv) && !(typeof raw.APP_URL === 'string' && raw.APP_URL)) {
+    throw new Error('APP_URL tanımlı değil. Production\'da e-posta bağlantıları için zorunludur.');
+  }
   const appUrl = typeof raw.APP_URL === 'string' && raw.APP_URL ? raw.APP_URL : 'http://localhost:5173';
 
   return {
@@ -39,5 +64,6 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     CORS_ORIGIN: typeof raw.CORS_ORIGIN === 'string' ? raw.CORS_ORIGIN : 'http://localhost:5173',
     APP_URL: appUrl.replace(/\/+$/, ''),
     AUTH_RATE_LIMIT_PER_MINUTE: rateLimit,
+    TRUST_PROXY: parseTrustProxy(raw.TRUST_PROXY),
   };
 }

@@ -20,6 +20,8 @@ describe('Hız sınırı (e2e)', () => {
   });
 
   afterAll(async () => {
+    const { AuthService } = await import('../src/auth/auth.service.js');
+    await app?.get(AuthService).whenIdle();
     await app?.close();
     process.env.AUTH_RATE_LIMIT_PER_MINUTE = '1000';
   });

@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { LoginAttemptLimiter } from './login-attempt-limiter.js';
 import { ConfigService } from '@nestjs/config';
 import { and, eq, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
@@ -17,6 +18,7 @@ import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
 import {
   EMAIL_VERIFICATION_TTL_MS,
   LOGIN_FAILED_MESSAGE,
+  PASSWORD_RESET_COOLDOWN_MS,
   PASSWORD_RESET_TTL_MS,
 } from './auth.constants.js';
 import { AuthTokensService, type SubjectType } from './auth-tokens.service.js';
@@ -43,7 +45,26 @@ export class AuthService {
     @Inject(AuthTokensService) private readonly tokens: AuthTokensService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(MAIL_SERVICE) private readonly mail: MailService,
+    @Inject(LoginAttemptLimiter) private readonly limiter: LoginAttemptLimiter,
   ) {}
+
+  /** Arka plan işleri (şifre sıfırlama, başarısız giriş audit'i). Testler ve kapanış `whenIdle` ile bekler. */
+  private readonly inFlight = new Set<Promise<void>>();
+
+  whenIdle(): Promise<void> {
+    return Promise.all(this.inFlight).then(() => undefined);
+  }
+
+  private background(label: string, work: () => Promise<void>): void {
+    const task: Promise<void> = work()
+      .catch((error: unknown) => {
+        this.logger.error(label, error instanceof Error ? error.stack : error);
+      })
+      .finally(() => {
+        this.inFlight.delete(task);
+      });
+    this.inFlight.add(task);
+  }
 
   /**
    * Bayi girişi. Yalnızca status='active' bayi girebilir (GR-BAYI-006, K-08); pending/rejected/passive
@@ -51,6 +72,7 @@ export class AuthService {
    */
   async loginDealer(email: string, password: string): Promise<LoginResult> {
     const normalized = normalizeEmail(email);
+    this.limiter.assertAllowed('dealer', normalized);
     // Reddedilen eski başvuru ile yeniden başvuru aynı e-postayı taşıyabilir (K-51): aktif olan seçilir.
     const rows = await this.db
       .select()
@@ -63,9 +85,11 @@ export class AuthService {
       password,
     );
     if (!dealer || !passwordOk || dealer.status !== 'active') {
+      this.limiter.recordFailure('dealer', normalized);
       throw new UnauthorizedException(LOGIN_FAILED_MESSAGE);
     }
 
+    this.limiter.reset('dealer', normalized);
     await this.db
       .update(dealers)
       .set({ lastLoginAt: this.clock.now() })
@@ -85,6 +109,7 @@ export class AuthService {
   /** Admin girişi (GR-YON-001). `is_active=false` ise giriş yok. Girişler audit_log'a yazılır. */
   async loginAdmin(email: string, password: string): Promise<LoginResult> {
     const normalized = normalizeEmail(email);
+    this.limiter.assertAllowed('admin', normalized);
     const [admin] = await this.db
       .select()
       .from(adminUsers)
@@ -95,19 +120,24 @@ export class AuthService {
       password,
     );
     if (!admin || !passwordOk || !admin.isActive) {
+      this.limiter.recordFailure('admin', normalized);
       if (admin) {
-        await this.audit.record({
-          actorType: 'admin',
-          actorId: admin.id,
-          action: 'auth.login_failed',
-          entityType: 'admin_users',
-          entityId: admin.id,
-          data: { reason: !admin.isActive ? 'inactive' : 'bad_password' },
-        });
+        // Yanıtı geciktirmez. Hesap sahibi değil giriş denemesi yapan bilinmiyor: aktör 'system',
+        // hedef entityId'de.
+        this.background('Başarısız giriş audit kaydı yazılamadı', () =>
+          this.audit.record({
+            actorType: 'system',
+            action: 'auth.login_failed',
+            entityType: 'admin_users',
+            entityId: admin.id,
+            data: { reason: !admin.isActive ? 'inactive' : 'bad_password' },
+          }),
+        );
       }
       throw new UnauthorizedException(LOGIN_FAILED_MESSAGE);
     }
 
+    this.limiter.reset('admin', normalized);
     await this.db
       .update(adminUsers)
       .set({ lastLoginAt: this.clock.now() })
@@ -132,41 +162,55 @@ export class AuthService {
   }
 
   /**
-   * Şifre sıfırlama isteği. Hesap var olsun ya da olmasın çağıran aynı sonucu görür (e-postanın
-   * varlığı sızdırılmaz); e-posta yalnızca giriş yapabilecek durumdaki hesaba gider (GR-BAYI-007).
+   * Şifre sıfırlama isteği. Yanıt süresi hesabın varlığını sızdırmasın diye iş arka planda yapılır
+   * ve çağıran hemen döner (controller 202). E-posta yalnızca giriş yapabilecek durumdaki hesaba
+   * gider (GR-BAYI-007). Hata olursa yalnızca log'a yazılır.
    */
-  async requestPasswordReset(email: string, type: SubjectType): Promise<void> {
-    try {
-      const normalized = normalizeEmail(email);
-      const subject = await this.findResettable(normalized, type);
-      if (!subject) return;
+  requestPasswordReset(email: string, type: SubjectType): void {
+    this.background('Şifre sıfırlama isteği işlenemedi', () =>
+      this.processPasswordReset(email, type),
+    );
+  }
 
-      const token = await this.tokens.issue(
-        type,
-        subject.id,
-        'password_reset',
-        PASSWORD_RESET_TTL_MS,
-      );
-      await this.audit.record({
-        actorType: type,
-        actorId: subject.id,
-        action: 'auth.password_reset_requested',
-        entityType: type === 'admin' ? 'admin_users' : 'dealers',
-        entityId: subject.id,
-      });
-      // Tek arayüz sayfası; `tur` sıfırlamadan sonra doğru giriş sayfasına dönmek için.
-      const tur = type === 'admin' ? 'admin' : 'bayi';
-      await this.mail.sendPasswordReset(
-        subject.email,
-        `${this.appUrl()}/#/sifre-sifirla?tur=${tur}&token=${token}`,
-      );
-    } catch (error) {
-      // İstemci hata ile hesabın varlığını çıkaramasın.
-      this.logger.error(
-        'Şifre sıfırlama isteği işlenemedi',
-        error instanceof Error ? error.stack : error,
-      );
-    }
+  private async processPasswordReset(
+    email: string,
+    type: SubjectType,
+  ): Promise<void> {
+    const normalized = normalizeEmail(email);
+    const subject = await this.findResettable(normalized, type);
+    if (!subject) return;
+
+    // Soğuma: aynı hesaba 2 dakikada en fazla 1 e-posta; bu durumda eski token da iptal edilmez.
+    const last = await this.tokens.lastIssuedAt(
+      type,
+      subject.id,
+      'password_reset',
+    );
+    if (
+      last &&
+      this.clock.now().getTime() - last.getTime() < PASSWORD_RESET_COOLDOWN_MS
+    )
+      return;
+
+    const token = await this.tokens.issue(
+      type,
+      subject.id,
+      'password_reset',
+      PASSWORD_RESET_TTL_MS,
+    );
+    await this.audit.record({
+      actorType: type,
+      actorId: subject.id,
+      action: 'auth.password_reset_requested',
+      entityType: type === 'admin' ? 'admin_users' : 'dealers',
+      entityId: subject.id,
+    });
+    // Tek arayüz sayfası; `tur` sıfırlamadan sonra doğru giriş sayfasına dönmek için.
+    const tur = type === 'admin' ? 'admin' : 'bayi';
+    await this.mail.sendPasswordReset(
+      subject.email,
+      `${this.appUrl()}/#/sifre-sifirla?tur=${tur}&token=${token}`,
+    );
   }
 
   /** Token tek kullanımlıdır; başarıda kullanıcının tüm oturumları silinir (GR-BAYI-007, K-39). */
@@ -249,8 +293,18 @@ export class AuthService {
         );
       return true;
     });
-    if (!ok)
-      throw new BadRequestException('Bağlantı geçersiz veya süresi dolmuş.');
+    if (ok) return;
+    // İdempotent: bağlantı daha önce kullanılmış ve e-posta zaten doğrulanmışsa (çift tıklama,
+    // e-posta tarayıcısının ön getirmesi) başarılı sayılır.
+    const used = await this.tokens.findUsed(token, 'email_verification');
+    if (used?.subjectType === 'dealer') {
+      const [dealer] = await this.db
+        .select({ verifiedAt: dealers.emailVerifiedAt })
+        .from(dealers)
+        .where(eq(dealers.id, used.subjectId));
+      if (dealer?.verifiedAt) return;
+    }
+    throw new BadRequestException('Bağlantı geçersiz veya süresi dolmuş.');
   }
 
   /** Başvuru adımı için: doğrulama token'ı üretir ve bağlantıyı e-postayla gönderir. */

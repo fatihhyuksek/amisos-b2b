@@ -15,7 +15,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
-import type { Env } from '../config/env.js';
+import { isProductionLike, type Env } from '../config/env.js';
 import { SESSION_COOKIE } from './auth.constants.js';
 import {
   AuthenticatedGuard,
@@ -29,10 +29,12 @@ import {
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
 } from './auth.schemas.js';
+import { JsonOnlyGuard } from './json-only.guard.js';
 import { AuthService, type LoginResult } from './auth.service.js';
 import { SessionsService, type AuthIdentity } from './sessions.service.js';
 
 @Controller('auth')
+@UseGuards(JsonOnlyGuard)
 @UsePipes(new StandardSchemaValidationPipe())
 export class AuthController {
   constructor(
@@ -88,14 +90,15 @@ export class AuthController {
   @Post('password-reset/request')
   @HttpCode(202)
   @UseGuards(ThrottlerGuard)
-  async passwordResetRequest(
+  passwordResetRequest(
     @Body({ schema: passwordResetRequestSchema })
     body: {
       email: string;
       type: 'admin' | 'dealer';
     },
-  ): Promise<void> {
-    await this.auth.requestPasswordReset(body.email, body.type);
+  ): void {
+    // İş arka planda; yanıt süresi hesabın varlığına bağlı değildir.
+    this.auth.requestPasswordReset(body.email, body.type);
   }
 
   @Post('password-reset/confirm')
@@ -135,6 +138,6 @@ export class AuthController {
   }
 
   private secure(): boolean {
-    return this.config.get('NODE_ENV', { infer: true }) === 'production';
+    return isProductionLike(this.config.get('NODE_ENV', { infer: true }));
   }
 }

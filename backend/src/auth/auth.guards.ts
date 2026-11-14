@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
-import type { Env } from '../config/env.js';
+import { isProductionLike, type Env } from '../config/env.js';
 import { SESSION_COOKIE } from './auth.constants.js';
 import { SessionsService, type AuthIdentity } from './sessions.service.js';
 
@@ -58,8 +58,9 @@ abstract class SessionGuard implements CanActivate {
     }
     req.auth = resolved.identity;
     // Kayan süre: çerezin bitişi de sunucudaki oturumla birlikte uzar.
-    const secure =
-      this.config.get('NODE_ENV', { infer: true }) === 'production';
+    const secure = isProductionLike(
+      this.config.get('NODE_ENV', { infer: true }),
+    );
     context
       .switchToHttp()
       .getResponse<Response>()

@@ -1,7 +1,7 @@
 // E-posta gönderimi. Sağlayıcı seçilmedi (açık soru); şimdilik yalnızca log'a yazan geliştirme uygulaması.
 import { Global, Inject, Injectable, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Env } from '../config/env.js';
+import { isProductionLike, type Env } from '../config/env.js';
 
 export const MAIL_SERVICE = Symbol('MAIL_SERVICE');
 
@@ -30,8 +30,8 @@ export class DevMailService implements MailService {
   }
 
   private log(subject: string, to: string, link: string): void {
-    // Üretimde token'lı bağlantı log'a yazılmaz.
-    if (this.config.get('NODE_ENV', { infer: true }) === 'production') {
+    // Token'lı bağlantı yalnızca development/test'te log'a yazılır.
+    if (isProductionLike(this.config.get('NODE_ENV', { infer: true }))) {
       this.logger.warn(
         `${subject} e-postası gönderilemedi: e-posta sağlayıcısı yapılandırılmadı.`,
       );

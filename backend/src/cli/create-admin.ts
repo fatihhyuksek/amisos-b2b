@@ -1,7 +1,9 @@
 // İlk Admin'i oluşturur (GR-YON-001, K-42).
-// Kullanım: ADMIN_PASSWORD=... npm run admin:create -- --email a@b.com --name "Ad Soyad"
-// Şifre komut satırı argümanından alınmaz: ADMIN_PASSWORD ortam değişkeni, yoksa stdin
-// (boru ile veya terminalde gizli istem).
+// Kullanım (şifre komut satırında veya kabuk geçmişinde görünmesin diye gizli istem ya da stdin):
+//   npm run admin:create -- --email a@b.com --name "Ad Soyad"      (terminalde gizli istem)
+//   cat sifre.txt | npm run admin:create -- --email a@b.com --name "Ad Soyad"   (stdin)
+// ADMIN_PASSWORD ortam değişkeni de okunur ancak önerilmez; .env içinde bırakılırsa uyarılır.
+import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { hash } from '@node-rs/argon2';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -44,6 +46,15 @@ async function readPassword(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  try {
+    if (/^\s*ADMIN_PASSWORD\s*=/m.test(readFileSync('.env', 'utf8'))) {
+      console.warn(
+        'UYARI: .env içinde ADMIN_PASSWORD var. Şifreyi dosyada bırakmayın; silin.',
+      );
+    }
+  } catch {
+    // .env yoksa sorun değil.
+  }
   try {
     process.loadEnvFile('.env');
   } catch {

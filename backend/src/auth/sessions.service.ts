@@ -4,7 +4,11 @@ import { and, eq, lt } from 'drizzle-orm';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
 import { adminUsers, dealers, sessions } from '../database/schema.js';
-import { SESSION_TOUCH_INTERVAL_MS, SESSION_TTL_MS } from './auth.constants.js';
+import {
+  SESSION_ABSOLUTE_TTL_MS,
+  SESSION_TOUCH_INTERVAL_MS,
+  SESSION_TTL_MS,
+} from './auth.constants.js';
 import {
   generateToken,
   hashToken,
@@ -60,7 +64,11 @@ export class SessionsService {
       .from(sessions)
       .where(eq(sessions.tokenHash, tokenHash));
     if (!session) return null;
-    if (session.expiresAt <= now) {
+    // Mutlak üst süre (30 gün): kayan süre ne olursa olsun oturum en geç burada biter.
+    const absoluteEnd = new Date(
+      session.createdAt.getTime() + SESSION_ABSOLUTE_TTL_MS,
+    );
+    if (session.expiresAt <= now || absoluteEnd <= now) {
       await this.db.delete(sessions).where(eq(sessions.id, session.id));
       return null;
     }
@@ -79,7 +87,9 @@ export class SessionsService {
       now.getTime() - session.lastSeenAt.getTime() >=
       SESSION_TOUCH_INTERVAL_MS
     ) {
-      expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+      expiresAt = new Date(
+        Math.min(now.getTime() + SESSION_TTL_MS, absoluteEnd.getTime()),
+      );
       await this.db
         .update(sessions)
         .set({ lastSeenAt: now, expiresAt })

@@ -16,6 +16,7 @@ import {
   sessions,
 } from '../src/database/schema.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
+import { AuthService } from '../src/auth/auth.service.js';
 import { AuthTokensService } from '../src/auth/auth-tokens.service.js';
 
 const PASSWORD = 'Sifre-12345';
@@ -32,7 +33,21 @@ describe('Kimlik doğrulama (e2e)', () => {
 
   const lastToken = (to: string) => {
     const mail = [...mails].reverse().find((m) => m.to === to);
-    return new URL(mail!.link).searchParams.get('token')!;
+    // Arayüz hash yönlendirmesi kullanır: https://.../#/sifre-sifirla?tur=bayi&token=...
+    const url = new URL(mail!.link);
+    expect(url.hash.startsWith('#/')).toBe(true);
+    return new URLSearchParams(url.hash.split('?')[1]).get('token')!;
+  };
+
+  const resetRequest = async (body: {
+    email: string;
+    type: 'admin' | 'dealer';
+  }) => {
+    await request(app.getHttpServer())
+      .post('/api/auth/password-reset/request')
+      .send(body)
+      .expect(202);
+    await app.get(AuthService).whenIdle(); // arka plan işi bitsin
   };
 
   async function makeDealer(
@@ -259,6 +274,7 @@ describe('Kimlik doğrulama (e2e)', () => {
         .post('/api/auth/admin/login')
         .send({ email: email('admyanlis'), password: 'yanlis-sifre-1' })
         .expect(401);
+      await app.get(AuthService).whenIdle(); // audit yanıtı bekletmeden yazılır
       const logs = await db
         .select()
         .from(auditLog)
@@ -269,6 +285,7 @@ describe('Kimlik doğrulama (e2e)', () => {
           ),
         );
       expect(logs).toHaveLength(1);
+      expect(logs[0].actorType).toBe('system');
     });
 
     it('GR-YON-001: is_active=false admin giriş yapamaz; açık oturumu da reddedilir', async () => {
@@ -375,19 +392,16 @@ describe('Kimlik doğrulama (e2e)', () => {
   describe('şifre sıfırlama', () => {
     it('K-29: var olmayan e-postada da 202 döner ve e-posta gitmez', async () => {
       const before = mails.length;
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('hayalet'), type: 'dealer' })
-        .expect(202);
+      await resetRequest({ email: email('hayalet'), type: 'dealer' });
       expect(mails.length).toBe(before);
     });
 
     it('K-29: kayıtlı e-postada 202 döner, token yalnızca özet olarak saklanır', async () => {
       const d = await makeDealer('sifirla1');
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('sifirla1').toUpperCase(), type: 'dealer' })
-        .expect(202);
+      await resetRequest({
+        email: email('sifirla1').toUpperCase(),
+        type: 'dealer',
+      });
       const token = lastToken(email('sifirla1'));
       const rows = await db
         .select()
@@ -410,10 +424,7 @@ describe('Kimlik doğrulama (e2e)', () => {
       const agent = request.agent(app.getHttpServer());
       await dealerLogin(agent, email('sifirla2')).expect(200);
 
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('sifirla2'), type: 'dealer' })
-        .expect(202);
+      await resetRequest({ email: email('sifirla2'), type: 'dealer' });
       const token = lastToken(email('sifirla2'));
       const newPassword = 'Yeni-Sifre-9876';
       await request(app.getHttpServer())
@@ -445,10 +456,7 @@ describe('Kimlik doğrulama (e2e)', () => {
 
     it('K-39: token 1 saat sonra geçersiz olur (zaman enjekte edilerek)', async () => {
       await makeDealer('sifirla3');
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('sifirla3'), type: 'dealer' })
-        .expect(202);
+      await resetRequest({ email: email('sifirla3'), type: 'dealer' });
       const token = lastToken(email('sifirla3'));
       offsetMs = 3600_000 + 1000;
       await request(app.getHttpServer())
@@ -460,10 +468,7 @@ describe('Kimlik doğrulama (e2e)', () => {
 
     it('K-39: 59 dakika sonra token hâlâ geçerlidir', async () => {
       await makeDealer('sifirla4');
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('sifirla4'), type: 'dealer' })
-        .expect(202);
+      await resetRequest({ email: email('sifirla4'), type: 'dealer' });
       const token = lastToken(email('sifirla4'));
       offsetMs = 59 * 60_000;
       await request(app.getHttpServer())
@@ -472,38 +477,77 @@ describe('Kimlik doğrulama (e2e)', () => {
         .expect(204);
     });
 
-    it('GR-BAYI-007: yeni istek öncekini geçersiz kılar', async () => {
+    it('GR-BAYI-007: soğuma süresinden sonraki yeni istek öncekini geçersiz kılar', async () => {
       await makeDealer('sifirla5');
-      const send = () =>
-        request(app.getHttpServer())
-          .post('/api/auth/password-reset/request')
-          .send({ email: email('sifirla5'), type: 'dealer' })
-          .expect(202);
-      await send();
+      const body = { email: email('sifirla5'), type: 'dealer' as const };
+      await resetRequest(body);
       const first = lastToken(email('sifirla5'));
-      await send();
+      offsetMs = 3 * 60_000;
+      await resetRequest(body);
       await request(app.getHttpServer())
         .post('/api/auth/password-reset/confirm')
         .send({ token: first, password: 'Yeni-Sifre-9876' })
         .expect(400);
     });
 
-    it('GR-BAYI-007: pasif bayiye sıfırlama e-postası gönderilmez; 202 döner', async () => {
-      await makeDealer('sifirla6', 'passive');
+    it('GR-BAYI-007: aynı hesaba 2 dakikada en fazla 1 e-posta gider; eski token iptal olmaz', async () => {
+      await makeDealer('sogu');
+      const body = { email: email('sogu'), type: 'dealer' as const };
+      const before = mails.length;
+      await resetRequest(body);
+      const first = lastToken(email('sogu'));
+      offsetMs = 60_000;
+      await resetRequest(body);
+      expect(mails.length).toBe(before + 1);
+      await request(app.getHttpServer())
+        .post('/api/auth/password-reset/confirm')
+        .send({ token: first, password: 'Yeni-Sifre-9876' })
+        .expect(204);
+    });
+
+    it('GR-BAYI-007: reset isteği hesap aranmadan hemen 202 döner (iş arka planda)', async () => {
+      await makeDealer('arka');
       const before = mails.length;
       await request(app.getHttpServer())
         .post('/api/auth/password-reset/request')
-        .send({ email: email('sifirla6'), type: 'dealer' })
+        .send({ email: email('arka'), type: 'dealer' })
         .expect(202);
+      await app.get(AuthService).whenIdle();
+      expect(mails.length).toBe(before + 1);
+    });
+
+    it('GR-YON-001: is_active=false Admin e sıfırlama e-postası gitmez', async () => {
+      await makeAdmin('admpasifreset', false);
+      const before = mails.length;
+      await resetRequest({ email: email('admpasifreset'), type: 'admin' });
+      expect(mails.length).toBe(before);
+    });
+
+    it('K-39: aynı token ile iki paralel confirm den yalnızca biri başarılı olur', async () => {
+      await makeDealer('paralel');
+      await resetRequest({ email: email('paralel'), type: 'dealer' });
+      const token = lastToken(email('paralel'));
+      const send = (password: string) =>
+        request(app.getHttpServer())
+          .post('/api/auth/password-reset/confirm')
+          .send({ token, password });
+      const results = await Promise.all([
+        send('Yeni-Sifre-1111'),
+        send('Yeni-Sifre-2222'),
+      ]);
+      expect(results.map((r) => r.status).sort((a, b) => a - b)).toEqual([204, 400]);
+    });
+
+    it('GR-BAYI-007: pasif bayiye sıfırlama e-postası gönderilmez; 202 döner', async () => {
+      await makeDealer('sifirla6', 'passive');
+      const before = mails.length;
+      await resetRequest({ email: email('sifirla6'), type: 'dealer' });
       expect(mails.length).toBe(before);
     });
 
     it('GR-YON-001: admin sıfırlama isteği ve tamamlanması audit_log a yazılır', async () => {
       const a = await makeAdmin('admsifirla');
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('admsifirla'), type: 'admin' })
-        .expect(202);
+      await resetRequest({ email: email('admsifirla'), type: 'admin' });
       const token = lastToken(email('admsifirla'));
       await request(app.getHttpServer())
         .post('/api/auth/password-reset/confirm')
@@ -522,10 +566,7 @@ describe('Kimlik doğrulama (e2e)', () => {
 
     it('GR-BAYI-007: 10 karakterden kısa yeni şifre 400 döner ve token harcanmaz', async () => {
       await makeDealer('sifirla7');
-      await request(app.getHttpServer())
-        .post('/api/auth/password-reset/request')
-        .send({ email: email('sifirla7'), type: 'dealer' })
-        .expect(202);
+      await resetRequest({ email: email('sifirla7'), type: 'dealer' });
       const token = lastToken(email('sifirla7'));
       await request(app.getHttpServer())
         .post('/api/auth/password-reset/confirm')
@@ -557,11 +598,11 @@ describe('Kimlik doğrulama (e2e)', () => {
         .where(eq(dealers.id, d.id));
       expect(after.status).toBe('pending_approval');
       expect(after.emailVerifiedAt).not.toBeNull();
-      // Tek kullanımlık
+      // Tekrar çağrı idempotent (204) ve durumu değiştirmez; bkz. aşağıdaki idempotent testi.
       await request(app.getHttpServer())
         .post('/api/auth/email/verify')
         .send({ token })
-        .expect(400);
+        .expect(204);
     });
 
     it('K-03: süresi dolmuş veya geçersiz token reddedilir, durum değişmez', async () => {
@@ -612,6 +653,90 @@ describe('Kimlik doğrulama (e2e)', () => {
         .post('/api/auth/email/verify')
         .send({ token })
         .expect(204);
+    });
+  });
+
+  describe('oturum güvenliği', () => {
+    const cookieOf = (res: request.Response) =>
+      /amisos_session=([^;]+)/.exec(String(res.headers['set-cookie']))![1];
+
+    it('GR-BAYI-007: mevcut çerezle girişte token değişir ve eski oturum satırı silinir (oturum sabitleme)', async () => {
+      const d = await makeDealer('sabit');
+      const agent = request.agent(app.getHttpServer());
+      const first = cookieOf(
+        await dealerLogin(agent, email('sabit')).expect(200),
+      );
+      const second = cookieOf(
+        await dealerLogin(agent, email('sabit')).expect(200),
+      );
+      expect(second).not.toBe(first);
+      const rows = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.subjectId, d.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].tokenHash).not.toBe(second);
+    });
+
+    it('K-29: sessions tablosunda ham token yok, yalnızca özet', async () => {
+      const d = await makeDealer('ozet');
+      const token = cookieOf(
+        await dealerLogin(request, email('ozet')).expect(200),
+      );
+      const rows = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.subjectId, d.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].tokenHash).not.toBe(token);
+      expect(JSON.stringify(rows)).not.toContain(token);
+    });
+
+    it('GR-BAYI-007: oturum 30 günlük mutlak süreyi kayan süreyle aşamaz', async () => {
+      await makeDealer('mutlak');
+      const agent = request.agent(app.getHttpServer());
+      await dealerLogin(agent, email('mutlak')).expect(200);
+      for (const day of [6, 12, 18, 24, 29]) {
+        offsetMs = day * 24 * 3600_000;
+        await agent.get('/api/auth/me').expect(200);
+      }
+      offsetMs = 31 * 24 * 3600_000; // son kullanımdan 2 gün sonra: kayan süre dolmadı, mutlak süre doldu
+      await agent.get('/api/auth/me').expect(401);
+    });
+
+    it('GR-BAYI-007: urlencoded gövdeli giriş reddedilir (4xx), çerez verilmez', async () => {
+      await makeDealer('form');
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/dealer/login')
+        .type('form')
+        .send({ email: email('form'), password: PASSWORD });
+      expect(res.status).toBe(415);
+      expect(res.headers['set-cookie']).toBeUndefined();
+    });
+  });
+
+  describe('e-posta doğrulama (idempotent)', () => {
+    it('K-03: kullanılmış bağlantı, e-posta zaten doğrulanmışsa tekrar 204 döner', async () => {
+      const d = await makeDealer('idem', 'pending_email');
+      const token = await tokens.issue(
+        'dealer',
+        d.id,
+        'email_verification',
+        3600_000,
+      );
+      await request(app.getHttpServer())
+        .post('/api/auth/email/verify')
+        .send({ token })
+        .expect(204);
+      await request(app.getHttpServer())
+        .post('/api/auth/email/verify')
+        .send({ token })
+        .expect(204);
+      const [after] = await db
+        .select()
+        .from(dealers)
+        .where(eq(dealers.id, d.id));
+      expect(after.status).toBe('pending_approval');
     });
   });
 });

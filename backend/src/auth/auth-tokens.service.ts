@@ -2,7 +2,7 @@
 // Token'ın kendisi saklanmaz, yalnızca SHA-256 özeti.
 import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
 import { authTokens } from '../database/schema.js';
@@ -60,6 +60,50 @@ export class AuthTokensService {
       createdAt: now,
     });
     return token;
+  }
+
+  /** Daha önce kullanılmış (tüketilmiş) token'ın sahibi; e-posta doğrulamanın idempotent olması için. */
+  async findUsed(
+    token: string,
+    purpose: TokenPurpose,
+  ): Promise<{ subjectType: SubjectType; subjectId: string } | null> {
+    const [row] = await this.db
+      .select({
+        subjectType: authTokens.subjectType,
+        subjectId: authTokens.subjectId,
+        usedAt: authTokens.usedAt,
+      })
+      .from(authTokens)
+      .where(
+        and(
+          eq(authTokens.tokenHash, hashToken(token)),
+          eq(authTokens.purpose, purpose),
+        ),
+      );
+    return row?.usedAt
+      ? { subjectType: row.subjectType, subjectId: row.subjectId }
+      : null;
+  }
+
+  /** Aynı konu ve amaç için en son üretilen token'ın zamanı (soğuma süresi için). */
+  async lastIssuedAt(
+    subjectType: SubjectType,
+    subjectId: string,
+    purpose: TokenPurpose,
+  ): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ createdAt: authTokens.createdAt })
+      .from(authTokens)
+      .where(
+        and(
+          eq(authTokens.subjectType, subjectType),
+          eq(authTokens.subjectId, subjectId),
+          eq(authTokens.purpose, purpose),
+        ),
+      )
+      .orderBy(desc(authTokens.createdAt))
+      .limit(1);
+    return row?.createdAt ?? null;
   }
 
   /**

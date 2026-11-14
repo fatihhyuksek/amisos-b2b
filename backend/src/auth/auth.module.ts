@@ -6,6 +6,7 @@ import { AdminGuard, AuthenticatedGuard, DealerGuard } from './auth.guards.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthTokensService } from './auth-tokens.service.js';
+import { LoginAttemptLimiter } from './login-attempt-limiter.js';
 import { PasswordService } from './password.service.js';
 import { SessionsService } from './sessions.service.js';
 
@@ -29,6 +30,7 @@ import { SessionsService } from './sessions.service.js';
     AuthService,
     AuthTokensService,
     PasswordService,
+    LoginAttemptLimiter,
     SessionsService,
     AuthenticatedGuard,
     AdminGuard,
