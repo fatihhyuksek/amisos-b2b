@@ -56,9 +56,10 @@ Son güncelleme: 2026-11-14
 
 ## Sonraki adımlar (sırayla)
 
-1. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
-2. Raporlar ve özet ana sayfa (GR-RAP-001…003).
-3. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+1. Mağaza tasarımı (referans sitenin genel hatları, kendi kimliğimizle) ve Admin'den kampanya görseli (banner) yönetimi (K-63 – K-65). Tasarım sepet adımıyla paralel yürüyor.
+2. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
+3. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+4. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
    - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
    - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
    - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı
@@ -74,7 +75,7 @@ Son güncelleme: 2026-11-14
 - KVKK aydınlatma metni ve kullanım koşulları metinleri.
 - Stokta esas alınacak BizimHesap deposu (BizimHesap adımında).
 - onay@amisosb2b.com e-posta adresinin kurulması ve SMTP bilgileri (K-56).
-- Marka kimliği: logo, kurumsal renkler, varsa yazı tipi.
+- Logo dosyası (şimdilik yazı logo "AMİSOS B2B", K-63).
 
 ## Notlar
 
