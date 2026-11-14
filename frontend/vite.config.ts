@@ -10,7 +10,18 @@ export default defineConfig({
     strictPort: true,
     // Geliştirmede /api istekleri backend'e (NestJS, port 3100) yönlendirilir.
     proxy: {
-      '/api': 'http://localhost:3100',
+      '/api': {
+        target: 'http://localhost:3100',
+        configure(proxy) {
+          // Backend kapalıysa 503 + işaret başlığı: arayüz "sunucuya ulaşılamadı" gösterir.
+          proxy.on('error', (_err, _req, res) => {
+            if ('writeHead' in res && !res.headersSent) {
+              res.writeHead(503, { 'content-type': 'application/json', 'x-backend-unreachable': '1' })
+              res.end(JSON.stringify({ statusCode: 503, code: 'BACKEND_UNREACHABLE' }))
+            }
+          })
+        },
+      },
     },
   },
 })

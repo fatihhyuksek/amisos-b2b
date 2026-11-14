@@ -15,6 +15,7 @@ function loginErrorMessage(err: unknown): string {
     if (err.status === 403) return 'Hesabınız pasif durumda. Bilgi için bizimle iletişime geçin.'
     if (err.status === 401) return 'E-posta veya şifre hatalı ya da hesabınız giriş için uygun değil.'
     if (err.status === 429) return 'Çok fazla deneme yaptınız. Bir dakika sonra tekrar deneyin.'
+    if (err.status === 503 && err.code === 'BACKEND_UNREACHABLE') return SERVER_UNREACHABLE
     if (err.status >= 500) return 'Sunucuda bir sorun oluştu. Lütfen biraz sonra tekrar deneyin.'
   }
   // fetch ağ hatasında TypeError fırlatır: sunucu kapalı veya ulaşılamıyor.
