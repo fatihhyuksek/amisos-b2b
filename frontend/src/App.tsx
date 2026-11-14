@@ -1,13 +1,19 @@
 import { useEffect, type ReactNode } from 'react'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
+import { AdminHome } from './admin/AdminHome'
+import { DealerCreatePage } from './admin/DealerCreatePage'
+import { DealerDetailPage } from './admin/DealerDetailPage'
+import { DealerListPage } from './admin/DealerListPage'
 import { DesignPreview } from './design/DesignPreview'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ApplyPage } from './pages/ApplyPage'
+import { InvitationPage } from './pages/InvitationPage'
 import { LoginPage } from './pages/LoginPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
+import { matchPath, replace, useRoute } from './router'
 import { WelcomePage } from './pages/WelcomePage'
-import { replace, useRoute } from './router'
 import { Alert, AuthCard, Button } from './ui/components'
 
 function LoadingScreen() {
@@ -107,6 +113,10 @@ function Routes() {
       return <ResetPasswordPage />
     case '/eposta-dogrula':
       return <VerifyEmailPage />
+    case '/basvuru':
+      return <ApplyPage />
+    case '/davet':
+      return <InvitationPage />
     case '/':
       return (
         <Protected area="dealer">
@@ -116,11 +126,31 @@ function Routes() {
     case '/yonetim':
       return (
         <Protected area="admin">
-          <WelcomePage area="admin" />
+          <AdminHome />
         </Protected>
       )
-    default:
+    case '/yonetim/bayiler':
+      return (
+        <Protected area="admin">
+          <DealerListPage />
+        </Protected>
+      )
+    case '/yonetim/bayiler/yeni':
+      return (
+        <Protected area="admin">
+          <DealerCreatePage />
+        </Protected>
+      )
+    default: {
+      const detail = matchPath(path, '/yonetim/bayiler/:id')
+      if (detail)
+        return (
+          <Protected area="admin">
+            <DealerDetailPage id={detail.id} />
+          </Protected>
+        )
       return <Redirect to="/" />
+    }
   }
 }
 

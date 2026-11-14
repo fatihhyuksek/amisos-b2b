@@ -10,6 +10,10 @@ export interface MailService {
   /** K-39: bağlantı 1 saat geçerli. */
   sendPasswordReset(to: string, link: string): Promise<void>;
   sendEmailVerification(to: string, link: string): Promise<void>;
+  /** K-04: onaylanan/davet edilen bayiye şifre belirleme bağlantısı (72 saat). */
+  sendInvitation(to: string, link: string): Promise<void>;
+  /** K-04: 2 iş gününü aşan onay bekleyen başvuru sayısını Admin'e bildirir. */
+  sendApprovalReminder(to: string, count: number): Promise<void>;
 }
 
 @Injectable()
@@ -27,6 +31,16 @@ export class DevMailService implements MailService {
 
   sendEmailVerification(to: string, link: string): Promise<void> {
     this.log('E-posta doğrulama', to, link);
+    return Promise.resolve();
+  }
+
+  sendInvitation(to: string, link: string): Promise<void> {
+    this.log('Davet / şifre belirleme', to, link);
+    return Promise.resolve();
+  }
+
+  sendApprovalReminder(to: string, count: number): Promise<void> {
+    this.log('Onay hatırlatması', to, `${count} başvuru 2 iş gününü aştı`);
     return Promise.resolve();
   }
 

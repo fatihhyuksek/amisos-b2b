@@ -18,6 +18,7 @@ import { adminUsers, dealers } from '../database/schema.js';
 import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
 import {
   EMAIL_VERIFICATION_TTL_MS,
+  INVITATION_TTL_MS,
   ACCOUNT_PASSIVE_MESSAGE,
   LOGIN_FAILED_MESSAGE,
   PASSWORD_RESET_COOLDOWN_MS,
@@ -335,6 +336,80 @@ export class AuthService {
       dealer.email,
       `${this.appUrl()}/#/eposta-dogrula?token=${token}`,
     );
+  }
+
+  /** Başvuru yanıtını bekletmeden doğrulama e-postası gönderir (hata yalnızca log'a yazılır). */
+  queueEmailVerification(dealerId: string): void {
+    this.background('Doğrulama e-postası gönderilemedi', () =>
+      this.sendEmailVerification(dealerId),
+    );
+  }
+
+  /** K-04: davet token'ı (72 saat) üretir; önceki davet geçersiz olur. Bağlantıyı e-postayla gönderir. */
+  async sendInvitation(dealerId: string): Promise<void> {
+    const [dealer] = await this.db
+      .select()
+      .from(dealers)
+      .where(eq(dealers.id, dealerId));
+    if (!dealer) return;
+    const token = await this.tokens.issue(
+      'dealer',
+      dealer.id,
+      'invitation',
+      INVITATION_TTL_MS,
+    );
+    await this.mail.sendInvitation(
+      dealer.email,
+      `${this.appUrl()}/#/davet?token=${token}`,
+    );
+  }
+
+  queueInvitation(dealerId: string): void {
+    this.background('Davet e-postası gönderilemedi', () =>
+      this.sendInvitation(dealerId),
+    );
+  }
+
+  /**
+   * K-04: davet token'ı tek kullanımlık; yalnızca aktif ve şifresi olmayan bayi için geçerli.
+   * Aksi halde token harcanmaz (işlem geri alınır) ve 400 döner.
+   */
+  async acceptInvitation(token: string, newPassword: string): Promise<void> {
+    const passwordHash = await this.passwords.hash(newPassword);
+    await this.db.transaction(async (tx) => {
+      const subject = await this.tokens.consume(token, 'invitation', tx);
+      if (subject?.subjectType === 'dealer') {
+        const [dealer] = await tx
+          .update(dealers)
+          // Davet bağlantısını açabilmek e-postaya erişimi kanıtlar: doğrulanmamışsa doğrulanmış sayılır.
+          .set({
+            passwordHash,
+            emailVerifiedAt: sql`coalesce(${dealers.emailVerifiedAt}, now())`,
+          })
+          .where(
+            and(
+              eq(dealers.id, subject.subjectId),
+              eq(dealers.status, 'active'),
+              sql`${dealers.passwordHash} is null`,
+            ),
+          )
+          .returning({ id: dealers.id });
+        if (dealer) {
+          await this.audit.record(
+            {
+              actorType: 'dealer',
+              actorId: dealer.id,
+              action: 'dealer.invitation_accepted',
+              entityType: 'dealers',
+              entityId: dealer.id,
+            },
+            tx,
+          );
+          return;
+        }
+      }
+      throw new BadRequestException('Bağlantı geçersiz veya süresi dolmuş.');
+    });
   }
 
   private appUrl(): string {

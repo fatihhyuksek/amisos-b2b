@@ -29,3 +29,7 @@ export const passwordResetConfirmSchema = z.object({
 export const emailVerifySchema = z.object({ token });
 
 export const passwordSchema = newPassword;
+export const invitationAcceptSchema = z.object({
+  token,
+  password: newPassword,
+});

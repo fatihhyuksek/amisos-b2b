@@ -25,6 +25,7 @@ import {
 } from './auth.guards.js';
 import {
   emailVerifySchema,
+  invitationAcceptSchema,
   loginSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
@@ -121,6 +122,20 @@ export class AuthController {
     @Body({ schema: emailVerifySchema }) body: { token: string },
   ): Promise<void> {
     await this.auth.verifyEmail(body.token);
+  }
+
+  /** K-04: davetle şifre belirleme. Otomatik giriş yapılmaz. */
+  @Post('invitation/accept')
+  @HttpCode(204)
+  @UseGuards(ThrottlerGuard)
+  async invitationAccept(
+    @Body({ schema: invitationAcceptSchema })
+    body: {
+      token: string;
+      password: string;
+    },
+  ): Promise<void> {
+    await this.auth.acceptInvitation(body.token, body.password);
   }
 
   private startSession(res: Response, result: LoginResult): AuthIdentity {

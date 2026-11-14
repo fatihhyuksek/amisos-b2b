@@ -60,7 +60,7 @@ export function LoginPage({ type }: { type: UserType }) {
       footer={
         isAdmin ? undefined : (
           <p className="muted">
-            Bayi değil misiniz? <span>Başvuru yapın</span> (başvuru sayfası yakında)
+            Bayi değil misiniz? <Link to="/basvuru">Başvuru yapın</Link>
           </p>
         )
       }
