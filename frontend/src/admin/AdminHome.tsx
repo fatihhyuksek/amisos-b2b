@@ -5,7 +5,7 @@ import { Alert, Badge } from '../ui/components'
 import { formatInt } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
 import { useFailedNotificationCount } from './useFailedNotifications'
-import { useOrderSummary } from './useOrderSummary'
+import { useOrderSummary } from './orderSummary'
 import { useLoad } from './useLoad'
 
 function Stat({ to, label, value, note }: { to: string; label: string; value: number; note?: string }) {

@@ -6,7 +6,7 @@ import { BrandLogo } from '../shop/brand'
 import { replace, useRoute } from '../router'
 import { Button } from '../ui/components'
 import { useFailedNotificationCount } from './useFailedNotifications'
-import { useOrderSummary } from './useOrderSummary'
+import { useOrderSummary } from './orderSummary'
 
 const LINKS = [
   { to: '/yonetim', label: 'Ana sayfa', match: (p: string) => p === '/yonetim' },

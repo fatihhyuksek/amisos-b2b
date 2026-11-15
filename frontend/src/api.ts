@@ -770,7 +770,8 @@ export async function retryNotification(id: string): Promise<AdminNotification> 
 
 // ---------- Admin sipariş yönetimi (docs/api/admin-siparis-api.md) ----------
 
-export type TransferStatus = 'pending' | 'transferred'
+/** pending/manual: girilmedi; transferred: girildi; failed: entegrasyon aktarımı başarısız. */
+export type TransferStatus = 'pending' | 'transferred' | 'failed' | 'manual'
 
 export interface AdminOrderListItem {
   id: string

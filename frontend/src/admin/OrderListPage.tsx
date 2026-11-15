@@ -2,6 +2,7 @@
 // Süzgeçler adreste: ?durum= &q= &aktarim=girilmedi &bas= &bit= &bayi= &sayfa=
 import { useEffect, useState } from 'react'
 import {
+  ApiError,
   downloadOrdersExcel,
   fetchAdminOrders,
   type AdminOrderFilters,
@@ -68,11 +69,9 @@ function apiFilters(f: Filters): AdminOrderFilters {
 }
 
 function TransferBadge({ status }: { status: AdminOrderListItem['transferStatus'] }) {
-  return status === 'transferred' ? (
-    <Badge tone="success">Girildi</Badge>
-  ) : (
-    <Badge tone="neutral">Girilmedi</Badge>
-  )
+  if (status === 'transferred') return <Badge tone="success">Girildi</Badge>
+  if (status === 'failed') return <Badge tone="warning">Aktarım başarısız</Badge>
+  return <Badge tone="neutral">Girilmedi</Badge>
 }
 
 export function OrderListPage() {
@@ -88,8 +87,14 @@ export function OrderListPage() {
     page: Math.max(1, Number(query.get('sayfa')) || 1),
   }
   const [search, setSearch] = useState(f.q)
+  // Adres dışarıdan değişince (menü bağlantısı, geri tuşu) arama kutusu da eşitlenir.
+  const [syncedQ, setSyncedQ] = useState(f.q)
+  if (f.q !== syncedQ) {
+    setSyncedQ(f.q)
+    setSearch(f.q)
+  }
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState(false)
+  const [exportError, setExportError] = useState('')
 
   useEffect(() => {
     if (search.trim() === f.q) return
@@ -109,12 +114,16 @@ export function OrderListPage() {
 
   async function exportExcel() {
     setExporting(true)
-    setExportError(false)
+    setExportError('')
     try {
       const { blob, filename } = await downloadOrdersExcel({ filters: apiFilters(f) })
       saveBlob(blob, filename ?? `siparisler-${new Date().toISOString().slice(0, 10)}.xlsx`)
-    } catch {
-      setExportError(true)
+    } catch (err) {
+      setExportError(
+        err instanceof ApiError && err.code === 'EXPORT_TOO_LARGE'
+          ? 'Çok fazla sipariş var (en fazla 5000). Tarih veya durum filtresiyle daraltın.'
+          : 'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+      )
     } finally {
       setExporting(false)
     }
@@ -135,7 +144,7 @@ export function OrderListPage() {
         </Button>
       }
     >
-      {exportError && <Alert tone="danger">Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.</Alert>}
+      {exportError && <Alert tone="danger">{exportError}</Alert>}
       <div className="ui-toolbar">
         <div className="ui-search">
           <Icon name="search" />

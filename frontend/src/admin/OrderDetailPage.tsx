@@ -22,35 +22,37 @@ import { orderStatusLabel } from '../ui/orderStatus'
 import { AdminLayout } from './AdminLayout'
 import { copyText, saveBlob } from './download'
 import { useLoad } from './useLoad'
-import { notifyOrdersChanged } from './useOrderSummary'
+import { notifyOrdersChanged } from './orderSummary'
 
 const NOTE_MAX = 1000
 const REF_MAX = 100
 
 const SOURCE_LABEL = { system: 'Sistem', admin: 'Admin', bizimhesap: 'BizimHesap' } as const
 
-/** WhatsApp bağlantısı için telefonu yalnızca rakamlara indirir; başında 0 varsa Türkiye (90) öneki konur. */
-function whatsappHref(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  const intl = digits.startsWith('90')
-    ? digits
-    : digits.startsWith('0')
-      ? `90${digits.slice(1)}`
-      : `90${digits}`
-  return `https://wa.me/${intl}`
+/**
+ * WhatsApp bağlantısı: yalnızca 0 ile başlayan 11 haneli yerel numaraya Türkiye öneki (90) eklenir;
+ * "+" ile başlayan uluslararası numara olduğu gibi kullanılır; diğer biçimlerde bağlantı gösterilmez.
+ */
+function whatsappHref(phone: string): string | null {
+  const compact = phone.replace(/[\s().-]/g, '')
+  if (/^\+\d{8,15}$/.test(compact)) return `https://wa.me/${compact.slice(1)}`
+  if (/^0\d{10}$/.test(compact)) return `https://wa.me/90${compact.slice(1)}`
+  return null
+}
+
+/** Hücreyi sekme/satır sonundan arındırır ve formül olarak yorumlanmasını engeller. */
+function tsvCell(value: string): string {
+  const clean = value.replace(/[\t\r\n]+/g, ' ').trim()
+  return /^[=+\-@]/.test(clean) ? `'${clean}` : clean
 }
 
 /** BizimHesap / Excel'e yapıştırmaya uygun, sekme ayrımlı satırlar (başlık satırı yok). */
 function linesAsTsv(o: AdminOrderDetail): string {
   return o.lines
     .map((l) =>
-      [
-        l.barcode,
-        l.code ?? '',
-        l.name.replace(/\s+/g, ' '),
-        String(l.quantity),
-        l.unitPrice.replace('.', ','),
-      ].join('\t'),
+      [l.barcode, l.code ?? '', l.name, String(l.quantity), l.unitPrice.replace('.', ',')]
+        .map(tsvCell)
+        .join('\t'),
     )
     .join('\n')
 }
@@ -137,11 +139,25 @@ export function AdminOrderDetailPage({ id }: { id: string }) {
         text: wasMark ? "BizimHesap'a girildi olarak işaretlendi." : 'BizimHesap işareti kaldırıldı.',
       })
     } catch (err) {
-      setDialogError(
-        err instanceof ApiError && err.status === 400
-          ? 'Referans geçersiz (en fazla 100 karakter).'
-          : networkMessage(err, 'İşlem tamamlanamadı. Lütfen tekrar deneyin.'),
-      )
+      const code = err instanceof ApiError ? err.code : undefined
+      const conflict: Record<string, string> = {
+        ALREADY_TRANSFERRED: "Bu sipariş zaten BizimHesap'a girildi olarak işaretli.",
+        NOT_TRANSFERRED: 'Bu sipariş zaten girilmemiş görünüyor.',
+        TRANSFER_LOCKED: 'Bu sipariş entegrasyonla aktarıldığı için işareti kaldırılamaz.',
+      }
+      if (code && conflict[code]) {
+        closeDialogs()
+        setNotice({ tone: 'danger', text: `${conflict[code]} Sayfa yenilendi.` })
+        setFresh(null)
+        reload()
+        notifyOrdersChanged()
+      } else {
+        setDialogError(
+          err instanceof ApiError && err.status === 400
+            ? 'Referans geçersiz (en fazla 100 karakter).'
+            : networkMessage(err, 'İşlem tamamlanamadı. Lütfen tekrar deneyin.'),
+        )
+      }
     } finally {
       setBusy(false)
     }
@@ -173,6 +189,7 @@ export function AdminOrderDetailPage({ id }: { id: string }) {
     }
   }
 
+  const whatsapp = o ? whatsappHref(o.dealer.phone) : null
   const next = o?.allowedNextStatuses ?? []
   const forward = next.filter((s) => s !== 'cancelled')
   const canCancel = next.includes('cancelled')
@@ -230,14 +247,11 @@ export function AdminOrderDetailPage({ id }: { id: string }) {
                     <a href={`tel:${o.dealer.phone.replace(/[^\d+]/g, '')}`} className="ui-linkbtn">
                       {o.dealer.phone}
                     </a>
-                    <a
-                      href={whatsappHref(o.dealer.phone)}
-                      className="ui-linkbtn"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      WhatsApp<span className="visually-hidden"> (yeni sekmede açılır)</span>
-                    </a>
+                    {whatsapp && (
+                      <a href={whatsapp} className="ui-linkbtn" target="_blank" rel="noopener noreferrer">
+                        WhatsApp<span className="visually-hidden"> (yeni sekmede açılır)</span>
+                      </a>
+                    )}
                   </dd>
                 </div>
                 <div>
@@ -455,6 +469,13 @@ export function AdminOrderDetailPage({ id }: { id: string }) {
                     </div>
                   </dl>
                 </div>
+              ) : o.transfer.status === 'failed' ? (
+                <div className="ui-stack">
+                  <Badge tone="warning">Aktarım başarısız</Badge>
+                  <p className="muted ui-summary__note">
+                    Otomatik aktarım başarısız oldu. Siparişi BizimHesap'a elle girip işaretleyebilirsiniz.
+                  </p>
+                </div>
               ) : (
                 <div>
                   <Badge tone="neutral">Girilmedi</Badge>
@@ -464,6 +485,9 @@ export function AdminOrderDetailPage({ id }: { id: string }) {
                 <Button variant="secondary" block icon="copy" onClick={copyLines}>
                   Satırları kopyala
                 </Button>
+                <p className="muted ui-summary__note">
+                  Excel'e yapıştırırken barkod sütununu Metin biçimine çevirin; daha güvenli yol: Excel indir.
+                </p>
                 <Button
                   variant="secondary"
                   block

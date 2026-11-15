@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
 import { BannerListPage } from './admin/BannerListPage'
+import { OrderSummaryProvider } from './admin/OrderSummaryProvider'
 import { OrderListPage } from './admin/OrderListPage'
 import { AdminOrderDetailPage } from './admin/OrderDetailPage'
 import { NotificationsPage } from './admin/NotificationsPage'
@@ -300,7 +301,9 @@ function App() {
   return (
     <AuthProvider>
       <DealerCart>
-        <Routes />
+        <OrderSummaryProvider>
+          <Routes />
+        </OrderSummaryProvider>
       </DealerCart>
     </AuthProvider>
   )
