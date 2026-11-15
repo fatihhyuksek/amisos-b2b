@@ -65,6 +65,8 @@ pendingApplications, overdueApplications, newOrders, failedNotifications }`.
 
 ## Uygulama notları (sözleşmeden netleştirmeler)
 
+- **Liste yanıtları:** `dealers`, `dealers/:id/products`, `products`, `groups`, `status`, `out-of-stock`, `inactive-dealers` düz dizi değil, `{ period, (previous, lastYear | dealer | days), items: [...] }` nesnesi döner; satırlar `items` içindedir. `trend` düz dizi, `overview`/`orders`/`today` nesnedir.
+
 - `percent` sayıdır (1 ondalık, ör. `116.7`); `amount` para metriklerinde metin (`"210.00"`), sayı metriklerinde sayıdır.
 - `from` yoksa ayın 1'i, `to` yoksa bugün; yalnızca `to` verilirse `from` o ayın 1'idir. `from > to` veya 3 yıldan uzun dönem **400** `VALIDATION` (Excel uçları dahil).
   Geçersiz takvim günü (`2026-02-30`) **400**.

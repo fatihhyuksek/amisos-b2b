@@ -7,7 +7,7 @@ import type {
   ReportProductRow,
   ReportTrendPoint,
 } from '../../api'
-import { fetchReport } from '../../api'
+import { fetchReport, fetchReportList } from '../../api'
 import { Link } from '../../Link'
 import { ErrorAlert, LoadingCard } from '../../ui/catalog'
 import { formatInt, formatTRY } from '../../ui/format'
@@ -62,13 +62,16 @@ export function OverviewTab({
   overview: ReportOverview | null
 }) {
   const trend = useLoad<ReportTrendPoint[]>((s) => fetchReport('trend', { months: 12 }, s), 'trend')
-  const groups = useLoad<ReportGroupRow[]>((s) => fetchReport('groups', { from, to }, s), `g|${from}|${to}`)
+  const groups = useLoad<ReportGroupRow[]>(
+    (s) => fetchReportList('groups', { from, to }, s),
+    `g|${from}|${to}`,
+  )
   const products = useLoad<ReportProductRow[]>(
-    (s) => fetchReport('products', { from, to, sort: 'quantity', limit: 5 }, s),
+    (s) => fetchReportList('products', { from, to, sort: 'quantity', limit: 5 }, s),
     `p|${from}|${to}`,
   )
   const dealers = useLoad<ReportDealerRow[]>(
-    (s) => fetchReport('dealers', { from, to }, s),
+    (s) => fetchReportList('dealers', { from, to }, s),
     `d|${from}|${to}`,
   )
   const m = overview?.metrics

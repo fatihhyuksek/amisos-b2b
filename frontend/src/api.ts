@@ -1034,6 +1034,19 @@ export function fetchReport<T>(name: string, params: ReportParams, signal?: Abor
   return getJson(`/admin/reports/${name}${qsOf(params)}`, signal)
 }
 
+/**
+ * Liste raporları backend'de `{ period, ..., items }` biçiminde döner (docs/api/rapor-api.md);
+ * ekranlar yalnızca satırları kullanır. Düz dizi gelirse olduğu gibi döner.
+ */
+export async function fetchReportList<T>(
+  name: string,
+  params: ReportParams,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const body = await getJson<T[] | { items: T[] }>(`/admin/reports/${name}${qsOf(params)}`, signal)
+  return Array.isArray(body) ? body : body.items
+}
+
 /** Rapor Excel'ini aynı parametrelerle blob olarak indirir. */
 export async function downloadReportExcel(
   name: ReportName,

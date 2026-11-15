@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react'
 import {
   fetchReport,
+  fetchReportList,
   type Comparable,
   type OrderStatusValue,
   type ReportDealerProduct,
@@ -153,7 +154,7 @@ export function OrdersTab({ from, to }: Period) {
 // ---------- Bayiler ----------
 function DealerProducts({ id, from, to }: { id: string; from: string; to: string }) {
   const { state, reload } = useLoad<ReportDealerProduct[]>(
-    (s) => fetchReport(`dealers/${encodeURIComponent(id)}/products`, { from, to, limit: 10 }, s),
+    (s) => fetchReportList(`dealers/${encodeURIComponent(id)}/products`, { from, to, limit: 10 }, s),
     `dp|${id}|${from}|${to}`,
   )
   if (state.status === 'loading') return <p className="muted">Yükleniyor…</p>
@@ -178,7 +179,7 @@ function DealerProducts({ id, from, to }: { id: string; from: string; to: string
 
 export function DealersTab({ from, to }: Period) {
   const { state, reload } = useLoad<ReportDealerRow[]>(
-    (s) => fetchReport('dealers', { from, to }, s),
+    (s) => fetchReportList('dealers', { from, to }, s),
     `${from}|${to}`,
   )
   const [open, setOpen] = useState<string | null>(null)
@@ -274,7 +275,7 @@ export function DealersTab({ from, to }: Period) {
 export function ProductsTab({ from, to }: Period) {
   const [sort, setSort] = useState<'quantity' | 'net'>('quantity')
   const { state, reload } = useLoad<ReportProductRow[]>(
-    (s) => fetchReport('products', { from, to, sort, limit: 50 }, s),
+    (s) => fetchReportList('products', { from, to, sort, limit: 50 }, s),
     `${from}|${to}|${sort}`,
   )
   const cols: Col<ReportProductRow>[] = [
@@ -350,7 +351,7 @@ export function ProductsTab({ from, to }: Period) {
 // ---------- Ürün grupları ----------
 export function GroupsTab({ from, to }: Period) {
   const { state, reload } = useLoad<ReportGroupRow[]>(
-    (s) => fetchReport('groups', { from, to }, s),
+    (s) => fetchReportList('groups', { from, to }, s),
     `${from}|${to}`,
   )
   const cols: Col<ReportGroupRow>[] = [
@@ -428,7 +429,7 @@ export function GroupsTab({ from, to }: Period) {
 // ---------- Durumlar ----------
 export function StatusTab({ from, to }: Period) {
   const { state, reload } = useLoad<ReportStatusRow[]>(
-    (s) => fetchReport('status', { from, to }, s),
+    (s) => fetchReportList('status', { from, to }, s),
     `${from}|${to}`,
   )
   const hours = (v: ReportStatusRow['averageHoursInStatus']) =>
@@ -479,7 +480,7 @@ export function StatusTab({ from, to }: Period) {
 // ---------- Stokta yokken sipariş ----------
 export function OutOfStockTab({ from, to }: Period) {
   const { state, reload } = useLoad<ReportOutOfStockRow[]>(
-    (s) => fetchReport('out-of-stock', { from, to }, s),
+    (s) => fetchReportList('out-of-stock', { from, to }, s),
     `${from}|${to}`,
   )
   const cols: Col<ReportOutOfStockRow>[] = [
@@ -548,7 +549,7 @@ const DAY_CHOICES = [30, 45, 60, 90, 120, 180]
 export function InactiveTab() {
   const [days, setDays] = useState(60)
   const { state, reload } = useLoad<ReportInactiveDealer[]>(
-    (s) => fetchReport('inactive-dealers', { days }, s),
+    (s) => fetchReportList('inactive-dealers', { days }, s),
     String(days),
   )
   const cols: Col<ReportInactiveDealer>[] = [
