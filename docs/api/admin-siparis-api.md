@@ -53,8 +53,18 @@ Gövde `{ status, note? }` (not en fazla 1000 karakter). İptal (`cancelled`) i�
   Barkod, Ürün kodu, Ürün adı, Adet, Koli içi, Liste fiyatı, İskonto %, Birim fiyat (KDV hariç), Net tutar,
   KDV %, KDV, Toplam, Stokta yoktu; altta toplamlar. Barkod ve kod hücreleri **metin** biçiminde.
 - `GET /api/admin/orders/export.xlsx?<liste filtreleri>` — liste (en fazla 5000 sipariş): sipariş başına bir satır.
-- Dosya adı: `siparis-<orderNo>.xlsx`, `siparisler-<YYYY-MM-DD>.xlsx`.
+- Dosya adı: `siparis-<orderNo>.xlsx`, `siparisler-<YYYY-MM-DD>.xlsx` (tarih Europe/Istanbul).
+- Liste dışa aktarma 5000'den fazla siparişe uyarsa **400** `{ code: "EXPORT_TOO_LARGE" }` (sessiz kesme yok; filtreleri daraltın).
+- Liste sütunları: Sipariş no, Tarih, Bayi, Durum, Teslimat, Kalem, KDV hariç toplam, KDV, Genel toplam, BizimHesap (Girildi/Bekliyor), Stokta yok var. Para sütunları sayı, `#,##0.00` biçimli.
 
 ## Bayi tarafı etkisi
 
 `GET /api/orders/:id` `history` öğelerine `note` eklenir (Admin notu); `changedBy` bayiye dönmez.
+
+## Uygulama notları
+
+- `q` yalnızca rakamlardan oluşuyorsa sipariş numarasıyla tam eşleşme **veya** firma/yetkili adında arama yapılır.
+- `transfer=pending` iptal dahil `transferred` olmayan her siparişi (pending, manual, failed) kapsar.
+- Detayda ayrıca eski alanlar korunur: `transferError`, `bizimhesapGuid` (entegrasyon için).
+- Bayiye giden e-posta türü outbox'ta `order_status_changed`'dir; not Admin girdisidir ve e-posta günlüğünde tek satıra indirilir.
+- Geçiş uçları satır kilidi (`for update`) kullanır; paralel iki istekten biri 409 `INVALID_TRANSITION` alır.

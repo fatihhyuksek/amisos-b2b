@@ -771,7 +771,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       expect(detail.lines).toHaveLength(1);
       expect(detail.lines[0]).toMatchObject({ lineNo: 1, quantity: 24, unitPrice: '48.90', lineNet: '1173.60' });
       expect(detail.history).toEqual([
-        { fromStatus: null, toStatus: 'submitted', source: 'system', createdAt: expect.any(String) },
+        { fromStatus: null, toStatus: 'submitted', source: 'system', note: null, createdAt: expect.any(String) },
       ]);
     });
 
@@ -948,10 +948,10 @@ describe('Sepet ve ön sipariş (e2e)', () => {
         orderNo: a2.orderNo,
         status: 'approved',
         dealer: { id: a.dealer.id, companyTitle: a.dealer.companyTitle, email: a.dealer.email, contactName: 'Ayşe', phone: '05320000000' },
-        transferStatus: 'pending',
+        transfer: { status: 'pending', reference: null, transferredAt: null, transferredBy: null },
         transferError: null,
         bizimhesapGuid: null,
-        transferredAt: null,
+        allowedNextStatuses: ['shipped', 'cancelled'],
         summary: { netTotal: '586.80', grandTotal: '704.16' },
       });
       expect(detail.lines).toHaveLength(1);

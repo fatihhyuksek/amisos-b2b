@@ -116,7 +116,7 @@ Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22, GR-SIP-005): bayi
   "netTotal": "498.84", "grandTotal": "598.61", "lineCount": 1 }
 ```
 
-`GET /api/orders/:id` -> **200** (yalnızca kendi siparişi; başkasının veya olmayan **404**):
+`GET /api/orders/:id` (Admin durum notları `history[].note` ile görünür; Admin kimliği dönmez) -> **200** (yalnızca kendi siparişi; başkasının veya olmayan **404**):
 ```json
 {
   "id": "uuid", "orderNo": 1001, "status": "submitted", "submittedAt": "ISO",
@@ -129,7 +129,7 @@ Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22, GR-SIP-005): bayi
     "outOfStock": false
   }],
   "summary": { "grossTotal": "...", "discountTotal": "...", "netTotal": "...", "vatTotal": "...", "grandTotal": "..." },
-  "history": [{ "fromStatus": null, "toStatus": "submitted", "source": "system", "createdAt": "ISO" }]
+  "history": [{ "fromStatus": null, "toStatus": "submitted", "source": "system", "note": null, "createdAt": "ISO" }]
 }
 ```
 Satırda iskonto yoksa `discountPercent` **`null`** döner (sepet satırıyla aynı; K-10), `unitPrice` = `listPrice`.
@@ -175,6 +175,6 @@ ardından `failed` olur ve log'a error yazılır. Token içeren e-postalarda ba�
 
 - `GET /api/admin/notifications?status=pending|sent|failed&page=1&pageSize=20` -> `{ items, total, page, pageSize }`, en yeni önce.
   Öğe: `{ id, kind, recipient, status, attempts, lastError, nextAttemptAt, createdAt, sentAt }` (payload ve bağlantılar dönmez).
-  `kind`: `order_confirmation | new_order_team | new_application | invitation | rejection | password_reset | email_verification | approval_reminder`.
+  `kind`: `order_confirmation | new_order_team | order_status_changed | new_application | invitation | rejection | password_reset | email_verification | approval_reminder`.
 - `POST /api/admin/notifications/:id/retry` -> **200** güncel öğe (sayacı sıfırlar, hemen bir kez dener). Zaten gönderilmişse **409** `ALREADY_SENT`;
   bağlantısı silinmiş token'lı e-posta **409** `PAYLOAD_EXPIRED`; olmayan id **404**.
