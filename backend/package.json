@@ -23,7 +23,8 @@
     "db:migrate": "nest build && node dist/cli/migrate.js",
     "db:studio": "drizzle-kit studio",
     "admin:create": "nest build && node dist/cli/create-admin.js",
-    "db:seed": "nest build && node dist/cli/seed-dev.js"
+    "db:seed": "nest build && node dist/cli/seed-dev.js",
+    "db:demo": "nest build && node dist/cli/demo-data.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

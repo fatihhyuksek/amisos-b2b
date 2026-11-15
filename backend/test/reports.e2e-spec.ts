@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
@@ -217,7 +217,7 @@ describe('Raporlar (e2e)', () => {
   it('K-49, GR-RAP-001: dönem doğrulama: from > to, 3 yıldan uzun, geçersiz tarih, geçersiz parametre -> 400', async () => {
     for (const q of [
       { from: '2030-06-02', to: '2030-06-01' },
-      { from: '2023-06-15', to: '2030-06-15' },
+      { from: '2027-06-15', to: '2030-06-15' },
       { from: '2020-01-01', to: '2030-06-15' },
       { from: '2030-02-30', to: '2030-03-01' },
       { from: 'dün', to: '2030-03-01' },
@@ -226,7 +226,7 @@ describe('Raporlar (e2e)', () => {
       expect([q, res.status, res.body.statusCode]).toEqual([q, 400, 400]);
       expect([q, res.body.code]).toEqual([q, 'VALIDATION']);
     }
-    await get('overview', { from: '2023-06-16', to: '2030-06-15' }).expect(200);
+    await get('overview', { from: '2027-06-16', to: '2030-06-15' }).expect(200);
     await get('groups', { from: '2030-06-02', to: '2030-06-01' }).expect(400);
     await get('trend', { months: 37 }).expect(400);
     await get('trend', { months: 0 }).expect(400);
@@ -370,7 +370,7 @@ describe('Raporlar (e2e)', () => {
     await makeOrder(e61.id, new Date(NOW.getTime() - 61 * DAY).toISOString(), []);
     await makeOrder(eCancel.id, new Date(NOW.getTime() - 40 * DAY).toISOString(), [], 'cancelled');
 
-    const mine = new Set([...dealerIds]);
+    const mine = new Set(dealerIds);
     const { body } = await get('inactive-dealers').expect(200);
     expect(body.days).toBe(60);
     const items = (body.items as { dealerId: string }[]).filter((i) => mine.has(i.dealerId));
@@ -464,7 +464,7 @@ describe('Raporlar (e2e)', () => {
       const { sheet, headers } = await xlsx('overview/export.xlsx', P);
       expect(headers['content-disposition']).toBe(`attachment; filename="rapor-genel-bakis-${P.from}-${P.to}.xlsx"`);
       const rows = new Map<string, ExcelJS.Row>();
-      sheet.eachRow((row) => rows.set(String(row.getCell(1).value), row));
+      sheet.eachRow((row) => rows.set(row.getCell(1).text, row));
       const net = rows.get('KDV hariç toplam')!;
       expect(net.getCell(2).value).toBe(Number(body.metrics.netTotal.current));
       expect(net.getCell(3).value).toBe(Number(body.metrics.netTotal.previous));

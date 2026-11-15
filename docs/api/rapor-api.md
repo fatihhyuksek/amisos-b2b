@@ -62,3 +62,18 @@ Sipariş anında stokta yokken sipariş edilen ürünler (`outOfStockAtOrder`):
 ### `GET /api/admin/reports/today`
 Özet ana sayfa (K-48): `{ today: { orderCount, netTotal }, month: { orderCount, netTotal },
 pendingApplications, overdueApplications, newOrders, failedNotifications }`.
+
+## Uygulama notları (sözleşmeden netleştirmeler)
+
+- `percent` sayıdır (1 ondalık, ör. `116.7`); `amount` para metriklerinde metin (`"210.00"`), sayı metriklerinde sayıdır.
+- `from` yoksa ayın 1'i, `to` yoksa bugün; yalnızca `to` verilirse `from` o ayın 1'idir. `from > to` veya 3 yıldan uzun dönem **400** `VALIDATION` (Excel uçları dahil).
+  Geçersiz takvim günü (`2026-02-30`) **400**.
+- `orders`: iptal edilen siparişler de listelenir (durum alanıyla); `totals` her zaman iptal hariçtir ve `status` filtresine uyar.
+- `dealers`: `lastOrderAt` bayinin dönem dışı dahil iptal edilmemiş SON siparişidir. `dealers/:id/products` bilinmeyen bayide **404**.
+- `inactive-dealers`: son siparişi `days` günden **kesin olarak eski** (> days) olanlar; tam 60. gündeki bayi listede yoktur (59 hayır, 60 hayır, 61 evet). Yalnızca iptal edilmiş siparişi olan bayi "hiç sipariş vermemiş" sayılır.
+- `status`: tüm 6 durum sabit sırayla döner (`label` Türkçe). Terminal durumlarda (`delivered`, `cancelled`) `averageHoursInStatus` her zaman `null`.
+- `trend`: gelecek tarihli siparişler (bugünden sonra) dahil edilmez.
+- `today`: `overdueApplications` K-04 iş günü kuralıyla (2 iş günü) hesaplanır.
+- Excel: `overview`, `trend`, `orders`, `dealers`, `dealers/:id/products`, `inactive-dealers`, `products`, `groups`, `status`, `out-of-stock`
+  uçlarının sonuna `/export.xlsx` eklenir (`today` hariç). Tarih hücreleri gerçek tarih (Europe/Istanbul, `dd.mm.yyyy hh:mm`); `orders` Excel'i dönemin tüm siparişlerini (sayfalamasız) ve iptal hariç toplam satırını içerir.
+- Performans: `orders(submitted_at, status)` bileşik indeksi eklendi (migration `0008_report_indexes.sql`).
