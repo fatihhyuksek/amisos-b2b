@@ -457,6 +457,8 @@ export const orders = pgTable(
     index('orders_dealer_idx').on(t.dealerId, t.submittedAt),
     index('orders_status_idx').on(t.status),
     index('orders_submitted_at_idx').on(t.submittedAt),
+    // Raporlar: dönem + iptal hariç filtresi (K-46).
+    index('orders_submitted_status_idx').on(t.submittedAt, t.status),
     check(
       'orders_carrier_requires_address',
       sql`${t.deliveryMethod} <> 'carrier' OR (
