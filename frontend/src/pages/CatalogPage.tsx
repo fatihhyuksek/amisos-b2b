@@ -1,6 +1,6 @@
 // GR-URN-003, GR-URN-002, GR-FIY-001, GR-FIY-003, K-40, K-18, K-10, K-11: Bayi ürün kataloğu (kategori sayfası).
 // Süzgeçler adres satırında (?q=, ?grup=, ?sirala=yeni): geri tuşu ve paylaşılan bağlantı aynı sonucu verir.
-// Not: backend'de stok süzgeci yok; "Stokta var" süzgeci istemcide yapılmaz (sayfalı listede yanlış sonuç verir).
+// ?stok=var: yalnızca stokta olanlar (backend `stock=in_stock` süzgeci; istemcide süzülmez).
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ApiError, fetchCatalogProducts, type CatalogGroup, type CatalogProduct } from '../api'
 import { useAuth } from '../auth/useAuth'
@@ -32,10 +32,11 @@ interface Result {
   failed: boolean
 }
 
-function hrefWith(p: { q: string; grup: string; sort: Sort }): string {
+function hrefWith(p: { q: string; grup: string; sort: Sort; stock: boolean }): string {
   const base = catalogHref({ q: p.q, grup: p.grup })
-  if (p.sort === 'name') return base
-  return `${base}${base.includes('?') ? '&' : '?'}sirala=yeni`
+  const extra = [p.sort === 'newest' ? 'sirala=yeni' : '', p.stock ? 'stok=var' : ''].filter(Boolean)
+  if (extra.length === 0) return base
+  return `${base}${base.includes('?') ? '&' : '?'}${extra.join('&')}`
 }
 
 function readCols(): Cols {
@@ -52,11 +53,13 @@ function GroupFilter({
   active,
   q,
   sort,
+  stock,
 }: {
   groups: CatalogGroup[]
   active: string
   q: string
   sort: Sort
+  stock: boolean
 }) {
   const [term, setTerm] = useState('')
   const id = useId()
@@ -83,7 +86,7 @@ function GroupFilter({
         {!t && (
           <li>
             <Link
-              to={hrefWith({ q, grup: '', sort })}
+              to={hrefWith({ q, grup: '', sort, stock })}
               className="ui-filter__option"
               aria-current={active === '' ? 'page' : undefined}
             >
@@ -95,7 +98,7 @@ function GroupFilter({
         {shown.map((g) => (
           <li key={g.id}>
             <Link
-              to={hrefWith({ q, grup: g.id, sort })}
+              to={hrefWith({ q, grup: g.id, sort, stock })}
               className="ui-filter__option"
               aria-current={active === g.id ? 'page' : undefined}
             >
@@ -108,6 +111,22 @@ function GroupFilter({
         {shown.length === 0 && <li className="muted ui-filter__none">Eşleşen kategori yok</li>}
       </ul>
     </div>
+  )
+}
+
+function StockSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  const id = useId()
+  return (
+    <label className="ui-check ui-stockswitch" htmlFor={id}>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        checked={on}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>Yalnızca stokta olanlar</span>
+    </label>
   )
 }
 
@@ -185,6 +204,7 @@ export function CatalogPage() {
   const q = (query.get('q') ?? '').trim()
   const groupId = query.get('grup') ?? ''
   const sort: Sort = query.get('sirala') === 'yeni' ? 'newest' : 'name'
+  const stock = query.get('stok') === 'var'
   const addToCart = useAddToCart()
   const groups = useCatalogGroups()
   const groupList = groups.state.status === 'ready' ? groups.state.data : []
@@ -195,7 +215,7 @@ export function CatalogPage() {
   const [tick, setTick] = useState(0)
   const tilesRef = useRef<HTMLUListElement>(null)
   const [more, setMore] = useState(false)
-  const key = `${q}|${groupId}|${sort}|${tick}`
+  const key = `${q}|${groupId}|${sort}|${stock}|${tick}`
   const [result, setResult] = useState<Result | null>(null)
 
   function setCols(c: Cols) {
@@ -206,7 +226,8 @@ export function CatalogPage() {
       /* depolama kapalı olabilir */
     }
   }
-  const setSort = (s: Sort) => navigate(hrefWith({ q, grup: groupId, sort: s }))
+  const setSort = (s: Sort) => navigate(hrefWith({ q, grup: groupId, sort: s, stock }))
+  const setStock = (on: boolean) => navigate(hrefWith({ q, grup: groupId, sort, stock: on }))
 
   // Seçili alt kategori kutucuğunu yatay şeritte görünür alana getirir (sayfayı kaydırmadan).
   useEffect(() => {
@@ -220,7 +241,14 @@ export function CatalogPage() {
   useEffect(() => {
     const c = new AbortController()
     fetchCatalogProducts(
-      { q, groupId, sort: sort === 'newest' ? 'newest' : undefined, page: 1, pageSize: PAGE_SIZE },
+      {
+        q,
+        groupId,
+        sort: sort === 'newest' ? 'newest' : undefined,
+        stock: stock ? 'in_stock' : undefined,
+        page: 1,
+        pageSize: PAGE_SIZE,
+      },
       c.signal,
     )
       .then((r) => setResult({ key, items: r.items, total: r.total, page: r.page, failed: false }))
@@ -230,7 +258,7 @@ export function CatalogPage() {
         setResult({ key, items: [], total: 0, page: 0, failed: true })
       })
     return () => c.abort()
-  }, [q, groupId, sort, key, refresh])
+  }, [q, groupId, sort, stock, key, refresh])
 
   const current = result && result.key === key ? result : null
   const list = {
@@ -248,6 +276,7 @@ export function CatalogPage() {
         q,
         groupId,
         sort: sort === 'newest' ? 'newest' : undefined,
+        stock: stock ? 'in_stock' : undefined,
         page: list.page + 1,
         pageSize: PAGE_SIZE,
       })
@@ -267,10 +296,10 @@ export function CatalogPage() {
     } finally {
       setMore(false)
     }
-  }, [q, groupId, sort, key, list.page])
+  }, [q, groupId, sort, stock, key, list.page])
 
   const title = q ? `“${q}” için sonuçlar` : (group?.name ?? 'Tüm ürünler')
-  const filterPanel = <GroupFilter groups={groupList} active={groupId} q={q} sort={sort} />
+  const filterPanel = <GroupFilter groups={groupList} active={groupId} q={q} sort={sort} stock={stock} />
 
   return (
     <ShopLayout>
@@ -300,7 +329,7 @@ export function CatalogPage() {
         </p>
         {q && (
           <Link
-            to={hrefWith({ q: '', grup: groupId, sort })}
+            to={hrefWith({ q: '', grup: groupId, sort, stock })}
             className="ui-button ui-button--secondary ui-button--sm"
           >
             <Icon name="close" />
@@ -314,7 +343,7 @@ export function CatalogPage() {
           <ul className="ui-subcats" ref={tilesRef}>
             <li>
               <Link
-                to={hrefWith({ q, grup: '', sort })}
+                to={hrefWith({ q, grup: '', sort, stock })}
                 className="ui-subcat"
                 aria-current={groupId === '' ? 'page' : undefined}
               >
@@ -327,7 +356,7 @@ export function CatalogPage() {
             {groupList.map((g) => (
               <li key={g.id}>
                 <Link
-                  to={hrefWith({ q, grup: g.id, sort })}
+                  to={hrefWith({ q, grup: g.id, sort, stock })}
                   className="ui-subcat"
                   aria-current={groupId === g.id ? 'page' : undefined}
                 >
@@ -362,6 +391,9 @@ export function CatalogPage() {
                 {filterPanel}
               </div>
             </section>
+            <section className="ui-filter" aria-label="Stok">
+              <StockSwitch on={stock} onChange={setStock} />
+            </section>
           </aside>
         )}
 
@@ -369,7 +401,7 @@ export function CatalogPage() {
           <div className="ui-listbar">
             <div className="ui-listbar__mobile">
               <Button variant="secondary" icon="filter" onClick={() => setSheet('filter')}>
-                Filtrele{groupId ? ' (1)' : ''}
+                Filtrele{groupId || stock ? ` (${(groupId ? 1 : 0) + (stock ? 1 : 0)})` : ''}
               </Button>
               <Button variant="secondary" icon="sort" onClick={() => setSheet('sort')}>
                 Sırala
@@ -427,7 +459,11 @@ export function CatalogPage() {
                   </Link>
                 }
               >
-                {q ? 'Başka bir ad, barkod veya kod deneyin.' : 'Bu kategoride şu an ürün yok.'}
+                {q
+                  ? 'Başka bir ad, barkod veya kod deneyin.'
+                  : stock
+                    ? 'Bu seçimde stokta ürün yok.'
+                    : 'Bu kategoride şu an ürün yok.'}
               </EmptyState>
             </div>
           )}
@@ -464,6 +500,8 @@ export function CatalogPage() {
             <section aria-label="Kategoriler">
               <h3 className="ui-sheet__sub">Kategoriler</h3>
               {filterPanel}
+              <h3 className="ui-sheet__sub">Stok</h3>
+              <StockSwitch on={stock} onChange={setStock} />
             </section>
           ) : (
             <SortRadios value={sort} onChange={setSort} name="sheet-sort" />

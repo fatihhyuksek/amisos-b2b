@@ -455,7 +455,14 @@ export function fetchCatalogGroups(signal?: AbortSignal): Promise<CatalogGroup[]
 }
 
 export function fetchCatalogProducts(
-  params: { q?: string; groupId?: string; sort?: 'newest'; page: number; pageSize: number },
+  params: {
+    q?: string
+    groupId?: string
+    sort?: 'newest'
+    stock?: 'in_stock'
+    page: number
+    pageSize: number
+  },
   signal?: AbortSignal,
 ): Promise<Paged<CatalogProduct>> {
   return getJson(`/catalog/products${qsOf(params)}`, signal)
