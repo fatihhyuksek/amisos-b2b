@@ -26,6 +26,13 @@ import {
 import { companyTitleKey } from '../src/dealers/company-title.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
 
+// ConfigModule env'i içe aktarma sırasında okur; EXPORT_TOO_LARGE testi için sınır import'lardan önce düşürülür.
+const previousExportMax = vi.hoisted(() => {
+  const previous = process.env.EXPORT_MAX_ORDERS;
+  process.env.EXPORT_MAX_ORDERS = '5';
+  return previous;
+});
+
 const PASSWORD = 'Sifre-12345';
 const run = randomUUID().slice(0, 8);
 const NOW = new Date('2030-06-15T09:00:00Z');
@@ -197,6 +204,8 @@ describe('Raporlar (e2e)', () => {
       await db.delete(adminUsers).where(inArray(adminUsers.id, adminIds));
     }
     await app?.close();
+    if (previousExportMax === undefined) delete process.env.EXPORT_MAX_ORDERS;
+    else process.env.EXPORT_MAX_ORDERS = previousExportMax;
   });
 
   // -------------------------------------------------------------------------
@@ -387,6 +396,72 @@ describe('Raporlar (e2e)', () => {
     expect(ours.map((i) => i.daysSinceLastOrder).slice(2)).toEqual([61, 60, 59]);
   });
 
+  it('K-50: inactive-dealers Europe/Istanbul takvim günüyle: 60 gün + 1 saat hâlâ 60 (yok), gece yarısı sınırı; gün sayısı takvim farkı', async () => {
+    // NOW = 2030-06-15 12:00 İstanbul. Bugün − 60 gün = 2030-04-16.
+    const at = (iso: string) => new Date(iso).toISOString();
+    const hourPlus = await newDealer('t60saat');
+    const lateEdge = await newDealer('t60son'); // 2030-04-16 00:00 İstanbul = 04-15T21:00Z (60. gün, ilk an)
+    const early = await newDealer('t61son'); // 2030-04-15 23:59 İstanbul = 04-15T20:59Z (61. gün)
+    await makeOrder(hourPlus.id, at(new Date(NOW.getTime() - 60 * DAY - 3_600_000).toISOString()), []);
+    await makeOrder(lateEdge.id, at('2030-04-15T21:00:00Z'), []);
+    await makeOrder(early.id, at('2030-04-15T20:59:00Z'), []);
+    const body = (await get('inactive-dealers')).body.items as { dealerId: string; daysSinceLastOrder: number | null }[];
+    const byId = new Map(body.map((i) => [i.dealerId, i]));
+    expect(byId.has(hourPlus.id)).toBe(false); // 60 takvim günü: "60 günden eski" değil
+    expect(byId.has(lateEdge.id)).toBe(false);
+    expect(byId.get(early.id)?.daysSinceLastOrder).toBe(61);
+    const thirty = (await get('inactive-dealers', { days: 30 })).body.items as { dealerId: string; daysSinceLastOrder: number }[];
+    expect(thirty.find((i) => i.dealerId === hourPlus.id)?.daysSinceLastOrder).toBe(60);
+    expect(thirty.find((i) => i.dealerId === lateEdge.id)?.daysSinceLastOrder).toBe(60);
+  });
+
+  it('GR-RAP-001: orders sort=date|net|grand, dir=asc|desc (varsayılan date desc); geçersiz değer 400', async () => {
+    const nos = async (query: Record<string, string>) =>
+      ((await get('orders', { ...P, ...query }).expect(200)).body.items as { orderNo: number }[]).map((i) => i.orderNo);
+    const [n0, n1, n2, n3, n4] = [order.o0, order.o1, order.o2, order.o3, order.o4].map((o) => o.orderNo);
+    // Tarih: o3 (14 Haz) > o2 (10 Haz) > o4 (5 Haz) > o1 (2 Haz) > o0 (31 May 21:00Z)
+    expect(await nos({})).toEqual([n3, n2, n4, n1, n0]);
+    expect(await nos({ sort: 'date', dir: 'asc' })).toEqual([n0, n1, n4, n2, n3]);
+    // Net: o4 630 (iptal de listelenir) > o1 240 > o2 60 = o0 60 > o3 30; eşitlikte sipariş no aynı yönde.
+    expect(await nos({ sort: 'net' })).toEqual([n4, n1, n0, n2, n3]); // eşit 60'larda sipariş no aynı yönde (o0 sonra oluştu: no büyük)
+    expect(await nos({ sort: 'net', dir: 'asc' })).toEqual([n3, n2, n0, n1, n4]);
+    // Genel toplam: o4 756 > o1 276 > o2 72 = o0 72 > o3 36
+    expect(await nos({ sort: 'grand', dir: 'desc' })).toEqual([n4, n1, n0, n2, n3]);
+    expect(await nos({ sort: 'grand', dir: 'asc' })).toEqual([n3, n2, n0, n1, n4]);
+    await get('orders', { ...P, sort: 'x' }).expect(400);
+    await get('orders', { ...P, dir: 'up' }).expect(400);
+  });
+
+  it('GR-RAP-002: groups sharePercent toplamı tam 100,0 (en büyük kalan); satışı olan grup 0,0 görünmez', async () => {
+    const { body } = await get('groups', P);
+    const total = body.items.reduce((a: number, i: { sharePercent: number }) => Math.round((a + i.sharePercent) * 10) / 10, 0);
+    expect(total).toBe(100);
+    // Çok küçük payı olan grup: ayrı dönemde yüksek hacimli A ile 0,1'den az paylı D.
+    const dealer = await newDealer('pay');
+    const [A, D] = await Promise.all([db.select().from(products).where(inArray(products.id, [ids.A])), db.select().from(products).where(inArray(products.id, [ids.D]))]);
+    await makeOrder(dealer.id, '2030-02-10T10:00:00Z', [{ product: A[0], qty: 6000 }, { product: D[0], qty: 6 }]);
+    const tiny = (await get('groups', { from: '2030-02-01', to: '2030-02-28' })).body.items as { name: string; sharePercent: number }[];
+    expect(tiny.find((i) => i.name.startsWith('Rapor Tabak'))?.sharePercent).toBe(0.1);
+    expect(tiny.reduce((a, i) => Math.round((a + i.sharePercent) * 10) / 10, 0)).toBe(100);
+  });
+
+  it('K-47: status bekleme ortalaması sipariş başına toplamın ortalamasıdır (aynı duruma tekrar girilse de)', async () => {
+    const dealer = await newDealer('bekleme');
+    const A = (await db.select().from(products).where(inArray(products.id, [ids.A])))[0];
+    const t = (h: number) => new Date(Date.UTC(2030, 2, 10, 10, 0, 0) + h * 3_600_000).toISOString();
+    // X: submitted 0-2h, negotiating 2-6h, submitted 6-12h, negotiating 12-14h, delivered. submitted toplam 8, negotiating toplam 6.
+    await makeOrder(dealer.id, t(0), [{ product: A, qty: 6 }], 'delivered', [
+      [null, 'submitted', t(0)], ['submitted', 'negotiating', t(2)], ['negotiating', 'submitted', t(6)],
+      ['submitted', 'negotiating', t(12)], ['negotiating', 'delivered', t(14)],
+    ]);
+    // Y: submitted 10h.
+    await makeOrder(dealer.id, t(0), [{ product: A, qty: 6 }], 'delivered', [[null, 'submitted', t(0)], ['submitted', 'delivered', t(10)]]);
+    const { body } = await get('status', { from: '2030-03-01', to: '2030-03-31' });
+    const hours = Object.fromEntries(body.items.map((i: { status: string; averageHoursInStatus: number | null }) => [i.status, i.averageHoursInStatus]));
+    expect(hours.submitted).toBe(9); // (8 + 10) / 2 ; aralık ortalaması (2+6+10)/3 = 6 olurdu
+    expect(hours.negotiating).toBe(6);
+  });
+
   it('GR-RAP-001: products: en çok sipariş edilen ürünler (adet/net sıralaması, limit); sipariş ve bayi sayıları; iptal hariç', async () => {
     const byQty = (await get('products', P)).body.items;
     expect(byQty.map((i: { productId: string }) => i.productId)).toEqual([ids.A, ids.C, ids.D]);
@@ -469,9 +544,21 @@ describe('Raporlar (e2e)', () => {
       expect(net.getCell(2).value).toBe(Number(body.metrics.netTotal.current));
       expect(net.getCell(3).value).toBe(Number(body.metrics.netTotal.previous));
       expect(net.getCell(4).value).toBe(Number(body.metrics.netTotal.lastYear));
-      expect(net.getCell(5).value).toBe(body.metrics.netTotal.changePrev.percent);
-      expect(net.getCell(6).value).toBe(body.metrics.netTotal.changeYear.percent);
-      expect(rows.get('Sipariş sayısı')!.getCell(2).value).toBe(4);
+      // Fark tutarları ve yüzdeler (API ile aynı).
+      expect(net.getCell(5).value).toBe(Number(body.metrics.netTotal.changePrev.amount));
+      expect(net.getCell(6).value).toBe(body.metrics.netTotal.changePrev.percent);
+      expect(net.getCell(7).value).toBe(Number(body.metrics.netTotal.changeYear.amount));
+      expect(net.getCell(8).value).toBe(body.metrics.netTotal.changeYear.percent);
+      expect(net.getCell(5).value).toBe(210);
+      expect(net.getCell(7).value).toBe(330);
+      expect(net.getCell(2).numFmt).toBe('#,##0.00');
+      // Sayı metrikleri sayı biçiminde (#,##0), para biçimi değil.
+      const count = rows.get('Sipariş sayısı')!;
+      expect(count.getCell(2).value).toBe(4);
+      expect(count.getCell(2).numFmt).toBe('#,##0');
+      expect(count.getCell(5).value).toBe(2);
+      expect(count.getCell(5).numFmt).toBe('#,##0');
+      expect(rows.get('Sipariş veren bayi sayısı')!.getCell(2).numFmt).toBe('#,##0');
     });
 
     it('K-46: orders Excel i: tüm satırlar, iptal hariç alt toplam API totals ile aynı; tarih gerçek tarih hücresi', async () => {
@@ -486,10 +573,22 @@ describe('Raporlar (e2e)', () => {
       expect((date.value as Date).toISOString().slice(0, 16)).toBe('2030-06-15T00:30'); // İstanbul yerel
       expect(sheet.getRow(2).getCell(6).numFmt).toBe('#,##0.00');
       const last = sheet.getRow(sheet.rowCount);
-      expect(last.getCell(1).value).toBe('İptal hariç toplam');
-      expect(last.getCell(5).value).toBe(body.totals.orderCount);
+      expect(last.getCell(3).value).toBe(`İptal hariç toplam (${body.totals.orderCount} sipariş)`);
       expect(last.getCell(6).value).toBe(Number(body.totals.netTotal));
       expect(last.getCell(7).value).toBe(Number(body.totals.grandTotal));
+      expect(last.getCell(6).numFmt).toBe('#,##0.00');
+      expect(last.getCell(7).numFmt).toBe('#,##0.00');
+      // Başlık satırının altındaki sütunlarla aynı hizada: net 6, genel toplam 7.
+      expect(sheet.getRow(1).getCell(6).value).toBe('KDV hariç toplam');
+      expect(sheet.getRow(1).getCell(7).value).toBe('Genel toplam');
+    });
+
+    it('K-46: orders Excel i EXPORT_MAX_ORDERS u aşarsa 400 EXPORT_TOO_LARGE (sayfalamasız tek sorgu, sessiz kesme yok)', async () => {
+      const res = await admin.get('/api/admin/reports/orders/export.xlsx').query({ from: '2029-01-01', to: '2030-06-15' }).expect(400);
+      expect(res.body.code).toBe('EXPORT_TOO_LARGE');
+      // Filtreyle daraltılınca iner (5 sipariş = sınır).
+      await xlsx('orders/export.xlsx', P);
+      await xlsx('orders/export.xlsx', { ...P, status: 'cancelled' });
     });
 
     it('K-46: dealers/products/groups/status/out-of-stock/inactive/trend Excel leri açılır; barkod metin; toplamlar API ile aynı', async () => {
@@ -498,7 +597,14 @@ describe('Raporlar (e2e)', () => {
       expect(d.getRow(2).getCell(1).value).toBe(`Rapor d1 ${run}`);
       expect(d.getRow(2).getCell(4).value).toBe(Number(dealersApi.items[0].netTotal.current));
       expect(d.getRow(2).getCell(5).value).toBe(Number(dealersApi.items[0].netTotal.previous));
-      expect(d.getRow(3).getCell(8).value).toBeNull(); // d2: önceki dönem 0 -> yüzde boş
+      // Fark tutarı sütunları (önceki dönem, geçen yıl) ve yüzdeler API ile aynı.
+      expect(d.getRow(2).getCell(7).value).toBe(Number(dealersApi.items[0].netTotal.changePrev.amount));
+      expect(d.getRow(2).getCell(8).value).toBe(dealersApi.items[0].netTotal.changePrev.percent);
+      expect(d.getRow(2).getCell(9).value).toBe(Number(dealersApi.items[0].netTotal.changeYear.amount));
+      expect(d.getRow(2).getCell(7).numFmt).toBe('#,##0.00');
+      expect(d.getRow(1).getCell(7).value).toBe('Fark (önceki dönem)');
+      expect(d.getRow(3).getCell(7).value).toBe(90); // d2: önceki dönem 0, fark = 90
+      expect(d.getRow(3).getCell(8).value).toBeNull(); // önceki dönem 0 -> yüzde boş
 
       const productsApi = (await get('products', P)).body;
       const p = (await xlsx('products/export.xlsx', P)).sheet;
@@ -518,7 +624,9 @@ describe('Raporlar (e2e)', () => {
       const groupsApi = (await get('groups', P)).body;
       const g = (await xlsx('groups/export.xlsx', P)).sheet;
       expect(g.getRow(2).getCell(3).value).toBe(Number(groupsApi.items[0].netTotal.current));
-      expect(g.getRow(2).getCell(8).value).toBe(groupsApi.items[0].sharePercent);
+      expect(g.getRow(2).getCell(6).value).toBe(Number(groupsApi.items[0].netTotal.changePrev.amount));
+      expect(g.getRow(3).getCell(6).value).toBe(150);
+      expect(g.getRow(2).getCell(10).value).toBe(groupsApi.items[0].sharePercent);
 
       const st = (await xlsx('status/export.xlsx', P)).sheet;
       expect(st.getRow(2).getCell(1).value).toBe('Gönderildi');
@@ -528,7 +636,9 @@ describe('Raporlar (e2e)', () => {
       const oos = (await xlsx('out-of-stock/export.xlsx', P)).sheet;
       expect(oos.getRow(2).getCell(4).value).toBe(6);
 
-      const inactive = (await xlsx('inactive-dealers/export.xlsx')).sheet;
+      const inactiveFile = await xlsx('inactive-dealers/export.xlsx');
+      expect(inactiveFile.headers['content-disposition']).toBe('attachment; filename="rapor-pasif-bayiler-2030-06-15.xlsx"'); // CLOCK + İstanbul günü
+      const inactive = inactiveFile.sheet;
       expect(inactive.getRow(1).getCell(1).value).toBe('Bayi');
       expect(inactive.getRow(1).getCell(3).value).toBe('Telefon');
 

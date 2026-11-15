@@ -3,6 +3,7 @@ import { Controller, Get, Inject, Param, ParseUUIDPipe, Query, Res, UseGuards, U
 import type { Response } from 'express';
 import { AdminGuard } from '../auth/auth.guards.js';
 import { JsonOnlyGuard } from '../auth/json-only.guard.js';
+import { CLOCK, type Clock } from '../common/clock.js';
 import { createValidationPipe } from '../common/validation.js';
 import { ORDER_STATUS_LABELS } from '../orders/order-status.js';
 import { buildTable, comparisonColumns, type ExcelFile } from './reports.excel.js';
@@ -20,7 +21,8 @@ import {
   type ReportOrdersQuery,
   type TrendQuery,
 } from './reports.schemas.js';
-import { ReportsService } from './reports.service.js';
+import { istanbulToday } from './periods.js';
+import { ReportsService, type Comparative } from './reports.service.js';
 
 function send(res: Response, file: ExcelFile): void {
   res
@@ -40,7 +42,10 @@ const name = (report: string, p: { from: string; to: string }) => `rapor-${repor
 @UseGuards(JsonOnlyGuard, AdminGuard)
 @UsePipes(createValidationPipe())
 export class ReportsController {
-  constructor(@Inject(ReportsService) private readonly reports: ReportsService) {}
+  constructor(
+    @Inject(ReportsService) private readonly reports: ReportsService,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
 
   @Get('overview')
   overview(@Query({ schema: periodSchema }) q: PeriodQuery) {
@@ -50,7 +55,8 @@ export class ReportsController {
   @Get('overview/export.xlsx')
   async overviewXlsx(@Query({ schema: periodSchema }) q: PeriodQuery, @Res() res: Response) {
     const d = await this.reports.overview(q);
-    const rows = [
+    type OverviewRow = { label: string; c: Comparative<string> | Comparative<number>; money: boolean };
+    const rows: OverviewRow[] = [
       { label: 'Sipariş sayısı', c: d.metrics.orderCount, money: false },
       { label: 'KDV hariç toplam', c: d.metrics.netTotal, money: true },
       { label: 'KDV', c: d.metrics.vatTotal, money: true },
@@ -58,17 +64,20 @@ export class ReportsController {
       { label: 'Sipariş veren bayi sayısı', c: d.metrics.orderingDealerCount, money: false },
       { label: 'Ortalama sipariş (KDV hariç)', c: d.metrics.averageOrderNet, money: true },
     ];
+    const num = (r: OverviewRow): ('money' | 'count') => (r.money ? 'money' : 'count');
     send(
       res,
       await buildTable(
         'Genel bakış',
         name('genel-bakis', d.period),
         [
-          { header: 'Metrik', width: 30, value: (r: (typeof rows)[number]) => r.label },
-          { header: `Dönem (${d.period.from} – ${d.period.to})`, kind: 'money', width: 26, value: (r) => r.c.current },
-          { header: `Önceki dönem (${d.previous.from} – ${d.previous.to})`, kind: 'money', width: 34, value: (r) => r.c.previous },
-          { header: `Geçen yıl (${d.lastYear.from} – ${d.lastYear.to})`, kind: 'money', width: 34, value: (r) => r.c.lastYear },
+          { header: 'Metrik', width: 30, value: (r: OverviewRow) => r.label },
+          { header: `Dönem (${d.period.from} – ${d.period.to})`, kind: num, width: 26, value: (r) => r.c.current },
+          { header: `Önceki dönem (${d.previous.from} – ${d.previous.to})`, kind: num, width: 34, value: (r) => r.c.previous },
+          { header: `Geçen yıl (${d.lastYear.from} – ${d.lastYear.to})`, kind: num, width: 34, value: (r) => r.c.lastYear },
+          { header: 'Fark (önceki dönem)', kind: num, width: 20, value: (r) => r.c.changePrev.amount },
           { header: 'Değişim % (önceki)', kind: 'percent', width: 18, value: (r) => r.c.changePrev.percent },
+          { header: 'Fark (geçen yıl)', kind: num, width: 18, value: (r) => r.c.changeYear.amount },
           { header: 'Değişim % (geçen yıl)', kind: 'percent', width: 20, value: (r) => r.c.changeYear.percent },
         ],
         rows,
@@ -107,12 +116,9 @@ export class ReportsController {
 
   @Get('orders/export.xlsx')
   async ordersXlsx(@Query({ schema: reportOrdersSchema }) q: ReportOrdersQuery, @Res() res: Response) {
-    // Excel'de sayfalama yok: dönemin tüm siparişleri (en fazla 5000).
-    const d = await this.reports.orders({ ...q, page: 1, pageSize: 100 });
-    const items = [...d.items];
-    for (let page = 2; items.length < d.total && page <= 50; page++) {
-      items.push(...(await this.reports.orders({ ...q, page, pageSize: 100 })).items);
-    }
+    // Sayfalamasız tek sorgu (EXPORT_MAX_ORDERS sınırıyla).
+    const d = await this.reports.ordersForExport(q);
+    const items = d.items;
     send(
       res,
       await buildTable(
@@ -131,7 +137,15 @@ export class ReportsController {
         {
           footer: [
             [],
-            ['İptal hariç toplam', null, null, null, d.totals.orderCount, Number(d.totals.netTotal), Number(d.totals.grandTotal)],
+            [
+              { value: null },
+              { value: null },
+              { value: `İptal hariç toplam (${d.totals.orderCount} sipariş)`, kind: 'text' },
+              { value: null },
+              { value: null },
+              { value: d.totals.netTotal, kind: 'money' },
+              { value: d.totals.grandTotal, kind: 'money' },
+            ],
           ],
         },
       ),
@@ -202,7 +216,7 @@ export class ReportsController {
   @Get('inactive-dealers/export.xlsx')
   async inactiveXlsx(@Query({ schema: inactiveSchema }) q: InactiveQuery, @Res() res: Response) {
     const d = await this.reports.inactiveDealers(q);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istanbulToday(this.clock.now());
     send(
       res,
       await buildTable(

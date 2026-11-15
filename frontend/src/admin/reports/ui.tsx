@@ -1,6 +1,6 @@
 // Rapor ekranlarının ortak bileşenleri: fark göstergesi, sıralanabilir tablo/kart listesi, Excel düğmesi.
 import { useId, useState, type ReactNode } from 'react'
-import { downloadReportExcel, type ReportChange, type ReportName } from '../../api'
+import { ApiError, downloadReportExcel, type ReportChange, type ReportName } from '../../api'
 import { Alert, Button } from '../../ui/components'
 import { formatAbsPercent, formatSignedInt, formatSignedTRY } from '../../ui/format'
 import { Icon } from '../../ui/Icon'
@@ -198,8 +198,12 @@ export function ExportButton({
     try {
       const { blob, filename } = await downloadReportExcel(name, params)
       saveBlob(blob, filename ?? fallbackName)
-    } catch {
-      setError('Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.')
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.code === 'EXPORT_TOO_LARGE'
+          ? 'Bu dönemde çok fazla sipariş var (en fazla 5000). Dönemi daraltıp tekrar deneyin.'
+          : 'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+      )
     } finally {
       setBusy(false)
     }

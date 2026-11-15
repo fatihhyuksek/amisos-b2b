@@ -26,6 +26,9 @@ export type TrendQuery = z.infer<typeof trendSchema>;
 export const reportOrdersSchema = z.object({
   ...period,
   status: z.enum(['submitted', 'negotiating', 'approved', 'shipped', 'delivered', 'cancelled']).optional(),
+  /** Sıralama: date (gönderim tarihi) | net (KDV hariç) | grand (genel toplam); varsayılan date desc. */
+  sort: z.enum(['date', 'net', 'grand']).default('date'),
+  dir: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).max(100_000).default(1),
   pageSize: limit(100, 20),
 });

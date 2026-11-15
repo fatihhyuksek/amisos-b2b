@@ -1,10 +1,13 @@
 // Raporlar. GR-RAP-001…003, K-46 – K-50. API: docs/api/rapor-api.md.
 // Tüm toplamlar SQL'de (numeric) alınır ve metin olarak döner; karşılaştırma farkları Decimal ile hesaplanır.
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { sql, type SQL } from 'drizzle-orm';
 import { CLOCK, type Clock } from '../common/clock.js';
+import type { Env } from '../config/env.js';
 import { Money, type MoneyValue } from '../common/money.js';
 import { DB, type Database } from '../database/database.module.js';
+import { allocateShares } from './shares.js';
 import { DealersService } from '../dealers/dealers.service.js';
 import { ORDER_STATUS_LABELS, type OrderStatus } from '../orders/order-status.js';
 import {
@@ -95,6 +98,7 @@ export class ReportsService {
     @Inject(DB) private readonly db: Database,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(DealersService) private readonly dealers: DealersService,
+    @Inject(ConfigService) private readonly config: ConfigService<Env, true>,
   ) {}
 
   private async rows<T = Row>(query: SQL): Promise<T[]> {
@@ -186,39 +190,77 @@ export class ReportsService {
 
   // --- Sipariş listesi (GR-RAP-001) -----------------------------------------
 
-  async orders(query: ReportOrdersQuery) {
+  private orderListParts(query: ReportOrdersQuery) {
     const { period } = this.resolve(query);
     const where = sql`${inPeriod(sql`o.submitted_at`, period)}${query.status ? sql` and o.status = ${query.status}` : sql``}`;
-    const [{ total }] = await this.rows<{ total: number }>(sql`select count(*)::int as total from orders o where ${where}`);
-    const items = await this.rows(sql`
+    const column = { date: sql`o.submitted_at`, net: sql`o.net_total`, grand: sql`o.grand_total` }[query.sort];
+    const dir = query.dir === 'asc' ? sql`asc` : sql`desc`;
+    // Eşitlikte sipariş numarası aynı yönde (kararlı sıra).
+    const orderBy = sql`${column} ${dir}, o.order_no ${dir}`;
+    return { period, where, orderBy };
+  }
+
+  private orderRowsSql(where: SQL, orderBy: SQL, paging: SQL) {
+    return sql`
       select o.id, o.order_no as "orderNo", ${isoSql(sql`o.submitted_at`)} as "submittedAt", o.status, d.id as "dealerId",
              d.company_title as "companyTitle",
              (select count(*)::int from order_lines l where l.order_id = o.id) as "lineCount",
              o.net_total::text as "netTotal", o.grand_total::text as "grandTotal"
       from orders o join dealers d on d.id = o.dealer_id
       where ${where}
-      order by o.submitted_at desc, o.order_no desc
-      limit ${query.pageSize} offset ${(query.page - 1) * query.pageSize}`);
+      order by ${orderBy} ${paging}`;
+  }
+
+  private mapOrderRow(r: Row) {
+    return {
+      id: r.id,
+      orderNo: r.orderNo,
+      submittedAt: r.submittedAt,
+      dealer: { id: r.dealerId, companyTitle: r.companyTitle },
+      status: r.status,
+      lineCount: r.lineCount,
+      netTotal: money(String(r.netTotal)),
+      grandTotal: money(String(r.grandTotal)),
+    };
+  }
+
+  private async orderTotals(where: SQL) {
     const [t] = await this.rows(sql`
       select count(*)::int as c, coalesce(sum(o.net_total), 0)::text as net, coalesce(sum(o.grand_total), 0)::text as grand
       from orders o where ${where} and ${this.sold}`);
+    return { orderCount: Number(t.c), netTotal: money(String(t.net)), grandTotal: money(String(t.grand)) };
+  }
+
+  async orders(query: ReportOrdersQuery) {
+    const { period, where, orderBy } = this.orderListParts(query);
+    const [{ total }] = await this.rows<{ total: number }>(sql`select count(*)::int as total from orders o where ${where}`);
+    const items = await this.rows(
+      this.orderRowsSql(where, orderBy, sql`limit ${query.pageSize} offset ${(query.page - 1) * query.pageSize}`),
+    );
     return {
       period,
-      items: items.map((r) => ({
-        id: r.id,
-        orderNo: r.orderNo,
-        submittedAt: r.submittedAt,
-        dealer: { id: r.dealerId, companyTitle: r.companyTitle },
-        status: r.status,
-        lineCount: r.lineCount,
-        netTotal: money(String(r.netTotal)),
-        grandTotal: money(String(r.grandTotal)),
-      })),
+      items: items.map((r) => this.mapOrderRow(r)),
       total,
       page: query.page,
       pageSize: query.pageSize,
-      totals: { orderCount: Number(t.c), netTotal: money(String(t.net)), grandTotal: money(String(t.grand)) },
+      totals: await this.orderTotals(where),
     };
+  }
+
+  /** Excel için: sayfalamasız, tek sorgu; `EXPORT_MAX_ORDERS` aşılırsa 400 EXPORT_TOO_LARGE. */
+  async ordersForExport(query: ReportOrdersQuery) {
+    const { period, where, orderBy } = this.orderListParts(query);
+    const max = this.config.get('EXPORT_MAX_ORDERS', { infer: true });
+    const [{ total }] = await this.rows<{ total: number }>(sql`select count(*)::int as total from orders o where ${where}`);
+    if (total > max) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'EXPORT_TOO_LARGE',
+        message: `En fazla ${max} sipariş dışa aktarılabilir; dönemi veya filtreleri daraltın.`,
+      });
+    }
+    const items = await this.rows(this.orderRowsSql(where, orderBy, sql`limit ${max}`));
+    return { period, items: items.map((r) => this.mapOrderRow(r)), total, totals: await this.orderTotals(where) };
   }
 
   // --- Bayi bazında (GR-RAP-001, GR-RAP-002) --------------------------------
@@ -281,29 +323,27 @@ export class ReportsService {
 
   // --- Uzun süredir sipariş vermeyenler (K-50) ------------------------------
 
-  /** Son siparişi `days` günden ESKİ (kesin) olan veya hiç sipariş vermemiş aktif bayiler. */
+  /**
+   * Son siparişi `days` günden ESKİ (kesin) olan veya hiç sipariş vermemiş aktif bayiler. Europe/Istanbul takvim
+   * günüyle: son sipariş günü < bugün − days. Gün sayısı takvim farkıdır (60 gün + 1 saat önceki sipariş = 60).
+   */
   async inactiveDealers(query: InactiveQuery) {
-    const now = this.clock.now();
+    const nowIso = this.clock.now().toISOString();
+    const today = sql`((${nowIso}::timestamptz) at time zone ${TZ})::date`;
     const rows = await this.rows<{
       dealerId: string; companyTitle: string; contactName: string; phone: string; city: string;
-      lastOrderAt: string | null; approvedAt: string | null;
+      lastOrderAt: string | null; approvedAt: string | null; daysSinceLastOrder: number | null;
     }>(sql`
       select d.id as "dealerId", d.company_title as "companyTitle", d.contact_name as "contactName", d.phone, d.city,
-             ${isoSql(sql`l.last_order_at`)} as "lastOrderAt", ${isoSql(sql`d.reviewed_at`)} as "approvedAt"
+             ${isoSql(sql`l.last_order_at`)} as "lastOrderAt", ${isoSql(sql`d.reviewed_at`)} as "approvedAt",
+             (${today} - (l.last_order_at at time zone ${TZ})::date)::int as "daysSinceLastOrder"
       from dealers d
         left join lateral (select max(o.submitted_at) as last_order_at from orders o
                            where o.dealer_id = d.id and o.status <> 'cancelled') l on true
       where d.status = 'active'
-        and (l.last_order_at is null or l.last_order_at < ${now.toISOString()}::timestamptz - make_interval(days => ${query.days}))
+        and (l.last_order_at is null or (l.last_order_at at time zone ${TZ})::date < ${today} - ${query.days}::int)
       order by l.last_order_at asc nulls first, d.company_title`);
-    return {
-      days: query.days,
-      items: rows.map((x) => ({
-        ...x,
-        lastOrderAt: x.lastOrderAt,
-        daysSinceLastOrder: x.lastOrderAt ? Math.floor((now.getTime() - new Date(x.lastOrderAt).getTime()) / DAY_MS) : null,
-      })),
-    };
+    return { days: query.days, items: rows };
   }
 
   // --- Ürün raporları (GR-RAP-001, GR-RAP-002) ------------------------------
@@ -345,17 +385,17 @@ export class ReportsService {
       group by pg.id
       having count(*) filter (where ${cur}) > 0
       order by sum(l.net_amount) filter (where ${cur}) desc, pg.name`);
-    const total = rows.reduce((acc, x) => acc.plus(String(x.curNet)), new Money(0));
+    const shares = allocateShares(rows.map((x) => String(x.curNet)));
     return {
       period: r.period,
       previous: r.previous,
       lastYear: r.lastYear,
-      items: rows.map((x) => ({
+      items: rows.map((x, i) => ({
         groupId: x.groupId,
         name: x.name,
         quantity: x.quantity,
         netTotal: compareMoney(String(x.curNet), String(x.prevNet), String(x.lyNet)),
-        sharePercent: total.isZero() ? 0 : new Money(String(x.curNet)).div(total).times(100).toDecimalPlaces(1, Money.ROUND_HALF_UP).toNumber(),
+        sharePercent: shares[i],
       })),
     };
   }
@@ -375,14 +415,19 @@ export class ReportsService {
       where ${inPeriod(sql`o.submitted_at`, period)} group by o.status`);
     const waits = await this.rows<{ status: OrderStatus; hours: string }>(sql`
       with h as (
-        select s.to_status, s.created_at,
+        select s.order_id, s.to_status, s.created_at,
                lead(s.created_at) over (partition by s.order_id order by s.created_at, s.id) as next_at
         from order_status_history s join orders o on o.id = s.order_id
         where ${inPeriod(sql`o.submitted_at`, period)}
+      ),
+      per_order as (
+        -- Sipariş başına o durumda toplam süre (durum tekrar girilmişse toplanır); ortalama siparişler arasında.
+        select order_id, to_status,
+               sum(extract(epoch from (coalesce(next_at, ${now}::timestamptz) - created_at))) / 3600 as hours
+        from h group by order_id, to_status
       )
-      select to_status as status,
-             round(avg(extract(epoch from (coalesce(next_at, ${now}::timestamptz) - created_at)) / 3600)::numeric, 1)::text as hours
-      from h group by to_status`);
+      select to_status as status, round(avg(hours)::numeric, 1)::text as hours
+      from per_order group by to_status`);
     const countBy = new Map(counts.map((c) => [c.status, c.count]));
     const waitBy = new Map(waits.map((w) => [w.status, Number(w.hours)]));
     const flow: OrderStatus[] = ['submitted', 'negotiating', 'approved', 'shipped', 'delivered', 'cancelled'];

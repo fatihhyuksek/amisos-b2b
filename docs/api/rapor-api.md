@@ -25,7 +25,7 @@ grandTotal, orderingDealerCount, averageOrderNet } }` (her metrik karşılaştı
 Aylık seri, son `months` ay (en fazla 36), bu ay dahil:
 `[{ month: "2026-11", orderCount, netTotal, lastYearNetTotal }]` (grafik için).
 
-### `GET /api/admin/reports/orders?from&to&status=&page&pageSize`
+### `GET /api/admin/reports/orders?from&to&status=&sort=date|net|grand&dir=asc|desc&page&pageSize`
 Dönemdeki ön siparişler (GR-RAP-001): `{ items: [{ id, orderNo, submittedAt, dealer: { id, companyTitle }, status,
 lineCount, netTotal, grandTotal }], total, page, pageSize, totals: { orderCount, netTotal, grandTotal } }`.
 (İptal edilenler `status` filtresiyle görülebilir ama `totals`'a dahil değildir.)
@@ -79,3 +79,15 @@ pendingApplications, overdueApplications, newOrders, failedNotifications }`.
 - Excel: `overview`, `trend`, `orders`, `dealers`, `dealers/:id/products`, `inactive-dealers`, `products`, `groups`, `status`, `out-of-stock`
   uçlarının sonuna `/export.xlsx` eklenir (`today` hariç). Tarih hücreleri gerçek tarih (Europe/Istanbul, `dd.mm.yyyy hh:mm`); `orders` Excel'i dönemin tüm siparişlerini (sayfalamasız) ve iptal hariç toplam satırını içerir.
 - Performans: `orders(submitted_at, status)` bileşik indeksi eklendi (migration `0008_report_indexes.sql`).
+
+## Güncellemeler (kod incelemesi)
+
+- `orders`: `sort=date|net|grand` (gönderim tarihi, KDV hariç, genel toplam) ve `dir=asc|desc`; varsayılan `date desc`. Eşitlikte sipariş numarası aynı yönde. Geçersiz değer **400**. Excel çıktısı aynı sıralamayı kullanır.
+- `orders/export.xlsx`: sayfalamasız tek sorgu; dönemde `EXPORT_MAX_ORDERS` (varsayılan 5000) üzerinde sipariş varsa **400** `EXPORT_TOO_LARGE`. Alt toplam satırı: etiket "İptal hariç toplam (N sipariş)" Bayi sütununda, tutarlar KDV hariç / genel toplam sütunlarında, `#,##0.00`.
+- Karşılaştırmalı Excel sütunları (genel bakış, bayiler, gruplar): dönem, önceki dönem, geçen yıl, **fark (önceki)**, değişim % (önceki), **fark (geçen yıl)**, değişim % (geçen yıl). Sayı metrikleri (sipariş/bayi sayısı) `#,##0`, tutarlar `#,##0.00`.
+- Excel dosya adlarındaki tarih (`inactive-dealers`) CLOCK + Europe/Istanbul günüdür.
+- `inactive-dealers`: Europe/Istanbul **takvim günü** ile: son sipariş günü < bugün − `days`; `daysSinceLastOrder` takvim günü farkıdır (60 gün + 1 saat önce = 60 → listede yok; 61 takvim günü = listede).
+- `groups.sharePercent`: en büyük kalan yöntemiyle toplam tam 100,0; satışı olan grup en az 0,1 gösterilir (farkı en büyük paydan düşer).
+- `groups` ve `products` raporları ürünün **bugünkü** grubuna göredir (sipariş anında grup kopyalanmaz; bilinçli kabul).
+- `status.averageHoursInStatus`: önce sipariş başına o durumda geçen toplam süre, sonra siparişler arasında ortalama (bir sipariş aynı duruma tekrar girse de tek gözlem sayılır).
+- İndeks: `orders (submitted_at) WHERE status <> 'cancelled'` kısmi indeks (migration `0009_report_partial_index.sql`); 0008'deki bileşik indeks kaldırıldı.
