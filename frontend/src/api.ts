@@ -887,18 +887,19 @@ export async function downloadOrdersExcel(
 // ---------- Raporlar (docs/api/rapor-api.md; GR-RAP-001…003, K-46 – K-50) ----------
 // Tüm tutar, yüzde ve fark değerleri backend'den hazır gelir; arayüz hesaplamaz.
 
-export interface ReportChange {
-  amount: string
+/** Tutar metriklerinde `amount` metin ("123.45"), sayı metriklerinde sayı gelir; `percent` sayıdır. */
+export interface ReportChange<A = string> {
+  amount: A
   /** Önceki değer 0 ise null. */
-  percent: string | null
+  percent: number | null
 }
 
 export interface Comparable<T = string> {
   current: T
   previous: T
   lastYear: T
-  changePrev: ReportChange
-  changeYear: ReportChange
+  changePrev: ReportChange<T>
+  changeYear: ReportChange<T>
 }
 
 export interface ReportRange {
@@ -969,7 +970,7 @@ export interface ReportInactiveDealer {
   city: string
   lastOrderAt: string | null
   daysSinceLastOrder: number | null
-  approvedAt: string
+  approvedAt: string | null
 }
 
 export interface ReportProductRow {
@@ -989,13 +990,15 @@ export interface ReportGroupRow {
   name: string
   quantity: number
   netTotal: Comparable
-  sharePercent: string
+  sharePercent: number
 }
 
 export interface ReportStatusRow {
   status: OrderStatusValue
+  /** Türkçe durum adı (sunucudan). */
+  label: string
   count: number
-  averageHoursInStatus: string | number | null
+  averageHoursInStatus: number | null
 }
 
 export interface ReportOutOfStockRow {
@@ -1020,6 +1023,7 @@ export interface ReportToday {
 
 export type ReportName =
   | 'overview'
+  | 'trend'
   | 'orders'
   | 'dealers'
   | 'products'

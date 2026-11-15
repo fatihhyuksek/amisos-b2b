@@ -984,3 +984,24 @@
 .ui-todaycard:hover {
   background: var(--color-surface-hover);
 }
+
+/* Rapor tabloları: sıkı dolgu; karşılaştırma hücresinde değer ve fark alt alta */
+.ui-table--dense th,
+.ui-table--dense td {
+  padding: var(--space-2) var(--space-3);
+}
+
+.ui-table--dense .ui-cmpcell .ui-delta {
+  white-space: normal;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ui-dealercell__city {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.ui-table--dense td.wrap {
+  min-width: 9rem;
+}

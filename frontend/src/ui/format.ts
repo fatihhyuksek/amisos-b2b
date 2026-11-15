@@ -60,6 +60,14 @@ export function formatSignedInt(amount: string | number): string {
 }
 
 /** "12.5" → "%12,5" (işaret ayrı gösterilir). */
-export function formatAbsPercent(value: string): string {
+export function formatAbsPercent(value: string | number): string {
   return `%${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(Math.abs(Number(value)))}`
+}
+
+const hoursFormatter = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 })
+
+/** Bekleme süresi: 48 saati aşarsa gün ("63,6 gün"), değilse saat ("46,4 saat"). Null → "—". */
+export function formatWaitHours(hours: number | null): string {
+  if (hours === null) return '—'
+  return hours > 48 ? `${hoursFormatter.format(hours / 24)} gün` : `${hoursFormatter.format(hours)} saat`
 }

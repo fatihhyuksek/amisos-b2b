@@ -7,10 +7,10 @@ import { Icon } from '../../ui/Icon'
 import { saveBlob } from '../download'
 
 /** Artış/azalış: ikon + işaretli metin + renk (renge tek başına dayanmaz; ekran okuyucu için gizli metin). */
-export function Delta({ change, kind }: { change: ReportChange; kind: 'money' | 'count' }) {
+export function Delta({ change, kind }: { change: ReportChange<string | number>; kind: 'money' | 'count' }) {
   const n = Number(change.amount)
   const dir = n > 0 ? 'up' : n < 0 ? 'down' : 'flat'
-  const amount = kind === 'money' ? formatSignedTRY(change.amount) : formatSignedInt(change.amount)
+  const amount = kind === 'money' ? formatSignedTRY(String(change.amount)) : formatSignedInt(change.amount)
   return (
     <span className={`ui-delta ui-delta--${dir}`}>
       {dir !== 'flat' && <Icon name={dir === 'up' ? 'arrowUp' : 'arrowDown'} />}
@@ -44,6 +44,7 @@ export function ReportTable<T>({
   caption,
   expanded,
   renderExpanded,
+  serverSort,
 }: {
   rows: T[]
   cols: Col<T>[]
@@ -52,21 +53,30 @@ export function ReportTable<T>({
   caption: string
   expanded?: string | null
   renderExpanded?: (row: T) => ReactNode
+  /** Sıralama sunucuda yapılırsa: geçerli sıralama ve değişim işleyicisi; satırlar olduğu gibi gösterilir. */
+  serverSort?: {
+    value: { key: string; dir: 'asc' | 'desc' }
+    onChange: (v: { key: string; dir: 'asc' | 'desc' }) => void
+  }
 }) {
-  const [sort, setSort] = useState(defaultSort ?? null)
+  const [localSort, setLocalSort] = useState(defaultSort ?? null)
+  const sort = serverSort ? serverSort.value : localSort
+  const setSort = (v: { key: string; dir: 'asc' | 'desc' }) =>
+    serverSort ? serverSort.onChange(v) : setLocalSort(v)
   const selectId = useId()
   const col = cols.find((c) => c.key === sort?.key)
-  const sorted = col?.sort
-    ? [...rows].sort((a, b) => {
-        const x = col.sort!(a)
-        const y = col.sort!(b)
-        const r =
-          typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'tr')
-        return sort!.dir === 'asc' ? r : -r
-      })
-    : rows
+  const sorted =
+    col?.sort && !serverSort
+      ? [...rows].sort((a, b) => {
+          const x = col.sort!(a)
+          const y = col.sort!(b)
+          const r =
+            typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'tr')
+          return sort!.dir === 'asc' ? r : -r
+        })
+      : rows
   const toggle = (key: string) =>
-    setSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }))
+    setSort(sort?.key === key ? { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' })
   const sortable = cols.filter((c) => c.sort)
   const title = cols.find((c) => c.title) ?? cols[0]
 
@@ -97,7 +107,7 @@ export function ReportTable<T>({
         </select>
       </div>
       <div className="ui-table-wrap ui-table-wrap--cards">
-        <table className="ui-table">
+        <table className="ui-table ui-table--dense">
           <caption className="visually-hidden">{caption}</caption>
           <thead>
             <tr>

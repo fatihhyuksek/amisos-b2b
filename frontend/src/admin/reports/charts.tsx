@@ -51,7 +51,7 @@ export function TrendChart({ data }: { data: ReportTrendPoint[] }) {
     <div className="ui-chart">
       <div className="ui-chart__legend" aria-hidden="true">
         <span>
-          <i className="ui-chart__sw ui-chart__sw--bar" /> Bu dönem net ciro (KDV hariç)
+          <i className="ui-chart__sw ui-chart__sw--bar" /> Son {data.length} ay net ciro (KDV hariç)
         </span>
         <span>
           <i className="ui-chart__sw ui-chart__sw--line" /> Geçen yılın aynı ayı

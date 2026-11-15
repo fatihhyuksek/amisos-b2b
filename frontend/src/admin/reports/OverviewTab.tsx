@@ -56,10 +56,14 @@ export function OverviewTab({
   from,
   to,
   overview,
+  overviewFailed,
+  onRetryOverview,
 }: {
   from: string
   to: string
   overview: ReportOverview | null
+  overviewFailed: boolean
+  onRetryOverview: () => void
 }) {
   const trend = useLoad<ReportTrendPoint[]>((s) => fetchReport('trend', { months: 12 }, s), 'trend')
   const groups = useLoad<ReportGroupRow[]>(
@@ -81,7 +85,8 @@ export function OverviewTab({
       <div className="ui-reportbar">
         <ExportButton name="overview" params={{ from, to }} fallbackName={`rapor-genel-${from}-${to}.xlsx`} />
       </div>
-      {!overview && <LoadingCard rows={2} />}
+      {!overview && !overviewFailed && <LoadingCard rows={2} />}
+      {overviewFailed && <ErrorAlert onRetry={onRetryOverview}>Özet göstergeler alınamadı.</ErrorAlert>}
       {overview && m && (
         <section aria-label="Özet göstergeler" className="ui-kpis">
           <Kpi label="Sipariş sayısı" metric={m.orderCount} kind="count" overview={overview} />
@@ -98,7 +103,10 @@ export function OverviewTab({
       )}
 
       <section className="ui-card ui-card__body ui-stack" aria-labelledby="rp-trend">
-        <h2 id="rp-trend">Aylık net ciro · son 12 ay</h2>
+        <div className="ui-reportbar">
+          <h2 id="rp-trend">Aylık net ciro · son 12 ay</h2>
+          <ExportButton name="trend" params={{ months: 12 }} fallbackName="rapor-trend.xlsx" />
+        </div>
         {trend.state.status === 'loading' && <LoadingCard rows={2} />}
         {trend.state.status === 'error' && <ErrorAlert onRetry={trend.reload}>Trend alınamadı.</ErrorAlert>}
         {trend.state.status === 'ready' && <TrendChart data={trend.state.data} />}
@@ -114,18 +122,25 @@ export function OverviewTab({
           <p className="muted">Bu dönemde satış yok.</p>
         )}
         {groups.state.status === 'ready' && groups.state.data.length > 0 && (
-          <HBarList
-            label="Ürün grubu net ciro payı"
-            rows={[...groups.state.data]
-              .sort((a, b) => Number(b.sharePercent) - Number(a.sharePercent))
-              .slice(0, 8)
-              .map((g) => ({
-                key: g.groupId,
-                label: g.name,
-                percent: Number(g.sharePercent),
-                text: `${formatTRY(g.netTotal.current)} · %${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(Number(g.sharePercent))}`,
-              }))}
-          />
+          <>
+            <HBarList
+              label="Ürün grubu net ciro payı"
+              rows={[...groups.state.data]
+                .sort((a, b) => Number(b.sharePercent) - Number(a.sharePercent))
+                .slice(0, 8)
+                .map((g) => ({
+                  key: g.groupId,
+                  label: g.name,
+                  percent: Number(g.sharePercent),
+                  text: `${formatTRY(g.netTotal.current)} · Pay %${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(Number(g.sharePercent))}`,
+                }))}
+            />
+            {groups.state.data.length > 8 && (
+              <Link to={`/yonetim/raporlar?sekme=gruplar&bas=${from}&bit=${to}`} className="ui-linkbtn">
+                Tüm grupları gör ({groups.state.data.length})
+              </Link>
+            )}
+          </>
         )}
       </section>
 

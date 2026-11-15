@@ -39,10 +39,19 @@ function pathFor(tab: TabId, from: string, to: string): string {
   return `/yonetim/raporlar?${qs.toString()}`
 }
 
-/** Bitiş, başlangıçtan en fazla 3 yıl sonra olabilir (sözleşme). */
+/** Takvimde gerçekten var olan gün mü ("2026-02-30" değil). */
+function isRealDay(day: string): boolean {
+  if (!DATE_RE.test(day)) return false
+  const [y, m, d] = day.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
+/** Başlangıçtan 3 yıl sonrası (29 Şubat → 28 Şubat); bitiş bu güne eşit veya sonrası ise dönem geçersizdir (backend ile aynı). */
 function tooLong(from: string, to: string): boolean {
   const [y, m, d] = from.split('-').map(Number)
-  return to > new Date(Date.UTC(y + 3, m - 1, d)).toISOString().slice(0, 10)
+  const limit = new Date(Date.UTC(y + 3, m - 1, m === 2 && d === 29 ? 28 : d)).toISOString().slice(0, 10)
+  return to >= limit
 }
 
 export function ReportsPage() {
@@ -52,7 +61,9 @@ export function ReportsPage() {
   const def = presetRange('this-month')
   const qFrom = query.get('bas') ?? ''
   const qTo = query.get('bit') ?? ''
-  const valid = DATE_RE.test(qFrom) && DATE_RE.test(qTo) && qFrom <= qTo && !tooLong(qFrom, qTo)
+  const hasParams = query.has('bas') || query.has('bit')
+  const valid = isRealDay(qFrom) && isRealDay(qTo) && qFrom <= qTo && !tooLong(qFrom, qTo)
+  const invalidParams = hasParams && !valid
   const from = valid ? qFrom : def.from
   const to = valid ? qTo : def.to
   const preset = presetOf(from, to)
@@ -72,7 +83,7 @@ export function ReportsPage() {
 
   function applyCustom(next: { from: string; to: string }) {
     setDraft(next)
-    if (!DATE_RE.test(next.from) || !DATE_RE.test(next.to)) return
+    if (!isRealDay(next.from) || !isRealDay(next.to)) return
     if (next.from > next.to) return setRangeError('Başlangıç, bitişten sonra olamaz.')
     if (tooLong(next.from, next.to)) return setRangeError('Dönem en fazla 3 yıl olabilir.')
     setRangeError('')
@@ -84,6 +95,11 @@ export function ReportsPage() {
 
   return (
     <AdminLayout title="Raporlar">
+      {invalidParams && tab !== 'pasif' && (
+        <Alert tone="warning">
+          Adresteki dönem geçersiz (tarih bulunamadı, sıra hatalı veya 3 yıldan uzun). Bu ay gösteriliyor.
+        </Alert>
+      )}
       {tab !== 'pasif' && (
         <section className="ui-card ui-card__body ui-stack" aria-label="Dönem">
           <div className="ui-chips ui-chips--wrap" role="group" aria-label="Dönem seçimi">
@@ -148,13 +164,35 @@ export function ReportsPage() {
         </section>
       )}
 
-      <div className="ui-chips ui-chips--wrap" role="tablist" aria-label="Rapor türü">
+      <div
+        className="ui-chips ui-chips--wrap"
+        role="tablist"
+        aria-label="Rapor türü"
+        onKeyDown={(e) => {
+          const i = TABS.findIndex((t) => t.id === tab)
+          const next =
+            e.key === 'ArrowRight'
+              ? (i + 1) % TABS.length
+              : e.key === 'ArrowLeft'
+                ? (i - 1 + TABS.length) % TABS.length
+                : e.key === 'Home'
+                  ? 0
+                  : e.key === 'End'
+                    ? TABS.length - 1
+                    : -1
+          if (next < 0) return
+          e.preventDefault()
+          replace(pathFor(TABS[next].id, from, to))
+          requestAnimationFrame(() => document.getElementById(`tab-${TABS[next].id}`)?.focus())
+        }}
+      >
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
             id={`tab-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
             aria-selected={tab === t.id}
             aria-controls="rapor-panel"
             className="ui-chip"
@@ -166,7 +204,15 @@ export function ReportsPage() {
       </div>
 
       <div id="rapor-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'genel' && <OverviewTab from={from} to={to} overview={ov} />}
+        {tab === 'genel' && (
+          <OverviewTab
+            from={from}
+            to={to}
+            overview={ov}
+            overviewFailed={overview.state.status === 'error'}
+            onRetryOverview={overview.reload}
+          />
+        )}
         {tab === 'siparisler' && <OrdersTab from={from} to={to} />}
         {tab === 'bayiler' && <DealersTab from={from} to={to} />}
         {tab === 'urunler' && <ProductsTab from={from} to={to} />}

@@ -15,9 +15,9 @@ import {
   type ReportStatusRow,
 } from '../../api'
 import { Link } from '../../Link'
-import { EmptyState, OrderStatusBadge, Pagination } from '../../ui/components'
+import { Badge, EmptyState, OrderStatusBadge, Pagination } from '../../ui/components'
 import { ErrorAlert, LoadingCard } from '../../ui/catalog'
-import { formatDate, formatDateTime, formatInt, formatTRY } from '../../ui/format'
+import { formatDate, formatDateTime, formatInt, formatTRY, formatWaitHours } from '../../ui/format'
 import { ORDER_STATUS, orderStatusLabel } from '../../ui/orderStatus'
 import { whatsappHref } from '../phone'
 import { useLoad } from '../useLoad'
@@ -48,34 +48,35 @@ function CmpCell({ m, which }: { m: Comparable; which: 'previous' | 'lastYear' }
 }
 
 const num = (s: string | number) => Number(s)
+const formatShare = (v: number) =>
+  `Pay %${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(v)}`
 
 // ---------- Siparişler ----------
 export function OrdersTab({ from, to }: Period) {
   const [status, setStatus] = useState<OrderStatusValue | ''>('')
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
   const { state, reload } = useLoad<ReportOrders>(
-    (s) => fetchReport('orders', { from, to, status, page, pageSize: 20 }, s),
-    `${from}|${to}|${status}|${page}`,
+    (s) => fetchReport('orders', { from, to, status, sort: sort.key, dir: sort.dir, page, pageSize: 20 }, s),
+    `${from}|${to}|${status}|${sort.key}|${sort.dir}|${page}`,
   )
   const cols: Col<ReportOrders['items'][number]>[] = [
     {
       key: 'no',
       label: 'Sipariş no',
       title: true,
-      sort: (r) => r.orderNo,
       cell: (r) => <Link to={`/yonetim/siparisler/${encodeURIComponent(r.id)}`}>#{r.orderNo}</Link>,
     },
     { key: 'date', label: 'Tarih', sort: (r) => r.submittedAt, cell: (r) => formatDateTime(r.submittedAt) },
     {
       key: 'dealer',
       label: 'Bayi',
-      sort: (r) => r.dealer.companyTitle,
       cell: (r) => (
         <Link to={`/yonetim/bayiler/${encodeURIComponent(r.dealer.id)}`}>{r.dealer.companyTitle}</Link>
       ),
     },
     { key: 'status', label: 'Durum', cell: (r) => <OrderStatusBadge status={r.status} /> },
-    { key: 'lines', label: 'Satır', num: true, sort: (r) => r.lineCount, cell: (r) => r.lineCount },
+    { key: 'lines', label: 'Satır', num: true, cell: (r) => r.lineCount },
     {
       key: 'net',
       label: 'Net (KDV hariç)',
@@ -114,7 +115,7 @@ export function OrdersTab({ from, to }: Period) {
         </label>
         <ExportButton
           name="orders"
-          params={{ from, to, status }}
+          params={{ from, to, status, sort: sort.key, dir: sort.dir }}
           fallbackName={`rapor-siparisler-${from}-${to}.xlsx`}
         />
       </div>
@@ -136,6 +137,13 @@ export function OrdersTab({ from, to }: Period) {
                 cols={cols}
                 rowKey={(r) => r.id}
                 caption="Dönemdeki siparişler"
+                serverSort={{
+                  value: sort,
+                  onChange: (v) => {
+                    setSort(v)
+                    setPage(1)
+                  },
+                }}
               />
               <Pagination
                 page={state.data.page}
@@ -192,6 +200,7 @@ export function DealersTab({ from, to }: Period) {
       cell: (r) => (
         <span className="ui-dealercell">
           <Link to={`/yonetim/bayiler/${encodeURIComponent(r.dealerId)}`}>{r.companyTitle}</Link>
+          <span className="ui-dealercell__city">{r.city}</span>
           <button
             type="button"
             className="ui-linklike ui-linklike--touch"
@@ -204,7 +213,6 @@ export function DealersTab({ from, to }: Period) {
         </span>
       ),
     },
-    { key: 'city', label: 'Şehir', sort: (r) => r.city, cell: (r) => r.city },
     {
       key: 'orders',
       label: 'Sipariş',
@@ -409,7 +417,7 @@ export function GroupsTab({ from, to }: Period) {
                     key: g.groupId,
                     label: g.name,
                     percent: num(g.sharePercent),
-                    text: formatTRY(g.netTotal.current),
+                    text: `${formatTRY(g.netTotal.current)} · ${formatShare(g.sharePercent)}`,
                   }))}
               />
             </section>
@@ -432,19 +440,20 @@ export function StatusTab({ from, to }: Period) {
     (s) => fetchReportList('status', { from, to }, s),
     `${from}|${to}`,
   )
-  const hours = (v: ReportStatusRow['averageHoursInStatus']) =>
-    v === null
-      ? '—'
-      : `${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(Number(v))} saat`
   const cols: Col<ReportStatusRow>[] = [
-    { key: 'status', label: 'Durum', title: true, cell: (r) => <OrderStatusBadge status={r.status} /> },
+    {
+      key: 'status',
+      label: 'Durum',
+      title: true,
+      cell: (r) => <Badge tone={ORDER_STATUS[r.status].tone}>{r.label}</Badge>,
+    },
     { key: 'count', label: 'Sipariş', num: true, sort: (r) => r.count, cell: (r) => formatInt(r.count) },
     {
       key: 'hours',
       label: 'Ort. bekleme',
       num: true,
       sort: (r) => (r.averageHoursInStatus === null ? -1 : num(r.averageHoursInStatus)),
-      cell: (r) => hours(r.averageHoursInStatus),
+      cell: (r) => formatWaitHours(r.averageHoursInStatus),
     },
   ]
   return (
@@ -597,8 +606,8 @@ export function InactiveTab() {
     {
       key: 'approved',
       label: 'Onay tarihi',
-      sort: (r) => r.approvedAt,
-      cell: (r) => formatDate(r.approvedAt),
+      sort: (r) => r.approvedAt ?? '',
+      cell: (r) => (r.approvedAt ? formatDate(r.approvedAt) : '—'),
     },
   ]
   return (
