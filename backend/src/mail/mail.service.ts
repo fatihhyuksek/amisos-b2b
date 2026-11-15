@@ -44,6 +44,14 @@ export function oneLine(value: string): string {
   return value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
 }
 
+/** K-26: durum değişikliği e-postası. Not Admin girdisidir; yine de tek satıra indirilerek loglanır. */
+export interface OrderStatusMail {
+  orderNo: number;
+  statusLabel: string;
+  note: string | null;
+  link: string;
+}
+
 const DELIVERY_LABELS = {
   carrier: 'Ambar ile',
   pickup: 'Bayi kendisi alır',
@@ -104,6 +112,8 @@ export interface MailService {
   sendOrderConfirmation(to: string, order: OrderMail): Promise<void>;
   /** GR-BLD-001, K-26, K-17: ekibe "Yeni ön sipariş #no"; BizimHesap'a elle giriş için satır özeti içerir. */
   sendNewOrderToTeam(to: string, order: OrderMail): Promise<void>;
+  /** K-26: her durum değişikliğinde bayiye; sipariş no, yeni durum, (varsa) Admin notu ve detay bağlantısı. */
+  sendOrderStatusChanged(to: string, info: OrderStatusMail): Promise<void>;
 }
 
 @Injectable()
@@ -166,6 +176,15 @@ export class DevMailService implements MailService {
 
   sendNewOrderToTeam(to: string, order: OrderMail): Promise<void> {
     this.log(`Yeni ön sipariş #${order.orderNo}`, to, formatOrderForTeam(order));
+    return Promise.resolve();
+  }
+
+  sendOrderStatusChanged(to: string, info: OrderStatusMail): Promise<void> {
+    this.log(
+      `Ön sipariş #${info.orderNo}: ${info.statusLabel}`,
+      to,
+      `${info.note ? `Not: ${oneLine(info.note)}. ` : ''}${info.link}`,
+    );
     return Promise.resolve();
   }
 

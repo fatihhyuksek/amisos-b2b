@@ -50,6 +50,8 @@ Uygulama kodu atlansa bile veritabanı şunlara izin vermez (testler: `backend/t
 
 Bildirimler: tüm e-postalar iş transaction'ında `notification_outbox`'a yazılır (transaction geri alınırsa e-posta da yoktur), commit sonrası denenir, başarısızsa dakikada bir çalışan iş (advisory lock) en fazla 8 kez yeniden dener. Migration `0006_notification_outbox.sql`.
 
+Admin sipariş yönetimi: `orders.transfer_reference` (BizimHesap belge no) ve `orders.transferred_by` (elle girişi işaretleyen Admin) migration `0007_order_transfer_manual.sql` ile eklendi. Durum değişikliği satır kilidiyle yapılır, `order_status_history` ve audit_log'a yazılır, bayiye outbox e-postası gider. API: `docs/api/admin-siparis-api.md`.
+
 Sepet/sipariş davranışı (şema değişmedi, migration yok): sipariş gönderimi bayi bazında `pg_advisory_xact_lock` ile
 sıralanır (çift gönderim tek sipariş); sipariş satırı birim fiyatı saklanmaz, `unit_list_price` ve `discount_percent`'ten
 türetilir. API: `docs/api/siparis-api.md`.

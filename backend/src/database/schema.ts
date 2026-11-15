@@ -444,6 +444,9 @@ export const orders = pgTable(
     bizimhesapGuid: text(),
     transferError: text(),
     transferredAt: timestamp({ withTimezone: true }),
+    /** Elle girişte (K-17 yedek yolu) BizimHesap belge/sipariş no'su ve işareti koyan Admin. */
+    transferReference: text(),
+    transferredBy: uuid().references(() => adminUsers.id),
 
     submittedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),

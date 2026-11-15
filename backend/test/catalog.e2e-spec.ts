@@ -648,7 +648,8 @@ describe('Katalog (e2e)', () => {
       const logs = await db
         .select()
         .from(auditLog)
-        .where(and(eq(auditLog.entityId, p.id), eq(auditLog.action, 'product.updated')));
+        .where(and(eq(auditLog.entityId, p.id), eq(auditLog.action, 'product.updated')))
+        .orderBy(auditLog.id);
       const changes = (logs[0].data as { changes: Record<string, { previous: unknown; next: unknown }> }).changes;
       expect(changes.listPrice).toEqual({ previous: '48.90', next: '25.50' });
     });

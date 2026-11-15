@@ -1,8 +1,8 @@
 // Ön sipariş. GR-SIP-003…008, GR-FIY-001, GR-BLD-001; K-20 – K-22, K-25, K-26, K-33, K-36 – K-38, K-41, K-44.
-// Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22): bu serviste sipariş için yazma yoktur
-// (durum güncelleme Admin adımında, order-status.ts kurallarıyla eklenecek).
+// Gönderilen sipariş bayi tarafından değiştirilemez ve iptal edilemez (K-22): bu serviste sipariş için
+// yazma yoktur. Admin durum yönetimi: admin-orders.service.ts.
 import { ConflictException, BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import { lockDealerCart } from '../common/advisory-lock.js';
 import { DB, type Database } from '../database/database.module.js';
@@ -23,12 +23,10 @@ import { CartService, type CartView } from './cart.service.js';
 import { Money } from '../common/money.js';
 import { roundUpToCase } from './order-math.js';
 import { MAX_QUANTITY } from './orders.schemas.js';
-import type { AdminOrderListQuery, OrderListQuery, SubmitOrderInput } from './orders.schemas.js';
+import type { OrderListQuery, SubmitOrderInput } from './orders.schemas.js';
 
-type OrderRow = typeof orders.$inferSelect;
+export type OrderRow = typeof orders.$inferSelect;
 type LineRow = typeof orderLines.$inferSelect;
-
-const BUSINESS_TZ = 'Europe/Istanbul';
 
 // Tablo adı açıkça yazılır: tek tablolu sorguda drizzle sütunları öneksiz üretir ve alt sorguda yanlış sütuna bağlanır.
 const lineCountSql = sql<number>`(select count(*)::int from order_lines where order_lines.order_id = "orders"."id")`;
@@ -209,93 +207,19 @@ export class OrdersService {
     const detail = await this.detail(order);
     return {
       ...detail,
-      history: detail.history.map(({ fromStatus, toStatus, source, createdAt }) => ({
+      // Admin notu bayiye görünür; changedBy (Admin kimliği) dönmez.
+      history: detail.history.map(({ fromStatus, toStatus, source, note, createdAt }) => ({
         fromStatus,
         toStatus,
         source,
+        note,
         createdAt,
       })),
     };
   }
 
-  // --- Admin: okuma ---------------------------------------------------------
-
-  async listForAdmin(query: AdminOrderListQuery) {
-    const filters: (SQL | undefined)[] = [];
-    if (query.status) filters.push(eq(orders.status, query.status));
-    if (query.dealerId) filters.push(eq(orders.dealerId, query.dealerId));
-    // Gün sınırları Europe/Istanbul'a göre, from/to dahil.
-    if (query.from) {
-      filters.push(gte(orders.submittedAt, sql`(${query.from}::date)::timestamp at time zone ${BUSINESS_TZ}`));
-    }
-    if (query.to) {
-      filters.push(lt(orders.submittedAt, sql`((${query.to}::date + 1)::timestamp) at time zone ${BUSINESS_TZ}`));
-    }
-    const where = and(...filters);
-    const [{ total }] = await this.db.select({ total: sql<number>`count(*)::int` }).from(orders).where(where);
-    const rows = await this.db
-      .select({
-        id: orders.id,
-        orderNo: orders.orderNo,
-        submittedAt: orders.submittedAt,
-        status: orders.status,
-        dealerId: dealers.id,
-        companyTitle: dealers.companyTitle,
-        deliveryMethod: orders.deliveryMethod,
-        transferStatus: orders.transferStatus,
-        netTotal: orders.netTotal,
-        grandTotal: orders.grandTotal,
-        lineCount: lineCountSql,
-      })
-      .from(orders)
-      .innerJoin(dealers, eq(dealers.id, orders.dealerId))
-      .where(where)
-      .orderBy(desc(orders.submittedAt), desc(orders.orderNo))
-      .limit(query.pageSize)
-      .offset((query.page - 1) * query.pageSize);
-    return {
-      items: rows.map(({ dealerId, companyTitle, ...rest }) => ({
-        ...rest,
-        dealer: { id: dealerId, companyTitle },
-      })),
-      total,
-      page: query.page,
-      pageSize: query.pageSize,
-    };
-  }
-
-  async getForAdmin(id: string) {
-    const [row] = await this.db
-      .select({
-        order: orders,
-        dealerId: dealers.id,
-        companyTitle: dealers.companyTitle,
-        contactName: dealers.contactName,
-        email: dealers.email,
-        phone: dealers.phone,
-      })
-      .from(orders)
-      .innerJoin(dealers, eq(dealers.id, orders.dealerId))
-      .where(eq(orders.id, id));
-    if (!row) throw new NotFoundException('Sipariş bulunamadı.');
-    const detail = await this.detail(row.order);
-    return {
-      ...detail,
-      dealer: {
-        id: row.dealerId,
-        companyTitle: row.companyTitle,
-        contactName: row.contactName,
-        email: row.email,
-        phone: row.phone,
-      },
-      transferStatus: row.order.transferStatus,
-      transferError: row.order.transferError,
-      bizimhesapGuid: row.order.bizimhesapGuid,
-      transferredAt: row.order.transferredAt,
-    };
-  }
-
-  private async detail(order: OrderRow) {
+  /** Bayi ve Admin detayının ortak gövdesi; history ham satırlardır (changedBy id, note). */
+  async detail(order: OrderRow) {
     const lines = await this.db
       .select()
       .from(orderLines)

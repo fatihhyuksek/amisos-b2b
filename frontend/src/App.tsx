@@ -4,6 +4,9 @@ import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
 import { BannerListPage } from './admin/BannerListPage'
+import { OrderSummaryProvider } from './admin/OrderSummaryProvider'
+import { OrderListPage } from './admin/OrderListPage'
+import { AdminOrderDetailPage } from './admin/OrderDetailPage'
 import { NotificationsPage } from './admin/NotificationsPage'
 import { DealerCreatePage } from './admin/DealerCreatePage'
 import { DealerDetailPage } from './admin/DealerDetailPage'
@@ -219,6 +222,12 @@ function Routes() {
           <MediaLibraryPage />
         </Protected>
       )
+    case '/yonetim/siparisler':
+      return (
+        <Protected area="admin">
+          <OrderListPage />
+        </Protected>
+      )
     case '/yonetim/bildirimler':
       return (
         <Protected area="admin">
@@ -232,6 +241,13 @@ function Routes() {
         </Protected>
       )
     default: {
+      const adminOrder = matchPath(path, '/yonetim/siparisler/:id')
+      if (adminOrder)
+        return (
+          <Protected area="admin">
+            <AdminOrderDetailPage id={adminOrder.id} />
+          </Protected>
+        )
       const order = matchPath(path, '/siparislerim/:id')
       if (order)
         return (
@@ -285,7 +301,9 @@ function App() {
   return (
     <AuthProvider>
       <DealerCart>
-        <Routes />
+        <OrderSummaryProvider>
+          <Routes />
+        </OrderSummaryProvider>
       </DealerCart>
     </AuthProvider>
   )

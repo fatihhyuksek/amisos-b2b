@@ -6,15 +6,18 @@ import {
   activateDealer,
   approveDealer,
   deactivateDealer,
+  fetchAdminOrders,
   fetchDealer,
   rejectDealer,
   resendInvitation,
   updateDealerTerms,
+  type AdminOrderListItem,
   type DealerDetail,
+  type Paged,
 } from '../api'
 import { Link } from '../Link'
-import { Alert, Badge, Button, DealerStatusBadge, Field, Modal } from '../ui/components'
-import { formatDateTime, formatPercent } from '../ui/format'
+import { Alert, Badge, Button, DealerStatusBadge, Field, Modal, OrderStatusBadge } from '../ui/components'
+import { formatDateTime, formatPercent, formatTRY } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
 import { GroupDiscounts } from './GroupDiscounts'
 import { useLoad } from './useLoad'
@@ -457,6 +460,55 @@ function Detail({
           </ol>
         )}
       </section>
+
+      <DealerOrders dealerId={d.id} />
     </>
+  )
+}
+
+/** Bayinin son 10 siparişi; tümü sipariş listesinde bayi süzgeciyle açılır. */
+function DealerOrders({ dealerId }: { dealerId: string }) {
+  const { state, reload } = useLoad<Paged<AdminOrderListItem>>(
+    (s) => fetchAdminOrders({ dealerId, page: 1, pageSize: 10 }, s),
+    `orders-${dealerId}`,
+  )
+  return (
+    <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-orders">
+      <h2 id="sec-orders">Siparişleri</h2>
+      {state.status === 'loading' && <div className="ui-skeleton" style={{ height: '2.5rem' }} />}
+      {state.status === 'error' && (
+        <Alert tone="danger">
+          Siparişler alınamadı.{' '}
+          <button type="button" className="ui-linklike ui-linklike--touch" onClick={reload}>
+            Tekrar dene
+          </button>
+        </Alert>
+      )}
+      {state.status === 'ready' && state.data.items.length === 0 && (
+        <p className="muted">Henüz sipariş yok.</p>
+      )}
+      {state.status === 'ready' && state.data.items.length > 0 && (
+        <>
+          <ul className="ui-minilist">
+            {state.data.items.map((o) => (
+              <li key={o.id}>
+                <Link to={`/yonetim/siparisler/${encodeURIComponent(o.id)}`} className="ui-linkbtn">
+                  #{o.orderNo}
+                </Link>
+                <span className="muted">{formatDateTime(o.submittedAt)}</span>
+                <OrderStatusBadge status={o.status} />
+                <span className="num">{formatTRY(o.grandTotal)}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            to={`/yonetim/siparisler?bayi=${encodeURIComponent(dealerId)}`}
+            className="ui-button ui-button--secondary"
+          >
+            Tüm siparişleri gör ({state.data.total})
+          </Link>
+        </>
+      )}
+    </section>
   )
 }

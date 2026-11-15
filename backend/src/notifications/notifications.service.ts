@@ -19,7 +19,8 @@ export type NotificationKind =
   | 'new_application'
   | 'rejection'
   | 'order_confirmation'
-  | 'new_order_team';
+  | 'new_order_team'
+  | 'order_status_changed';
 
 /** Payload'ında token'lı `link` bulunan türler. */
 const LINK_KINDS: NotificationKind[] = ['password_reset', 'email_verification', 'invitation'];
@@ -110,7 +111,8 @@ export class NotificationsService {
       return this.recordFailure(row, error);
     }
     const payload = row.payload as Record<string, unknown>;
-    if ('link' in payload) payload.link = null;
+    // Yalnızca token'lı bağlantılar temizlenir (sıradan detay bağlantıları kalır).
+    if (LINK_KINDS.includes(row.kind as NotificationKind)) payload.link = null;
     await this.db
       .update(notificationOutbox)
       .set({ status: 'sent', sentAt: this.clock.now(), lastError: null, payload })
@@ -158,6 +160,13 @@ export class NotificationsService {
         return this.mail.sendOrderConfirmation(row.recipient, reviveOrder(p));
       case 'new_order_team':
         return this.mail.sendNewOrderToTeam(row.recipient, reviveOrder(p));
+      case 'order_status_changed':
+        return this.mail.sendOrderStatusChanged(row.recipient, {
+          orderNo: Number(p.orderNo),
+          statusLabel: String(p.statusLabel),
+          note: typeof p.note === 'string' ? p.note : null,
+          link: String(p.link),
+        });
       default:
         throw new Error(`Bilinmeyen bildirim türü: ${row.kind}`);
     }

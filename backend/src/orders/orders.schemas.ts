@@ -72,8 +72,33 @@ const day = z
 export const adminOrderListSchema = z.object({
   status: z.enum(['submitted', 'negotiating', 'approved', 'shipped', 'delivered', 'cancelled']).optional(),
   dealerId: z.uuid().optional(),
+  /** Sipariş numarası (tam eşleşme) veya bayi firma unvanı/yetkili adı içinde arama (Türkçe harf duyarsız). */
+  q: z.string().trim().max(100).optional(),
+  /** BizimHesap'a girildi mi: pending (girilmedi) | transferred (girildi). */
+  transfer: z.enum(['pending', 'transferred']).optional(),
   from: day.optional(),
   to: day.optional(),
   ...paging,
 });
 export type AdminOrderListQuery = z.infer<typeof adminOrderListSchema>;
+
+const statusValues = ['submitted', 'negotiating', 'approved', 'shipped', 'delivered', 'cancelled'] as const;
+
+/** K-25: durum değiştirme. İptalde not (gerekçe) zorunlu. */
+export const changeStatusSchema = z
+  .object({
+    status: z.enum(statusValues),
+    note: text(1000).nullish(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.status === 'cancelled' && !v.note) {
+      ctx.addIssue({ code: 'custom', path: ['note'], message: 'İptal için gerekçe (not) zorunludur.' });
+    }
+  })
+  .transform((v) => ({ status: v.status, note: v.note ? v.note : null }));
+export type ChangeStatusInput = z.infer<typeof changeStatusSchema>;
+
+export const markTransferredSchema = z.object({
+  reference: text(100).nullish().transform((v) => (v ? v : null)),
+});
+export type MarkTransferredInput = z.infer<typeof markTransferredSchema>;

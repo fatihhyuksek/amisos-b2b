@@ -12,6 +12,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
@@ -20,10 +21,16 @@ import { JsonOnlyGuard } from '../auth/json-only.guard.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
 import { createValidationPipe } from '../common/validation.js';
 import { CartService } from './cart.service.js';
+import type { Response } from 'express';
+import { AdminOrdersService } from './admin-orders.service.js';
 import { OrdersService } from './orders.service.js';
 import {
   adminOrderListSchema,
   cartItemSchema,
+  changeStatusSchema,
+  markTransferredSchema,
+  type ChangeStatusInput,
+  type MarkTransferredInput,
   orderListSchema,
   submitOrderSchema,
   type AdminOrderListQuery,
@@ -101,15 +108,68 @@ export class OrdersController {
 @UseGuards(JsonOnlyGuard, AdminGuard)
 @UsePipes(createValidationPipe())
 export class AdminOrdersController {
-  constructor(@Inject(OrdersService) private readonly orders: OrdersService) {}
+  constructor(@Inject(AdminOrdersService) private readonly orders: AdminOrdersService) {}
 
   @Get()
   list(@Query({ schema: adminOrderListSchema }) query: AdminOrderListQuery) {
-    return this.orders.listForAdmin(query);
+    return this.orders.list(query);
+  }
+
+  // `summary` ve `export.xlsx` rotaları `:id` rotalarından önce tanımlı olmalı.
+  @Get('summary')
+  summary() {
+    return this.orders.summary();
+  }
+
+  @Get('export.xlsx')
+  async exportList(@Query({ schema: adminOrderListSchema }) query: AdminOrderListQuery, @Res() res: Response) {
+    send(res, await this.orders.exportList(query));
   }
 
   @Get(':id')
   get(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.orders.getForAdmin(id);
+    return this.orders.get(id);
   }
+
+  @Get(':id/export.xlsx')
+  async exportOne(@Param('id', new ParseUUIDPipe()) id: string, @Res() res: Response) {
+    send(res, await this.orders.exportOrder(id));
+  }
+
+  @Post(':id/status')
+  @HttpCode(200)
+  changeStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: changeStatusSchema }) body: ChangeStatusInput,
+    @CurrentUser() admin: AuthIdentity,
+  ) {
+    return this.orders.changeStatus(id, admin.id, body);
+  }
+
+  @Post(':id/transfer')
+  @HttpCode(200)
+  markTransferred(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: markTransferredSchema }) body: MarkTransferredInput,
+    @CurrentUser() admin: AuthIdentity,
+  ) {
+    return this.orders.markTransferred(id, admin.id, body);
+  }
+
+  @Delete(':id/transfer')
+  unmarkTransferred(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() admin: AuthIdentity) {
+    return this.orders.unmarkTransferred(id, admin.id);
+  }
+}
+
+function send(res: Response, file: { filename: string; data: Buffer }): void {
+  res
+    .status(200)
+    .set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${file.filename}"`,
+      'Content-Length': String(file.data.length),
+      'Cache-Control': 'no-store',
+    })
+    .end(file.data);
 }

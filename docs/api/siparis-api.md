@@ -116,7 +116,7 @@ Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22, GR-SIP-005): bayi
   "netTotal": "498.84", "grandTotal": "598.61", "lineCount": 1 }
 ```
 
-`GET /api/orders/:id` -> **200** (yalnızca kendi siparişi; başkasının veya olmayan **404**):
+`GET /api/orders/:id` (Admin durum notları `history[].note` ile görünür; Admin kimliği dönmez) -> **200** (yalnızca kendi siparişi; başkasının veya olmayan **404**):
 ```json
 {
   "id": "uuid", "orderNo": 1001, "status": "submitted", "submittedAt": "ISO",
@@ -129,7 +129,7 @@ Gönderilen sipariş değiştirilemez ve iptal edilemez (K-22, GR-SIP-005): bayi
     "outOfStock": false
   }],
   "summary": { "grossTotal": "...", "discountTotal": "...", "netTotal": "...", "vatTotal": "...", "grandTotal": "..." },
-  "history": [{ "fromStatus": null, "toStatus": "submitted", "source": "system", "createdAt": "ISO" }]
+  "history": [{ "fromStatus": null, "toStatus": "submitted", "source": "system", "note": null, "createdAt": "ISO" }]
 }
 ```
 Satırda iskonto yoksa `discountPercent` **`null`** döner (sepet satırıyla aynı; K-10), `unitPrice` = `listPrice`.
@@ -155,17 +155,17 @@ Satırda iskonto yoksa `discountPercent` **`null`** döner (sepet satırıyla ay
 
 ## Admin sipariş okuma (AdminGuard)
 
-Durum güncelleme sonraki adımdır; bu uçlar salt okunurdur.
+Güncel ve ayrıntılı sözleşme: **`docs/api/admin-siparis-api.md`** (liste filtreleri `q`/`transfer`, `summary`, durum değiştirme,
+BizimHesap'a elle giriş, Excel). Özet:
 
-`GET /api/admin/orders?status=&dealerId=&from=2026-11-01&to=2026-11-30&page=1&pageSize=20` -> `{ items, total, page, pageSize }`, en yeni önce.
-`from`/`to` `YYYY-MM-DD`, **Europe/Istanbul** günü olarak, ikisi de dahil. Öğe:
-```json
-{ "id": "uuid", "orderNo": 1001, "submittedAt": "ISO", "status": "submitted",
-  "dealer": { "id": "uuid", "companyTitle": "..." }, "deliveryMethod": "carrier",
-  "transferStatus": "pending", "netTotal": "...", "grandTotal": "...", "lineCount": 1 }
-```
-`GET /api/admin/orders/:id` -> bayi detayındaki tüm alanlar + `dealer { id, companyTitle, contactName, email, phone }`,
-`transferStatus`, `transferError`, `bizimhesapGuid`, `transferredAt`; `history` öğelerinde ek olarak `changedBy` (Admin id) ve `note`. Olmayan id **404**.
+- `GET /api/admin/orders?status=&dealerId=&q=&transfer=pending|transferred&from=&to=&page=&pageSize=` -> `{ items, total, page, pageSize }`, en yeni önce.
+  Öğe: `{ id, orderNo, submittedAt, status, dealer { id, companyTitle }, deliveryMethod, transferStatus, hasOutOfStock, lineCount, netTotal, grandTotal }`.
+  `transferStatus`: `pending | transferred | failed | manual`.
+- `GET /api/admin/orders/:id` -> bayi detayındaki tüm alanlar +
+  `allowedNextStatuses`, `dealer { id, companyTitle, contactName, email, phone, city, district, address }`,
+  `transfer { status, reference, transferredAt, transferredBy: { id, fullName } | null }`, `transferError`, `bizimhesapGuid`;
+  `history[]` öğeleri `{ fromStatus, toStatus, source, changedBy: { id, fullName } | null, note, createdAt }`. Olmayan id **404**.
+- Bayi tarafında `history[]` yalnızca `note` içerir; `changedBy` dönmez.
 
 ## Bildirimler (outbox, GR-BLD-001, AdminGuard)
 
@@ -175,6 +175,6 @@ ardından `failed` olur ve log'a error yazılır. Token içeren e-postalarda ba�
 
 - `GET /api/admin/notifications?status=pending|sent|failed&page=1&pageSize=20` -> `{ items, total, page, pageSize }`, en yeni önce.
   Öğe: `{ id, kind, recipient, status, attempts, lastError, nextAttemptAt, createdAt, sentAt }` (payload ve bağlantılar dönmez).
-  `kind`: `order_confirmation | new_order_team | new_application | invitation | rejection | password_reset | email_verification | approval_reminder`.
+  `kind`: `order_confirmation | new_order_team | order_status_changed | new_application | invitation | rejection | password_reset | email_verification | approval_reminder`.
 - `POST /api/admin/notifications/:id/retry` -> **200** güncel öğe (sayacı sıfırlar, hemen bir kez dener). Zaten gönderilmişse **409** `ALREADY_SENT`;
   bağlantısı silinmiş token'lı e-posta **409** `PAYLOAD_EXPIRED`; olmayan id **404**.
