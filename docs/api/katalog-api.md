@@ -118,9 +118,12 @@ EXIF yönlendirmesi uygulanır, tüm metadata atılır.
   "images": [{ "url": "...", "thumbUrl": "..." }]
 }
 ```
-- `GET /api/catalog/groups` → `[{ id, name, productCount }]` (aktif grup, aktif ürünü olan)
-- `GET /api/catalog/products?q=&groupId=&page=1&pageSize=24` → `{ items, total, page, pageSize }`;
-  yalnızca aktif ürün ve aktif grup; `q` ad, barkod, kodda. `q` aktif bir ürünün barkoduyla birebir eşleşiyorsa **yalnızca o ürün** döner (`total: 1`).
+- `GET /api/catalog/groups` → `[{ id, name, productCount, thumbUrl }]` (aktif grup, aktif ürünü olan).
+  `thumbUrl: string | null`: grubun aktif ürünleri içinde, ürün adı sırasıyla ilk görselli ürünün ilk görselinin (sort_order) thumb adresi; görselli aktif ürünü yoksa `null`. Tek sorguda hesaplanır.
+- `GET /api/catalog/products?q=&groupId=&stock=in_stock&sort=name|newest&page=1&pageSize=24` → `{ items, total, page, pageSize }`;
+  `stock=in_stock`: yalnızca stokta olanlar (parametre yoksa hepsi; başka değer **400**). `/api/catalog/groups` `productCount` değerini etkilemez.
+  `sort`: `name` (varsayılan; ad, Türkçe harf duyarsız) veya `newest` (oluşturulma tarihi yeniden eskiye); başka değer **400**. Tam barkod eşleşmesi her iki sıralamada da en üstte kalır.
+  Yalnızca aktif ürün ve aktif grup; `q` ad, barkod, kodda. `q` aktif bir ürünün barkoduyla birebir eşleşiyorsa **yalnızca o ürün** döner (`total: 1`).
 - `GET /api/catalog/products/:id` → `CatalogProduct` (pasif ürün **404**)
 - Stok adedi hiçbir yerde dönmez (K-18).
 - Arama (`q`): ad Türkçe harf ve büyük/küçük harf duyarsız ("ÇAY" = "cay"); barkod ve kod harf duyarsız alt dizi eşleşmesi.

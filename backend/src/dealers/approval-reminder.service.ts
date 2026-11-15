@@ -10,7 +10,7 @@ import { BUSINESS_TIME_ZONE } from '../common/business-days.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
 import { adminUsers } from '../database/schema.js';
-import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { DealersService } from './dealers.service.js';
 
 @Injectable()
@@ -20,7 +20,7 @@ export class ApprovalReminderService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(MAIL_SERVICE) private readonly mail: MailService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
     @Inject(DealersService) private readonly dealers: DealersService,
   ) {}
 
@@ -53,9 +53,11 @@ export class ApprovalReminderService {
       .select({ email: adminUsers.email })
       .from(adminUsers)
       .where(eq(adminUsers.isActive, true));
+    const ids: string[] = [];
     for (const admin of admins) {
-      await this.mail.sendApprovalReminder(admin.email, counts);
+      ids.push(await this.notifications.enqueue('approval_reminder', admin.email, { counts }));
     }
+    await this.notifications.dispatchNow(ids);
     return admins.length;
   }
 }

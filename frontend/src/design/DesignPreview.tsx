@@ -11,26 +11,29 @@ import {
   Price,
   QuantityStepper,
   StockBadge,
-  type OrderStatus,
 } from '../ui/components'
+import type { OrderStatus } from '../ui/orderStatus'
 import { formatTRY } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { CartDraft } from './CartDraft'
 import { CatalogDraft } from './CatalogDraft'
+import { ShopDraft } from './ShopDraft'
+import { BrandLogo } from '../shop/brand'
 import './design.css'
 
 type Theme = 'system' | 'light' | 'dark'
-type Tab = 'system' | 'catalog' | 'cart'
+type Tab = 'system' | 'shop' | 'catalog' | 'cart'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'system', label: 'Tasarım sistemi' },
-  { id: 'catalog', label: 'Taslak: Katalog' },
+  { id: 'shop', label: 'Mağaza bileşenleri' },
+  { id: 'catalog', label: 'Eski taslak: Katalog' },
   { id: 'cart', label: 'Taslak: Sepet' },
 ]
 
 function readInitialTab(): Tab {
   const t = new URLSearchParams(location.hash.split('?')[1]).get('sekme')
-  return t === 'catalog' || t === 'cart' ? t : 'system'
+  return t === 'shop' || t === 'catalog' || t === 'cart' ? t : 'system'
 }
 
 function useTheme(): [Theme, (t: Theme) => void] {
@@ -61,7 +64,13 @@ const COLORS = [
   ['--color-border', 'Kenarlık'],
   ['--color-text', 'Metin'],
   ['--color-text-muted', 'İkincil metin'],
-  ['--color-accent', 'Vurgu (marka)'],
+  ['--color-accent', 'Birincil (siyah)'],
+  ['--color-accent-soft', 'Seçili zemin (krem-altın)'],
+  ['--color-accent-strong', 'Seçili metin (koyu bronz)'],
+  ['--color-gold', 'Altın (yalnız süs)'],
+  ['--color-bronze', 'Bronz (bağlantı)'],
+  ['--color-badge-bg', 'İskonto rozeti'],
+  ['--color-strip-bg', 'Duyuru şeridi'],
   ['--color-success', 'Başarılı'],
   ['--color-warning', 'Uyarı'],
   ['--color-danger', 'Hata'],
@@ -77,7 +86,10 @@ function SystemSection() {
     <div className="preview-stack">
       <section className="preview-section">
         <h2>Renkler</h2>
-        <p className="muted">Nötr palet. Marka rengi geldiğinde yalnızca “Vurgu” değişir.</p>
+        <p className="muted">
+          Logodan: siyah, krem, altın. Altın yalnızca süs; metin ve bağlantı için koyu bronz. Kontrast
+          ölçümleri docs/design/README.md içinde.
+        </p>
         <ul className="swatches">
           {COLORS.map(([token, name]) => (
             <li key={token}>
@@ -91,7 +103,14 @@ function SystemSection() {
 
       <section className="preview-section">
         <h2>Yazı</h2>
+        <p className="muted">
+          Başlık: Playfair Display (serif, 22 px ve üzeri). Gövde: Plus Jakarta Sans. İkisi de OFL,
+          @fontsource ile.
+        </p>
         <div className="type-scale">
+          <p style={{ fontSize: 'var(--font-size-3xl)', fontFamily: 'var(--font-serif)', fontWeight: 600 }}>
+            Vitrin başlığı · 36
+          </p>
           <p style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700 }}>Başlık 1 · 28</p>
           <p style={{ fontSize: 'var(--font-size-xl)', fontWeight: 600 }}>Başlık 2 · 22</p>
           <p style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600 }}>Başlık 3 · 18</p>
@@ -102,6 +121,33 @@ function SystemSection() {
           <p className="num" style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700 }}>
             {formatTRY('1234567.8')} — sayılar hizalı (tabular)
           </p>
+        </div>
+      </section>
+
+      <section className="preview-section">
+        <h2>Köşe ve gölge</h2>
+        <div className="row row--top">
+          {(
+            [
+              ['--radius-sm', 'sm · 8'],
+              ['--radius-md', 'md · 12'],
+              ['--radius-lg', 'lg · 16'],
+              ['--radius-xl', 'xl · 24'],
+            ] as const
+          ).map(([t, l]) => (
+            <div key={t} className="radius-sample" style={{ borderRadius: `var(${t})` }}>
+              {l}
+            </div>
+          ))}
+          {(['--shadow-sm', '--shadow-md', '--shadow-lg'] as const).map((t) => (
+            <div
+              key={t}
+              className="radius-sample"
+              style={{ boxShadow: `var(${t})`, borderColor: 'transparent' }}
+            >
+              {t.replace('--', '')}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -233,8 +279,10 @@ export function DesignPreview() {
     <div className="preview">
       <header className="preview-header">
         <div>
-          <h1>Amisos B2B Tasarım</h1>
-          <p className="muted">Nötr palet · taslak sürüm</p>
+          <h1>
+            <BrandLogo size="lg" suffix="Tasarım" />
+          </h1>
+          <p className="muted">Kimlik: siyah · krem · altın · Playfair Display + Plus Jakarta Sans</p>
         </div>
         <div className="theme-switch" role="group" aria-label="Tema">
           {(['system', 'light', 'dark'] as Theme[]).map((t) => (
@@ -267,6 +315,7 @@ export function DesignPreview() {
 
       <main>
         {tab === 'system' && <SystemSection />}
+        {tab === 'shop' && <ShopDraft />}
         {tab === 'catalog' && <CatalogDraft />}
         {tab === 'cart' && <CartDraft />}
       </main>

@@ -53,7 +53,7 @@ Elle çalıştırmak için:
 | Yer | Komut | Ne yapar |
 |---|---|---|
 | backend | `npm test` | Birim testleri |
-| backend | `npm run test:e2e` | Uçtan uca testler (çalışan PostgreSQL gerekir) |
+| backend | `npm run test:e2e` | Uçtan uca testler. Ayrı `amisos_b2b_test` veritabanını kullanır (yoksa oluşturur; `DATABASE_URL` dev DB'yi gösterse bile adına `_test` eklenir, `TEST_DATABASE_URL` ile değiştirilebilir; adında `_test` yoksa çalışmaz). Kullanıcıda CREATEDB yetkisi gerekir (docker-compose'daki `amisos` süper kullanıcıdır) |
 | backend | `npm run lint` | Kod denetimi |
 | backend | `npm run db:generate` | Şemadan migration üretir |
 | backend | `npm run db:migrate` | Migration'ları veritabanına uygular |

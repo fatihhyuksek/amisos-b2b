@@ -21,7 +21,7 @@ export function CatalogDraft() {
   return (
     <div className="draft">
       <header className="app-bar">
-        <span className="app-bar__brand">Amisos B2B</span>
+        <span className="app-bar__brand">AMİSOS B2B</span>
         <div className="ui-search app-bar__search">
           <Icon name="search" />
           <input

@@ -12,11 +12,14 @@ const PAGE_SIZE = 12
 
 export function MediaPicker({
   excludeIds,
+  single,
   onClose,
   onConfirm,
 }: {
   /** Üründe zaten seçili görseller; tekrar seçilemez. */
   excludeIds: string[]
+  /** Tek görsel seçimi (ör. banner): yeni seçim öncekinin yerine geçer. */
+  single?: boolean
   onClose: () => void
   onConfirm: (items: Media[]) => void
 }) {
@@ -30,7 +33,9 @@ export function MediaPicker({
   )
 
   function toggle(m: Media) {
-    setPicked((cur) => (cur.some((x) => x.id === m.id) ? cur.filter((x) => x.id !== m.id) : [...cur, m]))
+    setPicked((cur) =>
+      cur.some((x) => x.id === m.id) ? cur.filter((x) => x.id !== m.id) : single ? [m] : [...cur, m],
+    )
   }
 
   return (
@@ -91,7 +96,9 @@ export function MediaPicker({
         <summary>Yeni görsel yükle</summary>
         <UploadPanel
           onUploaded={(items) => {
-            setPicked((cur) => [...cur, ...items.filter((m) => !cur.some((x) => x.id === m.id))])
+            setPicked((cur) =>
+              single ? items.slice(0, 1) : [...cur, ...items.filter((m) => !cur.some((x) => x.id === m.id))],
+            )
             setPage(1)
             reload()
           }}
@@ -102,7 +109,7 @@ export function MediaPicker({
           Vazgeç
         </Button>
         <Button disabled={picked.length === 0} onClick={() => onConfirm(picked)}>
-          {picked.length > 0 ? `${picked.length} görseli ekle` : 'Ekle'}
+          {single ? 'Bu görseli seç' : picked.length > 0 ? `${picked.length} görseli ekle` : 'Ekle'}
         </Button>
       </div>
     </Modal>

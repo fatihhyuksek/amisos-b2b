@@ -78,6 +78,9 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-60 | Varsayılan KDV | Excel'de KDV oranı boşsa %20. Fiyatlar her yerde KDV hariç gösterilir (K-11). |
 | K-61 | Görsel depolama | Görseller şimdilik sunucunun diskinde tutulur; ileride buluta taşınabilir. |
 | K-62 | Görsel kütüphanesi | Görseller uygulama içindeki kütüphaneye toplu yüklenir, ürüne oradan seçilir. |
+| K-63 | Marka adı | Arayüzde "AMİSOS B2B" kullanılır (logo dosyası gelene kadar yazı logo). |
+| K-64 | İletişim bilgileri | Telefon / WhatsApp: 0552 492 50 58 · E-posta: info@amisosb2b.com · Adres: İSTOÇ Z Blok No: 91. |
+| K-65 | Kampanya görselleri | Ana sayfadaki kampanya görselleri (banner) Admin panelinden yönetilir. |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 

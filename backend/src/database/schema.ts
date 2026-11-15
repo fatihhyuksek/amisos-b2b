@@ -81,6 +81,8 @@ export const tokenPurpose = pgEnum('token_purpose', [
   'password_reset',
   'invitation',
 ]);
+/** Bildirim (e-posta) kuyruğu durumu (GR-BLD-001). */
+export const notificationStatus = pgEnum('notification_status', ['pending', 'sent', 'failed']);
 export const tokenSubject = pgEnum('token_subject', ['admin', 'dealer']);
 
 // ---------------------------------------------------------------------------
@@ -353,6 +355,38 @@ export const dealerGroupDiscounts = pgTable(
   ],
 );
 
+/**
+ * Ana sayfa kampanya görselleri (K-65). Görsel kütüphaneden gelir (K-62); kullanımdaki görsel silinemez.
+ * `link_path` yalnızca uygulama içi yoldur: açık yönlendirme yok.
+ */
+export const banners = pgTable(
+  'banners',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    mediaId: uuid()
+      .notNull()
+      .references(() => media.id, { onDelete: 'restrict' }),
+    /** Zorunlu; görselin alt metni olarak da kullanılır. */
+    title: text().notNull(),
+    subtitle: text(),
+    linkPath: text(),
+    sortOrder: integer().notNull().default(0),
+    isActive: boolean().notNull().default(true),
+    startsAt: timestamp({ withTimezone: true }),
+    endsAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('banners_media_idx').on(t.mediaId),
+    index('banners_sort_idx').on(t.sortOrder),
+    check('banners_title_not_blank', sql`length(trim(${t.title})) > 0`),
+    // "/" ile başlar; "//", ters eğik çizgi, boşluk ve şema (":" "/" öncesinde olamaz) yok.
+    check('banners_link_path_internal', sql`${t.linkPath} IS NULL OR ${t.linkPath} ~ '^/([^/\\\\\\s][^\\\\\\s]*)?$'`),
+    check('banners_period_valid', sql`${t.startsAt} IS NULL OR ${t.endsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Sepet ve ön sipariş
 // ---------------------------------------------------------------------------
@@ -504,6 +538,31 @@ export const orderStatusHistory = pgTable(
       'order_status_history_admin_has_user',
       sql`${t.source} <> 'admin' OR ${t.changedBy} IS NOT NULL`,
     ),
+  ],
+);
+
+/**
+ * E-posta outbox'ı (GR-BLD-001, K-17, K-26): tüm e-postalar önce iş transaction'ında bu tabloya yazılır,
+ * commit sonrası bir kez denenir; başarısızsa üstel geri çekilmeyle (en fazla 8 deneme) yeniden denenir.
+ * Token içeren e-postalarda `payload.link` gönderilince (veya 24 saat sonra) temizlenir.
+ */
+export const notificationOutbox = pgTable(
+  'notification_outbox',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    kind: text().notNull(),
+    recipient: text().notNull(),
+    payload: jsonb().notNull(),
+    status: notificationStatus().notNull().default('pending'),
+    attempts: integer().notNull().default(0),
+    lastError: text(),
+    nextAttemptAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+    sentAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    index('notification_outbox_due_idx').on(t.status, t.nextAttemptAt),
+    index('notification_outbox_created_idx').on(t.createdAt),
   ],
 );
 

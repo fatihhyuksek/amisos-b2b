@@ -2,8 +2,10 @@
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
+import { BrandLogo } from '../shop/brand'
 import { replace, useRoute } from '../router'
 import { Button } from '../ui/components'
+import { useFailedNotificationCount } from './useFailedNotifications'
 
 const LINKS = [
   { to: '/yonetim', label: 'Ana sayfa', match: (p: string) => p === '/yonetim' },
@@ -15,6 +17,16 @@ const LINKS = [
     match: (p: string) => p.startsWith('/yonetim/urun-gruplari'),
   },
   { to: '/yonetim/gorseller', label: 'Görseller', match: (p: string) => p.startsWith('/yonetim/gorseller') },
+  {
+    to: '/yonetim/bannerlar',
+    label: 'Kampanya görselleri',
+    match: (p: string) => p.startsWith('/yonetim/bannerlar'),
+  },
+  {
+    to: '/yonetim/bildirimler',
+    label: 'Bildirimler',
+    match: (p: string) => p.startsWith('/yonetim/bildirimler'),
+  },
 ]
 
 export function AdminLayout({
@@ -28,16 +40,20 @@ export function AdminLayout({
 }) {
   const { state, logout } = useAuth()
   const { path } = useRoute()
+  const failed = useFailedNotificationCount()
   const name = state.status === 'authenticated' ? state.user.name : ''
   return (
     <div className="ui-admin">
       <header className="ui-admin__top">
-        <div className="ui-admin__brand">Amisos B2B Yönetim</div>
+        <div className="ui-admin__brand">
+          <BrandLogo size="sm" suffix="Yönetim" />
+        </div>
         <div className="ui-admin__user">
           <span>{name}</span>
           <Button
             variant="secondary"
             size="sm"
+            className="ui-button--touch"
             onClick={async () => {
               await logout()
               replace('/yonetim/giris')
@@ -56,6 +72,12 @@ export function AdminLayout({
             aria-current={l.match(path) ? 'page' : undefined}
           >
             {l.label}
+            {l.to === '/yonetim/bildirimler' && failed > 0 && (
+              <span className="ui-navbadge">
+                {failed}
+                <span className="visually-hidden"> başarısız</span>
+              </span>
+            )}
           </Link>
         ))}
       </nav>

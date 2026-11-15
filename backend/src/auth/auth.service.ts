@@ -16,7 +16,7 @@ import type { Env } from '../config/env.js';
 import { DB, type Database } from '../database/database.module.js';
 import { adminUsers, consents, dealers } from '../database/schema.js';
 import { CONSENT_DOCUMENT_VERSION } from '../common/consents.js';
-import { MAIL_SERVICE, type MailService } from '../mail/mail.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import {
   EMAIL_VERIFICATION_TTL_MS,
   INVITATION_TTL_MS,
@@ -52,15 +52,19 @@ export class AuthService {
     @Inject(SessionsService) private readonly sessions: SessionsService,
     @Inject(AuthTokensService) private readonly tokens: AuthTokensService,
     @Inject(AuditService) private readonly audit: AuditService,
-    @Inject(MAIL_SERVICE) private readonly mail: MailService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
     @Inject(LoginAttemptLimiter) private readonly limiter: LoginAttemptLimiter,
   ) {}
 
   /** Arka plan işleri (şifre sıfırlama, başarısız giriş audit'i). Testler ve kapanış `whenIdle` ile bekler. */
   private readonly inFlight = new Set<Promise<void>>();
 
-  whenIdle(): Promise<void> {
-    return Promise.all(this.inFlight).then(() => undefined);
+  /** Arka plan işleri bitince ve bunların başlattığı bildirim gönderimleri tamamlanınca çözülür. */
+  async whenIdle(): Promise<void> {
+    do {
+      await Promise.all(this.inFlight);
+      await this.notifications.whenIdle();
+    } while (this.inFlight.size > 0);
   }
 
   runInBackground(label: string, work: () => Promise<void>): void {
@@ -215,25 +219,35 @@ export class AuthService {
     )
       return;
 
-    const token = await this.tokens.issue(
-      type,
-      subject.id,
-      'password_reset',
-      PASSWORD_RESET_TTL_MS,
-    );
-    await this.audit.record({
-      actorType: type,
-      actorId: subject.id,
-      action: 'auth.password_reset_requested',
-      entityType: type === 'admin' ? 'admin_users' : 'dealers',
-      entityId: subject.id,
-    });
-    // Tek arayüz sayfası; `tur` sıfırlamadan sonra doğru giriş sayfasına dönmek için.
+    // Token, audit ve outbox satırı aynı transaction'da; e-posta commit sonrası gider (GR-BLD-001).
     const tur = type === 'admin' ? 'admin' : 'bayi';
-    await this.mail.sendPasswordReset(
-      subject.email,
-      `${this.appUrl()}/#/sifre-sifirla?tur=${tur}&token=${token}`,
-    );
+    const outboxId = await this.db.transaction(async (tx) => {
+      const token = await this.tokens.issue(
+        type,
+        subject.id,
+        'password_reset',
+        PASSWORD_RESET_TTL_MS,
+        tx,
+      );
+      await this.audit.record(
+        {
+          actorType: type,
+          actorId: subject.id,
+          action: 'auth.password_reset_requested',
+          entityType: type === 'admin' ? 'admin_users' : 'dealers',
+          entityId: subject.id,
+        },
+        tx,
+      );
+      // Tek arayüz sayfası; `tur` sıfırlamadan sonra doğru giriş sayfasına dönmek için.
+      return this.notifications.enqueue(
+        'password_reset',
+        subject.email,
+        { link: `${this.appUrl()}/#/sifre-sifirla?tur=${tur}&token=${token}` },
+        tx,
+      );
+    });
+    this.notifications.dispatchSoon([outboxId]);
   }
 
   /** Token tek kullanımlıdır; başarıda kullanıcının tüm oturumları silinir (GR-BAYI-007, K-39). */
@@ -319,15 +333,14 @@ export class AuthService {
           ),
         )
         .returning({ companyTitle: dealers.companyTitle });
-      return { companyTitle: moved?.companyTitle ?? null };
+      // Ekip bildirimi aynı transaction'da kuyruğa yazılır (GR-BAYI-001, GR-BLD-001).
+      const outboxIds = moved
+        ? await this.enqueueApplicationNotices(tx, moved.companyTitle)
+        : [];
+      return { companyTitle: moved?.companyTitle ?? null, outboxIds };
     });
     if (result) {
-      const title = result.companyTitle;
-      if (title !== null) {
-        this.runInBackground('Yeni başvuru bildirimi gönderilemedi', () =>
-          this.notifyAdminsOfApplication(title),
-        );
-      }
+      this.notifications.dispatchSoon(result.outboxIds);
       return;
     }
     // İdempotent: bağlantı daha önce kullanılmış ve e-posta zaten doğrulanmışsa (çift tıklama,
@@ -350,16 +363,22 @@ export class AuthService {
       .from(dealers)
       .where(eq(dealers.id, dealerId));
     if (!dealer) return;
-    const token = await this.tokens.issue(
-      'dealer',
-      dealer.id,
-      'email_verification',
-      EMAIL_VERIFICATION_TTL_MS,
-    );
-    await this.mail.sendEmailVerification(
-      dealer.email,
-      `${this.appUrl()}/#/eposta-dogrula?token=${token}`,
-    );
+    const outboxId = await this.db.transaction(async (tx) => {
+      const token = await this.tokens.issue(
+        'dealer',
+        dealer.id,
+        'email_verification',
+        EMAIL_VERIFICATION_TTL_MS,
+        tx,
+      );
+      return this.notifications.enqueue(
+        'email_verification',
+        dealer.email,
+        { link: `${this.appUrl()}/#/eposta-dogrula?token=${token}` },
+        tx,
+      );
+    });
+    this.notifications.dispatchSoon([outboxId]);
   }
 
   /** Başvuru yanıtını bekletmeden doğrulama e-postası gönderir (hata yalnızca log'a yazılır). */
@@ -369,14 +388,21 @@ export class AuthService {
     );
   }
 
-  private async notifyAdminsOfApplication(companyTitle: string): Promise<void> {
-    const admins = await this.db
+  private async enqueueApplicationNotices(
+    tx: DbExecutor,
+    companyTitle: string,
+  ): Promise<string[]> {
+    const admins = await tx
       .select({ email: adminUsers.email })
       .from(adminUsers)
       .where(eq(adminUsers.isActive, true));
+    const ids: string[] = [];
     for (const admin of admins) {
-      await this.mail.sendNewApplication(admin.email, companyTitle);
+      ids.push(
+        await this.notifications.enqueue('new_application', admin.email, { companyTitle }, tx),
+      );
     }
+    return ids;
   }
 
   /**
@@ -398,10 +424,9 @@ export class AuthService {
     return `${this.appUrl()}/#/davet?token=${token}`;
   }
 
-  queueInvitationEmail(to: string, link: string): void {
-    this.runInBackground('Davet e-postası gönderilemedi', () =>
-      this.mail.sendInvitation(to, link),
-    );
+  /** Davet e-postasını çağıranın transaction'ında kuyruğa yazar; commit sonrası `dispatchSoon` ile gönderilir. */
+  enqueueInvitation(to: string, link: string, tx: DbExecutor): Promise<string> {
+    return this.notifications.enqueue('invitation', to, { link }, tx);
   }
 
   /**

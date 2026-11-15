@@ -664,9 +664,10 @@ describe('Kimlik doğrulama (e2e)', () => {
 
     it('K-03: doğrulama bağlantısı gönderilir ve token ile doğrulanır', async () => {
       const d = await makeDealer('dogrula4', 'pending_email');
-      await app
-        .get((await import('../src/auth/auth.service.js')).AuthService)
-        .sendEmailVerification(d.id);
+      const auth = app.get((await import('../src/auth/auth.service.js')).AuthService);
+      await auth.sendEmailVerification(d.id);
+      // E-posta outbox üzerinden commit sonrası arka planda gider (GR-BLD-001).
+      await auth.whenIdle();
       const token = lastToken(email('dogrula4'));
       await request(app.getHttpServer())
         .post('/api/auth/email/verify')

@@ -46,19 +46,29 @@ Son güncelleme: 2026-11-14
      için `dealerLineNet` hazır (miktar × yuvarlanmış birim fiyat).
    - Kararlar: K-59 – K-62.
 
+12. Sepet, ön sipariş, mağaza tasarımı ve kampanya görselleri (branch `claude/cart`):
+   - Sepet (koli katı, canlı fiyat, stokta yok uyarısı), ön sipariş onayı (teslimat şekli, ambar
+     alanları), fiyat/içerik değişince yeniden onay (expectedTotal + expectedVersion), çift
+     gönderim koruması, Siparişlerim ve tekrar sipariş ver.
+   - E-posta kuyruğu (outbox): tüm e-postalar kayda yazılır, gönderilemezse tekrar denenir; Admin
+     "Bildirimler" sayfası.
+   - Mağaza tasarımı: logo, siyah-krem-altın kimlik, referans sitenin tüm sayfa tiplerinin genel
+     hatları (`docs/design/referans-analizi.md`), WhatsApp butonu, iletişim bilgileri (K-63, K-64).
+   - Kampanya görselleri (banner) Admin'den yönetilir (K-65).
+   - Katalog: en yeni sıralaması, stok filtresi, grup görselleri.
+   - e2e testleri ayrı `_test` veritabanı kullanır.
+
 ## Sıradaki adım
 
-**Sepet ve ön sipariş** (GR-SIP-003…005, 007, 008, K-20 – K-22, K-27, K-36 – K-38, K-41):
-- Kalıcı sepet, koli katı miktar, stokta olmayan ürün uyarısı, tekrar sipariş ver.
-- Ön sipariş özeti (ara toplam, iskonto, net, KDV ayrı satır, genel toplam), teslimat şekli
-  (ambar ise adres + ambar firması + şube), gönderim sonrası kilit, ekibe ve bayiye e-posta.
-- Satır tutarı `dealerLineNet` ile (ekrandaki birim fiyat × miktar; fark %0).
+**Admin sipariş yönetimi** (GR-SIP-006, K-24, K-25, GR-BLD-001):
+- Admin sipariş listesi ve detayı, durum güncelleme (Görüşülüyor → Onaylandı → Sevk edildi → Teslim
+  edildi / İptal), durum değişince bayiye e-posta, BizimHesap'a elle giriş için satır listesi
+  (kopyala / Excel'e aktar).
 
 ## Sonraki adımlar (sırayla)
 
-1. Sipariş geçmişi, durumlar ve e-posta bildirimleri (GR-SIP-006, GR-BLD-001).
-2. Raporlar ve özet ana sayfa (GR-RAP-001…003).
-3. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+1. Raporlar ve özet ana sayfa (GR-RAP-001…003).
+2. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
    - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
    - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
    - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı
@@ -74,7 +84,7 @@ Son güncelleme: 2026-11-14
 - KVKK aydınlatma metni ve kullanım koşulları metinleri.
 - Stokta esas alınacak BizimHesap deposu (BizimHesap adımında).
 - onay@amisosb2b.com e-posta adresinin kurulması ve SMTP bilgileri (K-56).
-- Marka kimliği: logo, kurumsal renkler, varsa yazı tipi.
+- Logo dosyası (şimdilik yazı logo "AMİSOS B2B", K-63).
 
 ## Notlar
 

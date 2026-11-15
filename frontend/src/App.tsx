@@ -1,7 +1,10 @@
 import { useEffect, type ReactNode } from 'react'
+import { BrandLogo } from './shop/brand'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
+import { BannerListPage } from './admin/BannerListPage'
+import { NotificationsPage } from './admin/NotificationsPage'
 import { DealerCreatePage } from './admin/DealerCreatePage'
 import { DealerDetailPage } from './admin/DealerDetailPage'
 import { DealerListPage } from './admin/DealerListPage'
@@ -11,6 +14,13 @@ import { ProductGroupsPage } from './admin/ProductGroupsPage'
 import { ProductImportPage } from './admin/ProductImportPage'
 import { ProductListPage } from './admin/ProductListPage'
 import { CatalogPage } from './pages/CatalogPage'
+import { HomePage } from './pages/HomePage'
+import { AccountPage } from './pages/ShopPlaceholderPages'
+import { CartPage } from './pages/CartPage'
+import { CheckoutPage } from './pages/CheckoutPage'
+import { OrderDetailPage } from './pages/OrderDetailPage'
+import { OrdersPage } from './pages/OrdersPage'
+import { CartProvider } from './shop/CartProvider'
 import { ProductDetailPage } from './pages/ProductDetailPage'
 import { DesignPreview } from './design/DesignPreview'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -25,7 +35,9 @@ import { Alert, AuthCard, Button } from './ui/components'
 function LoadingScreen() {
   return (
     <main className="ui-auth" aria-busy="true">
-      <div className="ui-auth__brand">Amisos B2B</div>
+      <div className="ui-auth__brand">
+        <BrandLogo size="lg" />
+      </div>
       <div className="ui-card ui-auth__card">
         <div className="ui-card__body ui-auth__body">
           <div className="ui-skeleton" style={{ height: '1.75rem', width: '60%' }} />
@@ -126,7 +138,37 @@ function Routes() {
     case '/':
       return (
         <Protected area="dealer">
+          <HomePage />
+        </Protected>
+      )
+    case '/katalog':
+      return (
+        <Protected area="dealer">
           <CatalogPage />
+        </Protected>
+      )
+    case '/sepet':
+      return (
+        <Protected area="dealer">
+          <CartPage />
+        </Protected>
+      )
+    case '/sepet/onay':
+      return (
+        <Protected area="dealer">
+          <CheckoutPage />
+        </Protected>
+      )
+    case '/siparislerim':
+      return (
+        <Protected area="dealer">
+          <OrdersPage />
+        </Protected>
+      )
+    case '/hesabim':
+      return (
+        <Protected area="dealer">
+          <AccountPage />
         </Protected>
       )
     case '/yonetim':
@@ -177,7 +219,26 @@ function Routes() {
           <MediaLibraryPage />
         </Protected>
       )
+    case '/yonetim/bildirimler':
+      return (
+        <Protected area="admin">
+          <NotificationsPage />
+        </Protected>
+      )
+    case '/yonetim/bannerlar':
+      return (
+        <Protected area="admin">
+          <BannerListPage />
+        </Protected>
+      )
     default: {
+      const order = matchPath(path, '/siparislerim/:id')
+      if (order)
+        return (
+          <Protected area="dealer">
+            <OrderDetailPage id={order.id} />
+          </Protected>
+        )
       const product = matchPath(path, '/yonetim/urunler/:id')
       if (product)
         return (
@@ -204,6 +265,13 @@ function Routes() {
   }
 }
 
+/** Sepet bayiye aittir: oturum sahibi değişince sepet durumu sıfırlanır. */
+function DealerCart({ children }: { children: ReactNode }) {
+  const { state } = useAuth()
+  const key = state.status === 'authenticated' ? state.user.id : 'anon'
+  return <CartProvider key={key}>{children}</CartProvider>
+}
+
 function App() {
   // Önizlemede seçilen tema tüm sayfalarda uygulanır.
   useEffect(() => {
@@ -216,7 +284,9 @@ function App() {
   }, [])
   return (
     <AuthProvider>
-      <Routes />
+      <DealerCart>
+        <Routes />
+      </DealerCart>
     </AuthProvider>
   )
 }

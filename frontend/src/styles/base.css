@@ -33,7 +33,7 @@ h1 {
   font-size: var(--font-size-2xl);
   line-height: var(--line-height-tight);
   font-weight: var(--font-weight-bold);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 h2 {
@@ -62,7 +62,8 @@ textarea {
 }
 
 a {
-  color: var(--color-info);
+  color: var(--color-bronze);
+  text-underline-offset: 0.15em;
 }
 
 :focus-visible {

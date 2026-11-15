@@ -8,7 +8,9 @@ import {
   type ReactNode,
 } from 'react'
 import type { DealerStatus } from '../api'
+import { BrandLogo } from '../shop/brand'
 import { DEALER_STATUS } from './dealerStatus'
+import { ORDER_STATUS, type OrderStatus } from './orderStatus'
 import { formatPercent, formatTRY } from './format'
 import { Icon, type IconName } from './Icon'
 
@@ -59,20 +61,9 @@ export function StockBadge({ inStock }: { inStock: boolean }) {
   return inStock ? <Badge tone="success">Stokta var</Badge> : <Badge tone="warning">Stokta yok</Badge>
 }
 
-export type OrderStatus = 'submitted' | 'negotiating' | 'approved' | 'shipped' | 'delivered' | 'cancelled'
-
-const STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
-  submitted: { label: 'Gönderildi', tone: 'info' },
-  negotiating: { label: 'Görüşülüyor', tone: 'warning' },
-  approved: { label: 'Onaylandı', tone: 'success' },
-  shipped: { label: 'Sevk edildi', tone: 'info' },
-  delivered: { label: 'Teslim edildi', tone: 'success' },
-  cancelled: { label: 'İptal', tone: 'danger' },
-}
-
 /** Sipariş durumları (K-25). */
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  const s = STATUS[status]
+  const s = ORDER_STATUS[status]
   return <Badge tone={s.tone}>{s.label}</Badge>
 }
 
@@ -85,13 +76,19 @@ export function Price({
   value,
   listValue,
   discountPercent,
+  size = 'md',
+  hideDiscount,
 }: {
   value: string
   listValue?: string
   discountPercent?: string
+  /** md: liste/kart, lg: ürün detayı */
+  size?: 'md' | 'lg'
+  /** İskonto oranı başka yerde (ör. kart rozeti) gösteriliyorsa metin satırı gizlenir. */
+  hideDiscount?: boolean
 }) {
   return (
-    <div className="ui-price">
+    <div className={size === 'lg' ? 'ui-price ui-price--lg' : 'ui-price'}>
       <div className="ui-price__row">
         <span className="ui-price__value">{formatTRY(value)}</span>
         {listValue && listValue !== value && (
@@ -103,7 +100,7 @@ export function Price({
       </div>
       <div className="ui-price__row">
         <span className="ui-price__note">KDV hariç</span>
-        {discountPercent && (
+        {discountPercent && !hideDiscount && (
           <span className="ui-price__discount">{formatPercent(discountPercent)} iskonto</span>
         )}
       </div>
@@ -121,21 +118,23 @@ export function QuantityStepper({
   step,
   onChange,
   label,
+  disabled,
 }: {
   value: number
   step: number
   onChange: (value: number) => void
   label: string
+  disabled?: boolean
 }) {
   const id = useId()
-  const invalid = value <= 0 || value % step !== 0
+  const invalid = !disabled && (value <= 0 || value % step !== 0)
   return (
     <div className="ui-field">
       <div className="ui-stepper">
         <button
           type="button"
           onClick={() => onChange(Math.max(step, value - step))}
-          disabled={value <= step}
+          disabled={disabled || value <= step}
           aria-label={`${label}: ${step} azalt`}
         >
           <Icon name="minus" />
@@ -147,12 +146,18 @@ export function QuantityStepper({
           min={step}
           step={step}
           value={value}
+          disabled={disabled}
           aria-label={`${label} adedi`}
           aria-invalid={invalid}
           aria-describedby={invalid ? `${id}-err` : undefined}
           onChange={(e) => onChange(Number(e.target.value))}
         />
-        <button type="button" onClick={() => onChange(value + step)} aria-label={`${label}: ${step} artır`}>
+        <button
+          type="button"
+          onClick={() => onChange(value + step)}
+          disabled={disabled}
+          aria-label={`${label}: ${step} artır`}
+        >
           <Icon name="plus" />
         </button>
       </div>
@@ -271,7 +276,9 @@ export function AuthCard({
 }) {
   return (
     <main className="ui-auth">
-      <div className="ui-auth__brand">Amisos B2B</div>
+      <div className="ui-auth__brand">
+        <BrandLogo size="lg" />
+      </div>
       <section className="ui-card ui-auth__card" aria-labelledby="auth-title">
         <div className="ui-card__body ui-auth__body">
           <div className="ui-auth__head">

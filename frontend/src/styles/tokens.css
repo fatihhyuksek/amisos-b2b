@@ -1,54 +1,73 @@
 /*
- * Amisos B2B tasarım belirteçleri (design tokens).
- * Tüm renk, yazı, boşluk ve köşe değerleri yalnızca burada tanımlanır.
- * Nötr palet: marka kimliği geldiğinde --accent* değerleri değiştirilir.
- * Belge: docs/design/README.md
+ * AMİSOS B2B tasarım belirteçleri (design tokens). Tek kaynak.
+ * Kimlik (logodan): siyah #000 · krem #f7f3eb · altın #f2c78a.
+ *  - Birincil eylem siyah (koyu temada krem), zemin beyaz + sıcak krem bölümler.
+ *  - Altın yalnızca süs ve ayrıntı (ince çizgi, rozet kenarı, ayırıcı, ikon vurgusu); beyaz üzerinde metin olarak
+ *    kullanılmaz (1,58:1). Metin ve bağlantı için altından türeyen koyu bronz (--color-bronze, 5,90:1).
+ * Belge ve kontrast ölçümleri: docs/design/README.md
  */
-
 :root {
   /* --- Renk: yüzeyler --- */
-  --color-bg: #f5f6f8;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-sunken: #eef0f3;
-  --color-surface-hover: #f2f4f6;
-  --color-border: #dde1e6;
-  --color-border-strong: #b9c0c8;
+  --color-surface-sunken: #f7f3eb;
+  --color-surface-hover: #f0e9dc;
+  --color-border: #e8e1d4;
+  --color-border-strong: #8a8174; /* form ve buton kenarı: yüzeye karşı en az 3:1 */
 
   /* --- Renk: metin --- */
-  --color-text: #15191e;
-  --color-text-muted: #545c67;
-  --color-text-on-accent: #ffffff;
+  --color-text: #1c1a17;
+  --color-text-muted: #5f584e;
+  --color-text-on-accent: #f7f3eb;
   --color-text-on-danger: #ffffff;
 
-  /* --- Renk: vurgu (birincil eylem). Marka rengi buraya gelecek. --- */
-  --color-accent: #1d2733;
-  --color-accent-hover: #2d3a49;
-  --color-accent-soft: #e4e8ee;
+  /* --- Renk: birincil eylem (siyah; koyu temada krem) --- */
+  --color-accent: #151311;
+  --color-accent-hover: #2e2a25;
+  --color-accent-soft: #f3e9d6; /* seçili öğe zemini (krem-altın) */
+  --color-accent-strong: #6e4714; /* yumuşak vurgu zemini üzerindeki metin (koyu bronz) */
+
+  /* --- Renk: marka ayrıntıları --- */
+  --color-gold: #f2c78a; /* yalnızca süs: çizgi, halka, ikon vurgusu, koyu zemin üstü metin */
+  --color-gold-line: #dcb47a; /* beyaz/krem üstünde ince süs çizgisi */
+  --color-bronze: #8a5a1c; /* altından türeyen metin/bağlantı tonu */
+  --color-badge-bg: #151311; /* iskonto rozeti: siyah zemin, altın metin */
+  --color-badge-text: #f2c78a;
+  --color-whatsapp: #1f7a4d; /* sabit WhatsApp butonu (beyaz ikon 5,32:1) */
 
   /* --- Renk: durum --- */
-  --color-success: #17713a;
-  --color-success-soft: #e3f3e8;
-  --color-warning: #7d5100;
-  --color-warning-soft: #fdf1d3;
+  --color-success: #1f6e3d;
+  --color-success-soft: #e5f2e8;
+  --color-warning: #7a4700;
+  --color-warning-soft: #fcefd2;
   --color-danger: #b42318;
   --color-danger-soft: #fdeceb;
   --color-info: #1d55b3;
   --color-info-soft: #e5eefb;
 
-  --color-focus: #2f6feb;
+  --color-focus: #1c1a17;
 
-  /* --- Yazı --- */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* --- Mağaza kabuğu: üst duyuru şeridi --- */
+  --color-strip-bg: #000000;
+  --color-strip-text: #f7f3eb;
+
+  /* --- Yazı: gövde geometrik sans, başlık serif (ikisi de OFL, @fontsource ile kendi içinden) --- */
+  --font-sans:
+    'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Başlık (vitrin) yazısı: Playfair Display (OFL). Yalnızca 22 px ve üzeri başlıklarda. */
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-size-xs: 0.75rem; /* 12 */
   --font-size-sm: 0.875rem; /* 14 */
   --font-size-md: 1rem; /* 16 */
   --font-size-lg: 1.125rem; /* 18 */
   --font-size-xl: 1.375rem; /* 22 */
   --font-size-2xl: 1.75rem; /* 28 */
+  --font-size-3xl: 2.25rem; /* 36 */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --font-weight-heavy: 800;
   --line-height-tight: 1.25;
   --line-height-normal: 1.5;
 
@@ -62,19 +81,28 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
+  --space-16: 4rem;
 
-  /* --- Köşe, gölge, boyut --- */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-full: 999px;
-  --shadow-sm: 0 1px 2px rgb(16 24 40 / 6%);
-  --shadow-md: 0 4px 12px rgb(16 24 40 / 8%), 0 1px 3px rgb(16 24 40 / 6%);
+  /* --- Köşe --- */
+  --radius-sm: 8px; /* rozet içi, küçük öğe */
+  --radius-md: 12px; /* buton, giriş alanı, görsel */
+  --radius-lg: 16px; /* kart, ürün kartı */
+  --radius-xl: 24px; /* kampanya alanı */
+  --radius-full: 999px; /* hap: arama, çip, rozet */
+
+  /* --- Gölge (sıcak, düşük yoğunluk) --- */
+  --shadow-sm: 0 1px 2px rgb(43 42 40 / 6%);
+  --shadow-md: 0 6px 18px rgb(43 42 40 / 9%), 0 1px 3px rgb(43 42 40 / 6%);
+  --shadow-lg: 0 16px 40px rgb(43 42 40 / 14%), 0 2px 6px rgb(43 42 40 / 6%);
+
+  /* --- Boyut --- */
   --control-height: 44px; /* en az 44 piksel dokunma alanı */
   --control-height-sm: 36px;
-  --content-max: 76rem;
+  --content-max: 76rem; /* Admin */
+  --shop-max: 86rem; /* Mağaza */
 
   --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
 
   color-scheme: light;
 }
@@ -82,59 +110,79 @@
 /* Koyu tema: sistem tercihi (kullanıcı açık temayı seçmediyse) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-bg: #0f1216;
-    --color-surface: #171b21;
-    --color-surface-sunken: #11151a;
-    --color-surface-hover: #1e232a;
-    --color-border: #2b3139;
-    --color-border-strong: #434c57;
-    --color-text: #e8ebef;
-    --color-text-muted: #a4adb8;
-    --color-text-on-accent: #11151a;
-    --color-text-on-danger: #11151a;
-    --color-accent: #e8ebef;
+    --color-bg: #12110f;
+    --color-surface: #1b1916;
+    --color-surface-sunken: #1e1b17;
+    --color-surface-hover: #29251f;
+    --color-border: #36312a;
+    --color-border-strong: #7d7466;
+    --color-text: #f4efe6;
+    --color-text-muted: #b8afa2;
+    --color-text-on-accent: #12110f;
+    --color-text-on-danger: #12110f;
+    --color-accent: #f7f3eb;
     --color-accent-hover: #ffffff;
-    --color-accent-soft: #262c34;
-    --color-success: #5cc67c;
-    --color-success-soft: #14301f;
-    --color-warning: #e6b84f;
-    --color-warning-soft: #33280f;
-    --color-danger: #ff8a80;
-    --color-danger-soft: #3a1714;
-    --color-info: #82b4ff;
-    --color-info-soft: #14243d;
-    --color-focus: #6aa1ff;
+    --color-accent-soft: #2e2719;
+    --color-accent-strong: #f2c78a;
+    --color-gold: #f2c78a;
+    --color-gold-line: #a8875a;
+    --color-bronze: #e7bd82;
+    --color-badge-bg: #f2c78a;
+    --color-badge-text: #12110f;
+    --color-whatsapp: #1f7a4d;
+    --color-success: #6cc98a;
+    --color-success-soft: #16301f;
+    --color-warning: #f0bf5a;
+    --color-warning-soft: #3a2c10;
+    --color-danger: #ff8f84;
+    --color-danger-soft: #3d1915;
+    --color-info: #8cb8ff;
+    --color-info-soft: #15253f;
+    --color-focus: #f2c78a;
+    --color-strip-bg: #000000;
+    --color-strip-text: #f7f3eb;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-    --shadow-md: 0 6px 16px rgb(0 0 0 / 45%);
+    --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
+    --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
     color-scheme: dark;
   }
 }
 
 /* Koyu tema: kullanıcı elle seçtiyse */
 :root[data-theme='dark'] {
-  --color-bg: #0f1216;
-  --color-surface: #171b21;
-  --color-surface-sunken: #11151a;
-  --color-surface-hover: #1e232a;
-  --color-border: #2b3139;
-  --color-border-strong: #434c57;
-  --color-text: #e8ebef;
-  --color-text-muted: #a4adb8;
-  --color-text-on-accent: #11151a;
-  --color-text-on-danger: #11151a;
-  --color-accent: #e8ebef;
+  --color-bg: #12110f;
+  --color-surface: #1b1916;
+  --color-surface-sunken: #1e1b17;
+  --color-surface-hover: #29251f;
+  --color-border: #36312a;
+  --color-border-strong: #7d7466;
+  --color-text: #f4efe6;
+  --color-text-muted: #b8afa2;
+  --color-text-on-accent: #12110f;
+  --color-text-on-danger: #12110f;
+  --color-accent: #f7f3eb;
   --color-accent-hover: #ffffff;
-  --color-accent-soft: #262c34;
-  --color-success: #5cc67c;
-  --color-success-soft: #14301f;
-  --color-warning: #e6b84f;
-  --color-warning-soft: #33280f;
-  --color-danger: #ff8a80;
-  --color-danger-soft: #3a1714;
-  --color-info: #82b4ff;
-  --color-info-soft: #14243d;
-  --color-focus: #6aa1ff;
+  --color-accent-soft: #2e2719;
+  --color-accent-strong: #f2c78a;
+  --color-gold: #f2c78a;
+  --color-gold-line: #a8875a;
+  --color-bronze: #e7bd82;
+  --color-badge-bg: #f2c78a;
+  --color-badge-text: #12110f;
+  --color-whatsapp: #1f7a4d;
+  --color-success: #6cc98a;
+  --color-success-soft: #16301f;
+  --color-warning: #f0bf5a;
+  --color-warning-soft: #3a2c10;
+  --color-danger: #ff8f84;
+  --color-danger-soft: #3d1915;
+  --color-info: #8cb8ff;
+  --color-info-soft: #15253f;
+  --color-focus: #f2c78a;
+  --color-strip-bg: #000000;
+  --color-strip-text: #f7f3eb;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-  --shadow-md: 0 6px 16px rgb(0 0 0 / 45%);
+  --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
   color-scheme: dark;
 }
