@@ -155,17 +155,17 @@ Satırda iskonto yoksa `discountPercent` **`null`** döner (sepet satırıyla ay
 
 ## Admin sipariş okuma (AdminGuard)
 
-Durum güncelleme sonraki adımdır; bu uçlar salt okunurdur.
+Güncel ve ayrıntılı sözleşme: **`docs/api/admin-siparis-api.md`** (liste filtreleri `q`/`transfer`, `summary`, durum değiştirme,
+BizimHesap'a elle giriş, Excel). Özet:
 
-`GET /api/admin/orders?status=&dealerId=&from=2026-11-01&to=2026-11-30&page=1&pageSize=20` -> `{ items, total, page, pageSize }`, en yeni önce.
-`from`/`to` `YYYY-MM-DD`, **Europe/Istanbul** günü olarak, ikisi de dahil. Öğe:
-```json
-{ "id": "uuid", "orderNo": 1001, "submittedAt": "ISO", "status": "submitted",
-  "dealer": { "id": "uuid", "companyTitle": "..." }, "deliveryMethod": "carrier",
-  "transferStatus": "pending", "netTotal": "...", "grandTotal": "...", "lineCount": 1 }
-```
-`GET /api/admin/orders/:id` -> bayi detayındaki tüm alanlar + `dealer { id, companyTitle, contactName, email, phone }`,
-`transferStatus`, `transferError`, `bizimhesapGuid`, `transferredAt`; `history` öğelerinde ek olarak `changedBy` (Admin id) ve `note`. Olmayan id **404**.
+- `GET /api/admin/orders?status=&dealerId=&q=&transfer=pending|transferred&from=&to=&page=&pageSize=` -> `{ items, total, page, pageSize }`, en yeni önce.
+  Öğe: `{ id, orderNo, submittedAt, status, dealer { id, companyTitle }, deliveryMethod, transferStatus, hasOutOfStock, lineCount, netTotal, grandTotal }`.
+  `transferStatus`: `pending | transferred | failed | manual`.
+- `GET /api/admin/orders/:id` -> bayi detayındaki tüm alanlar +
+  `allowedNextStatuses`, `dealer { id, companyTitle, contactName, email, phone, city, district, address }`,
+  `transfer { status, reference, transferredAt, transferredBy: { id, fullName } | null }`, `transferError`, `bizimhesapGuid`;
+  `history[]` öğeleri `{ fromStatus, toStatus, source, changedBy: { id, fullName } | null, note, createdAt }`. Olmayan id **404**.
+- Bayi tarafında `history[]` yalnızca `note` içerir; `changedBy` dönmez.
 
 ## Bildirimler (outbox, GR-BLD-001, AdminGuard)
 

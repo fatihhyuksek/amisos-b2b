@@ -5,6 +5,8 @@ export interface Env {
   CORS_ORIGIN: string;
   /** Arayüzün kök adresi; e-postalardaki bağlantılar bununla kurulur. */
   APP_URL: string;
+  /** Admin liste Excel'inde en fazla sipariş sayısı (varsayılan 5000). */
+  EXPORT_MAX_ORDERS: number;
   /** Gönderen adres (K-56). */
   MAIL_FROM: string;
   /** Giriş ve şifre sıfırlama uçlarında IP başına dakikadaki istek sınırı (GR-BAYI-007). */
@@ -75,8 +77,14 @@ export function validateEnv(raw: Record<string, unknown>): Env {
       ? raw.APP_URL
       : 'http://localhost:5180';
 
+  const exportMax = Number(raw.EXPORT_MAX_ORDERS ?? 5000);
+  if (!Number.isInteger(exportMax) || exportMax <= 0) {
+    throw new Error(`Geçersiz EXPORT_MAX_ORDERS: ${String(raw.EXPORT_MAX_ORDERS)}`);
+  }
+
   return {
     NODE_ENV: nodeEnv,
+    EXPORT_MAX_ORDERS: exportMax,
     PORT: port,
     DATABASE_URL: databaseUrl,
     CORS_ORIGIN:

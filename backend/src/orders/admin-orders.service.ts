@@ -15,7 +15,6 @@ import {
   gte,
   inArray,
   lt,
-  ne,
   or,
   sql,
   type SQL,
@@ -47,7 +46,6 @@ import type {
 } from './orders.schemas.js';
 
 const BUSINESS_TZ = 'Europe/Istanbul';
-export const MAX_EXPORT_ORDERS = 5000;
 
 const lineCountSql = sql<number>`(select count(*)::int from order_lines where order_lines.order_id = "orders"."id")`;
 const hasOutOfStockSql = sql<boolean>`exists (select 1 from order_lines where order_lines.order_id = "orders"."id" and order_lines.out_of_stock_at_order)`;
@@ -57,8 +55,20 @@ const DELIVERY_LABELS = {
   pickup: 'Bayi kendisi alır',
   truck: 'Tır yüklemesi',
 } as const;
+const DATE_FORMAT = 'dd.mm.yyyy hh:mm';
+const ISTANBUL_OFFSET_MS = 3 * 3_600_000;
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/**
+ * "BizimHesap'a girilmemiş" tanımı (tek yer): iptal edilmemiş ve `transferred` olmayan siparişler.
+ * `transfer=pending` filtresi ve `summary.notTransferred` aynı koşulu kullanır.
+ */
+export const notTransferredCondition = (): SQL =>
+  sql`(${orders.status} <> 'cancelled' and ${orders.transferStatus} <> 'transferred')`;
+
+const transferError = (code: string, message: string) =>
+  new ConflictException({ statusCode: 409, code, message });
 
 const invalidTransition = (from: string, to: string) =>
   new ConflictException({
@@ -104,8 +114,7 @@ export class AdminOrdersService {
     }
     if (query.transfer === 'transferred')
       filters.push(eq(orders.transferStatus, 'transferred'));
-    if (query.transfer === 'pending')
-      filters.push(ne(orders.transferStatus, 'transferred'));
+    if (query.transfer === 'pending') filters.push(notTransferredCondition());
     if (query.q) {
       const folded = `%${escapeLike(foldTr(query.q))}%`;
       const byText = or(
@@ -176,7 +185,7 @@ export class AdminOrdersService {
         negotiating: sql<number>`count(*) filter (where ${orders.status} = 'negotiating')::int`,
         approved: sql<number>`count(*) filter (where ${orders.status} = 'approved')::int`,
         shipped: sql<number>`count(*) filter (where ${orders.status} = 'shipped')::int`,
-        notTransferred: sql<number>`count(*) filter (where ${orders.status} <> 'cancelled' and ${orders.transferStatus} <> 'transferred')::int`,
+        notTransferred: sql<number>`count(*) filter (where ${notTransferredCondition()})::int`,
       })
       .from(orders);
     return row;
@@ -330,6 +339,13 @@ export class AdminOrdersService {
         .where(eq(orders.id, id))
         .for('update');
       if (!order) throw new NotFoundException('Sipariş bulunamadı.');
+      // Referans değişimi için önce işaret kaldırılır; çifte işaretleme/çakışma olmaz.
+      if (order.transferStatus === 'transferred') {
+        throw transferError(
+          'ALREADY_TRANSFERRED',
+          "Sipariş zaten BizimHesap'a girildi olarak işaretli.",
+        );
+      }
       await tx
         .update(orders)
         .set({
@@ -367,10 +383,19 @@ export class AdminOrdersService {
         .where(eq(orders.id, id))
         .for('update');
       if (!order) throw new NotFoundException('Sipariş bulunamadı.');
+      if (order.transferStatus !== 'transferred') {
+        throw transferError('NOT_TRANSFERRED', "Sipariş BizimHesap'a girildi olarak işaretli değil.");
+      }
+      // Entegrasyonla aktarılmış (BizimHesap kaydı var) sipariş elle geri alınamaz.
+      if (order.bizimhesapGuid) {
+        throw transferError('TRANSFER_LOCKED', 'Sipariş BizimHesap entegrasyonuyla aktarıldı; işaret kaldırılamaz.');
+      }
+      // `manual`: elle girilecek durumda. Entegrasyon işçisi `pending` siparişleri alacağından,
+      // pending'e dönmek mükerrer BizimHesap kaydına yol açabilir.
       await tx
         .update(orders)
         .set({
-          transferStatus: 'pending',
+          transferStatus: 'manual',
           transferredAt: null,
           transferredBy: null,
           transferReference: null,
@@ -406,9 +431,9 @@ export class AdminOrdersService {
       order.deliveryMethod === 'carrier'
         ? `${DELIVERY_LABELS.carrier}: ${order.deliveryAddress ?? ''} (${order.carrierName ?? ''} / ${order.carrierBranch ?? ''})`
         : `${DELIVERY_LABELS[order.deliveryMethod]}: adres görüşmede belirlenecek`;
-    const info: [string, string | number][] = [
+    const info: [string, string | number | Date][] = [
       ['Sipariş no', order.orderNo],
-      ['Tarih', this.dateTime(order.submittedAt)],
+      ['Tarih', this.excelDate(order.submittedAt)],
       ['Durum', ORDER_STATUS_LABELS[order.status]],
       ['Bayi', order.dealer.companyTitle],
       ['Yetkili', order.dealer.contactName],
@@ -423,6 +448,7 @@ export class AdminOrdersService {
       row.getCell(1).font = { bold: true };
       row.getCell(2).alignment = { horizontal: 'left' };
       if (label === 'Telefon') row.getCell(2).numFmt = '@';
+      if (label === 'Tarih') row.getCell(2).numFmt = DATE_FORMAT;
     }
     sheet.addRow([]);
     const headers = [
@@ -520,11 +546,12 @@ export class AdminOrdersService {
       .from(orders)
       .innerJoin(dealers, eq(dealers.id, orders.dealerId))
       .where(where);
-    if (total > MAX_EXPORT_ORDERS) {
+    const maxExport = this.config.get('EXPORT_MAX_ORDERS', { infer: true });
+    if (total > maxExport) {
       throw new BadRequestException({
         statusCode: 400,
         code: 'EXPORT_TOO_LARGE',
-        message: `En fazla ${MAX_EXPORT_ORDERS} sipariş dışa aktarılabilir; filtreleri daraltın.`,
+        message: `En fazla ${maxExport} sipariş dışa aktarılabilir; filtreleri daraltın.`,
       });
     }
     const rows = await this.db
@@ -554,7 +581,7 @@ export class AdminOrdersService {
     for (const r of rows) {
       const row = sheet.addRow([
         r.orderNo,
-        this.dateTime(r.submittedAt),
+        this.excelDate(r.submittedAt),
         r.companyTitle,
         ORDER_STATUS_LABELS[r.status],
         DELIVERY_LABELS[r.deliveryMethod],
@@ -566,6 +593,7 @@ export class AdminOrdersService {
         r.hasOutOfStock ? 'Evet' : '',
       ]);
       for (const c of [7, 8, 9]) row.getCell(c).numFmt = money;
+      row.getCell(2).numFmt = DATE_FORMAT;
     }
     sheet.columns = [
       { width: 12 },
@@ -589,12 +617,12 @@ export class AdminOrdersService {
     };
   }
 
-  private dateTime(value: Date): string {
-    return new Intl.DateTimeFormat('sv-SE', {
-      timeZone: BUSINESS_TZ,
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(value);
+  /**
+   * Gerçek tarih hücresi, Europe/Istanbul yerel saatiyle. Excel saat dilimi tutmaz; Türkiye kalıcı
+   * UTC+3 olduğundan (business-days.ts) duvar saati UTC bileşenlerine yazılır.
+   */
+  private excelDate(value: Date): Date {
+    return new Date(value.getTime() + ISTANBUL_OFFSET_MS);
   }
 
   static readonly mime = XLSX_MIME;

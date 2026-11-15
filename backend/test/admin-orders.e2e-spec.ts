@@ -25,6 +25,13 @@ import { companyTitleKey } from '../src/dealers/company-title.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
 import { NotificationsService } from '../src/notifications/notifications.service.js';
 
+// ConfigModule env'i içe aktarma sırasında okur; EXPORT_TOO_LARGE testi için sınır import'lardan önce düşürülür.
+const previousExportMax = vi.hoisted(() => {
+  const previous = process.env.EXPORT_MAX_ORDERS;
+  process.env.EXPORT_MAX_ORDERS = '2';
+  return previous;
+});
+
 const PASSWORD = 'Sifre-12345';
 const run = randomUUID().slice(0, 8);
 
@@ -129,6 +136,8 @@ describe('Admin sipariş yönetimi (e2e)', () => {
       await db.delete(adminUsers).where(inArray(adminUsers.id, adminIds));
     }
     await app?.close();
+    process.env.EXPORT_MAX_ORDERS = previousExportMax;
+    if (previousExportMax === undefined) delete process.env.EXPORT_MAX_ORDERS;
   });
 
   it('GR-YON-001: anonim 401, bayi 403 (durum, transfer, özet, Excel uçları)', async () => {
@@ -319,9 +328,12 @@ describe('Admin sipariş yönetimi (e2e)', () => {
       expect(await filter('pending')).toEqual([]);
 
       const unmarked = await admin.agent.delete(`/api/admin/orders/${o.id}/transfer`).expect(200);
-      expect(unmarked.body.transfer).toEqual({ status: 'pending', reference: null, transferredAt: null, transferredBy: null });
+      expect(unmarked.body.transfer).toEqual({ status: 'manual', reference: null, transferredAt: null, transferredBy: null });
       expect((await admin.agent.get('/api/admin/orders/summary')).body.notTransferred).toBe(before.notTransferred);
       expect((await filter('pending')).map((i) => i.id)).toEqual([o.id]);
+
+      // Geri alınan sipariş `manual` (entegrasyon işçisi pending'leri aldığı için pending'e dönmez), yine "girilmedi" sayılır.
+      expect((await db.select().from(orders).where(eq(orders.id, o.id)))[0].transferStatus).toBe('manual');
 
       // Referanssız işaretleme ve uzunluk sınırı.
       const noRef = await admin.agent.post(`/api/admin/orders/${o.id}/transfer`).send({}).expect(200);
@@ -341,6 +353,59 @@ describe('Admin sipariş yönetimi (e2e)', () => {
       expect((await admin.agent.get('/api/admin/orders/summary')).body.notTransferred).toBe(before.notTransferred + 1);
       await setStatus(o.id, 'cancelled', 'iptal').expect(200);
       expect((await admin.agent.get('/api/admin/orders/summary')).body.notTransferred).toBe(before.notTransferred);
+    });
+  });
+
+  describe('Transfer kuralları (K-17)', () => {
+    it('K-17: zaten işaretli siparişi tekrar işaretlemek 409 ALREADY_TRANSFERRED (referans değişmez); işaretsizi geri almak 409 NOT_TRANSFERRED', async () => {
+      const d = await newDealer('transfer-kural');
+      const p = await newProduct();
+      const o = await placeOrder(d, [[p, 6]]);
+      const unmark = () => admin.agent.delete(`/api/admin/orders/${o.id}/transfer`);
+      expect((await unmark().expect(409)).body.code).toBe('NOT_TRANSFERRED');
+      await admin.agent.post(`/api/admin/orders/${o.id}/transfer`).send({ reference: 'ILK' }).expect(200);
+      const again = await admin.agent.post(`/api/admin/orders/${o.id}/transfer`).send({ reference: 'IKINCI' }).expect(409);
+      expect(again.body.code).toBe('ALREADY_TRANSFERRED');
+      expect((await admin.agent.get(`/api/admin/orders/${o.id}`)).body.transfer.reference).toBe('ILK');
+      // Referans değişimi: önce kaldır, sonra yeniden işaretle.
+      await unmark().expect(200);
+      await admin.agent.post(`/api/admin/orders/${o.id}/transfer`).send({ reference: 'IKINCI' }).expect(200);
+      expect((await unmark().expect(200)).body.transfer.status).toBe('manual');
+      expect((await unmark().expect(409)).body.code).toBe('NOT_TRANSFERRED');
+    });
+
+    it('K-17: BizimHesap kaydı (bizimhesapGuid) olan sipariş geri alınamaz: 409 TRANSFER_LOCKED, durum değişmez', async () => {
+      const d = await newDealer('transfer-kilit');
+      const p = await newProduct();
+      const o = await placeOrder(d, [[p, 6]]);
+      await db.update(orders).set({ transferStatus: 'transferred', bizimhesapGuid: `guid-${run}` }).where(eq(orders.id, o.id));
+      const res = await admin.agent.delete(`/api/admin/orders/${o.id}/transfer`).expect(409);
+      expect(res.body.code).toBe('TRANSFER_LOCKED');
+      const [row] = await db.select().from(orders).where(eq(orders.id, o.id));
+      expect(row).toMatchObject({ transferStatus: 'transferred', bizimhesapGuid: `guid-${run}` });
+      await admin.agent.post(`/api/admin/orders/${o.id}/transfer`).send({}).expect(409);
+    });
+
+    it('K-17: paralel iki işaretlemeden biri 409 (satır kilidi)', async () => {
+      const d = await newDealer('transfer-paralel');
+      const p = await newProduct();
+      const o = await placeOrder(d, [[p, 6]]);
+      const post = (reference: string) => admin.agent.post(`/api/admin/orders/${o.id}/transfer`).send({ reference });
+      const results = await Promise.all([post('A'), post('B')]);
+      expect(results.map((r) => r.status).sort((a, b) => a - b)).toEqual([200, 409]);
+    });
+
+    it('K-17: transfer=pending iptal edilmişleri hariç tutar; liste toplamı summary.notTransferred ile birebir aynı', async () => {
+      const d = await newDealer('transfer-tutarli');
+      const p = await newProduct();
+      const open = await placeOrder(d, [[p, 6]]);
+      const cancelled = await placeOrder(d, [[p, 6]]);
+      await setStatus(cancelled.id, 'cancelled', 'iptal').expect(200);
+      const pending = (await admin.agent.get('/api/admin/orders').query({ dealerId: d.dealer.id, transfer: 'pending' }).expect(200)).body;
+      expect(pending.items.map((i: { id: string }) => i.id)).toEqual([open.id]);
+      const all = (await admin.agent.get('/api/admin/orders').query({ transfer: 'pending', pageSize: 1 }).expect(200)).body;
+      const summary = (await admin.agent.get('/api/admin/orders/summary')).body;
+      expect(all.total).toBe(summary.notTransferred);
     });
   });
 
@@ -474,6 +539,60 @@ describe('Admin sipariş yönetimi (e2e)', () => {
       expect(total('KDV')).toBe(Number(detail.summary.vatTotal));
       expect(total('Genel toplam')).toBe(Number(detail.summary.grandTotal));
       await admin.agent.get(`/api/admin/orders/${randomUUID()}/export.xlsx`).expect(404);
+    });
+
+    const istanbulWallClock = (iso: string) =>
+      new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Istanbul', dateStyle: 'short', timeStyle: 'short' })
+        .format(new Date(iso))
+        .replace(' ', 'T');
+
+    it('GR-SIP-006: Excel Tarih hücreleri gerçek tarih (Europe/Istanbul yerel saati, dd.mm.yyyy hh:mm); = + - @ ile başlayan bayi girdileri formül değil metin kalır', async () => {
+      const evil = ['=HYPERLINK("http://kotu.example","x")', '+cmd|calc', '-2+3', '@SUM(1)'];
+      const d = await newDealer('excel-formul', evil[0]);
+      const p = await newProduct({ name: evil[1] });
+      const o = await placeOrder(d, [[p, 6]], { deliveryMethod: 'pickup', note: evil[3] });
+      const detail = (await admin.agent.get(`/api/admin/orders/${o.id}`)).body;
+
+      const one = await load((await download(`/api/admin/orders/${o.id}/export.xlsx`)).body as Buffer);
+      const cells: Record<string, ExcelJS.Cell> = {};
+      one.eachRow((row) => {
+        const label = row.getCell(1).value;
+        if (typeof label === 'string') cells[label] = row.getCell(2);
+      });
+      const date = cells['Tarih'];
+      expect(date.value).toBeInstanceOf(Date);
+      expect(date.numFmt).toBe('dd.mm.yyyy hh:mm');
+      expect((date.value as Date).toISOString().slice(0, 16)).toBe(istanbulWallClock(detail.submittedAt));
+      for (const [label, expected] of [['Bayi', evil[0]], ['Bayi notu', evil[3]]] as const) {
+        expect(cells[label].type).toBe(ExcelJS.ValueType.String);
+        expect(cells[label].value).toBe(expected);
+        expect(cells[label].formula).toBeUndefined();
+      }
+      let productCell: ExcelJS.Cell | undefined;
+      one.eachRow((row) => {
+        if (row.getCell(3).value === evil[1]) productCell = row.getCell(3);
+      });
+      expect(productCell?.type).toBe(ExcelJS.ValueType.String);
+
+      const list = await load((await download('/api/admin/orders/export.xlsx', { dealerId: d.dealer.id })).body as Buffer);
+      const row = list.getRow(2);
+      expect(row.getCell(2).value).toBeInstanceOf(Date);
+      expect(row.getCell(2).numFmt).toBe('dd.mm.yyyy hh:mm');
+      expect((row.getCell(2).value as Date).toISOString().slice(0, 16)).toBe(istanbulWallClock(detail.submittedAt));
+      expect(row.getCell(3).type).toBe(ExcelJS.ValueType.String);
+      expect(row.getCell(3).value).toBe(evil[0]);
+    });
+
+    it('GR-SIP-006: liste Excel i EXPORT_MAX_ORDERS u aşarsa 400 EXPORT_TOO_LARGE; filtreyle daraltılınca iner', async () => {
+      const d = await newDealer('excel-buyuk');
+      const p = await newProduct();
+      const a = await placeOrder(d, [[p, 6]]);
+      await placeOrder(d, [[p, 6]]);
+      await placeOrder(d, [[p, 6]]);
+      const res = await admin.agent.get('/api/admin/orders/export.xlsx').query({ dealerId: d.dealer.id }).expect(400);
+      expect(res.body.code).toBe('EXPORT_TOO_LARGE');
+      await setStatus(a.id, 'negotiating').expect(200);
+      await download('/api/admin/orders/export.xlsx', { dealerId: d.dealer.id, status: 'negotiating' });
     });
 
     it('GR-SIP-006: liste Excel i filtrelere uyar, sipariş başına bir satır, dosya adı tarihli; toplamlar listeyle aynı', async () => {

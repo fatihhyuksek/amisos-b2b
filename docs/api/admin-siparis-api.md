@@ -13,7 +13,7 @@ burada genişletilir. Tüm uçlar AdminGuard; yazma uçları JSON. Hata gövdesi
 ## Liste — `GET /api/admin/orders`
 
 Mevcut filtrelere ek: `q` (sipariş numarası tam eşleşme veya bayi firma unvanı/yetkili adı içinde arama,
-Türkçe harf duyarsız), `transfer=pending|transferred` (BizimHesap'a girildi mi). Varsayılan sıra en yeni önce.
+Türkçe harf duyarsız), `transfer=pending|transferred` (BizimHesap'a girildi mi). `pending` = iptal edilmemiş ve `transferred` olmayan siparişler; `summary.notTransferred` ile birebir aynı tanım. Varsayılan sıra en yeni önce.
 Öğe: `{ id, orderNo, submittedAt, status, dealer: { id, companyTitle }, lineCount, netTotal, grandTotal,
 deliveryMethod, transferStatus, hasOutOfStock }`.
 
@@ -42,6 +42,10 @@ Gövde `{ status, note? }` (not en fazla 1000 karakter). İptal (`cancelled`) i�
 
 ## BizimHesap'a elle giriş (K-17 yedek yolu)
 
+- Kurallar: zaten `transferred` ise işaretleme **409** `ALREADY_TRANSFERRED` (referans değişimi için önce kaldırın);
+  `transferred` değilse kaldırma **409** `NOT_TRANSFERRED`; `bizimhesapGuid` doluysa (entegrasyonla aktarılmış) kaldırma **409** `TRANSFER_LOCKED`.
+  İşaret kaldırılınca `transferStatus` **`manual`** olur (pending değil: ileride entegrasyon işçisi `pending` siparişleri alacağı için mükerrer kayıt oluşmasın).
+  İşaretleme/kaldırma satır kilidiyle yapılır.
 - `POST /api/admin/orders/:id/transfer` `{ reference? }` → BizimHesap'a elle girildi olarak işaretle:
   `transferStatus = transferred`, `transferredAt`, `transferredBy`, `reference` (BizimHesap belge/sipariş no, en fazla 100). **200** detay.
 - `DELETE /api/admin/orders/:id/transfer` → işareti geri al (`pending`). **200** detay.
@@ -54,7 +58,8 @@ Gövde `{ status, note? }` (not en fazla 1000 karakter). İptal (`cancelled`) i�
   KDV %, KDV, Toplam, Stokta yoktu; altta toplamlar. Barkod ve kod hücreleri **metin** biçiminde.
 - `GET /api/admin/orders/export.xlsx?<liste filtreleri>` — liste (en fazla 5000 sipariş): sipariş başına bir satır.
 - Dosya adı: `siparis-<orderNo>.xlsx`, `siparisler-<YYYY-MM-DD>.xlsx` (tarih Europe/Istanbul).
-- Liste dışa aktarma 5000'den fazla siparişe uyarsa **400** `{ code: "EXPORT_TOO_LARGE" }` (sessiz kesme yok; filtreleri daraltın).
+- Liste dışa aktarma 5000'den fazla siparişe uyarsa **400** `{ code: "EXPORT_TOO_LARGE" }` (sessiz kesme yok; filtreleri daraltın). Sınır `EXPORT_MAX_ORDERS` ortam değişkeniyle ayarlanır (varsayılan 5000).
+- Excel'de "Tarih" hücreleri gerçek tarih hücresidir (Europe/Istanbul yerel saati, `dd.mm.yyyy hh:mm`). Bayi girdileri (not, firma adı, ürün adı) `=`, `+`, `-`, `@` ile başlasa da metin hücresi olarak yazılır, formül çalıştırılmaz.
 - Liste sütunları: Sipariş no, Tarih, Bayi, Durum, Teslimat, Kalem, KDV hariç toplam, KDV, Genel toplam, BizimHesap (Girildi/Bekliyor), Stokta yok var. Para sütunları sayı, `#,##0.00` biçimli.
 
 ## Bayi tarafı etkisi
@@ -64,7 +69,7 @@ Gövde `{ status, note? }` (not en fazla 1000 karakter). İptal (`cancelled`) i�
 ## Uygulama notları
 
 - `q` yalnızca rakamlardan oluşuyorsa sipariş numarasıyla tam eşleşme **veya** firma/yetkili adında arama yapılır.
-- `transfer=pending` iptal dahil `transferred` olmayan her siparişi (pending, manual, failed) kapsar.
+- `transfer=pending` iptal edilmemiş ve `transferred` olmayan her siparişi (pending, manual, failed) kapsar; iptal edilenler hariçtir (`summary.notTransferred` ile aynı).
 - Detayda ayrıca eski alanlar korunur: `transferError`, `bizimhesapGuid` (entegrasyon için).
 - Bayiye giden e-posta türü outbox'ta `order_status_changed`'dir; not Admin girdisidir ve e-posta günlüğünde tek satıra indirilir.
 - Geçiş uçları satır kilidi (`for update`) kullanır; paralel iki istekten biri 409 `INVALID_TRANSITION` alır.

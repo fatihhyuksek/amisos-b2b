@@ -546,7 +546,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
       });
       expect(lines.find((l) => l.productId === out.id)).toMatchObject({ outOfStockAtOrder: true, netAmount: '51.00' });
 
-      const history = await db.select().from(orderStatusHistory).where(eq(orderStatusHistory.orderId, order.id));
+      const history = await db.select().from(orderStatusHistory).where(eq(orderStatusHistory.orderId, order.id)).orderBy(orderStatusHistory.createdAt);
       expect(history).toEqual([expect.objectContaining({ fromStatus: null, toStatus: 'submitted', source: 'system', changedBy: null })]);
       expect(await db.select().from(cartItems).where(eq(cartItems.dealerId, dealer.id))).toHaveLength(0);
       expect((await agent.get('/api/cart')).body.lines).toEqual([]);

@@ -725,7 +725,8 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       const rows = await db
         .select()
         .from(auditLog)
-        .where(eq(auditLog.entityId, d.id));
+        .where(eq(auditLog.entityId, d.id))
+        .orderBy(auditLog.id);
       const terms = rows
         .filter((r) => r.action === 'dealer.terms_changed')
         .map((r) => r.data);
@@ -758,7 +759,8 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       const rows = await db
         .select()
         .from(auditLog)
-        .where(eq(auditLog.entityId, d.id));
+        .where(eq(auditLog.entityId, d.id))
+        .orderBy(auditLog.id);
       const adminRows = rows.filter((r) => r.actorType === 'admin');
       expect(adminRows.map((r) => r.action).sort()).toEqual([
         'dealer.activated',
