@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
 import { BannerListPage } from './admin/BannerListPage'
+import { NotificationsPage } from './admin/NotificationsPage'
 import { DealerCreatePage } from './admin/DealerCreatePage'
 import { DealerDetailPage } from './admin/DealerDetailPage'
 import { DealerListPage } from './admin/DealerListPage'
@@ -216,6 +217,12 @@ function Routes() {
       return (
         <Protected area="admin">
           <MediaLibraryPage />
+        </Protected>
+      )
+    case '/yonetim/bildirimler':
+      return (
+        <Protected area="admin">
+          <NotificationsPage />
         </Protected>
       )
     case '/yonetim/bannerlar':

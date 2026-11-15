@@ -1,13 +1,13 @@
 // Ürün kartı ve ürün detayından sepete ekleme (GR-SIP-003, GR-SIP-004, K-20, K-21).
 // Koli katı kontrolü yalnızca erken uyarıdır; asıl kontrol backend'dedir (400 CASE_MULTIPLE).
 import { useCallback } from 'react'
-import { ApiError, fetchCart, type CatalogProduct } from '../api'
+import { ApiError, type CatalogProduct } from '../api'
 import { useCart } from './cart'
 
 export const OUT_OF_STOCK_NOTE = 'Stokta yok — tedarik süresi görüşülecek'
 
 export function useAddToCart() {
-  const { setQuantity, quantityOf, status, applyCart, notify } = useCart()
+  const { setQuantity, notify } = useCart()
   return useCallback(
     /**
      * `quantity` verilmezse sepetteki miktara bir koli eklenir (sepette yoksa tek koli).
@@ -15,14 +15,11 @@ export function useAddToCart() {
      */
     async (p: CatalogProduct, quantity?: number, mode: 'add' | 'update' = 'add'): Promise<boolean> => {
       try {
-        let existing = quantityOf(p.id)
-        if (status !== 'ready') {
-          const fresh = await fetchCart()
-          applyCart(fresh)
-          existing = fresh.lines.find((l) => l.productId === p.id)?.quantity ?? 0
-        }
-        const target = quantity ?? existing + p.caseQuantity
-        const cart = await setQuantity(p.id, target)
+        const cart = await setQuantity(
+          p.id,
+          quantity !== undefined ? quantity : (current) => current + p.caseQuantity,
+        )
+        const target = quantity ?? p.caseQuantity
         const line = cart.lines.find((l) => l.productId === p.id)
         notify({
           tone: 'success',
@@ -45,6 +42,6 @@ export function useAddToCart() {
         return false
       }
     },
-    [setQuantity, quantityOf, status, applyCart, notify],
+    [setQuantity, notify],
   )
 }

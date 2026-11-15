@@ -85,6 +85,7 @@ export function CheckoutPage() {
           : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
         expectedTotal: cart.summary.grandTotal,
+        expectedVersion: cart.version,
       })
       void reload()
       navigate(`/siparislerim/${encodeURIComponent(result.id)}?yeni=1`)

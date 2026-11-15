@@ -74,9 +74,26 @@ function CartLineRow({ line, onDirty }: { line: CartLine; onDirty: (id: string, 
       }
     }
   })
-  useEffect(() => () => flush.current(), [])
+  const dirtyCb = useRef(onDirty)
+  useEffect(() => {
+    dirtyCb.current = onDirty
+  })
+  const id = line.productId
+  useEffect(
+    () => () => {
+      flush.current()
+      // Satır kalkarsa (kaldırıldı / sunucu düşürdü) kilit kalmasın.
+      dirtyCb.current(id, false)
+    },
+    [id],
+  )
 
   async function remove() {
+    // Bekleyen taslak miktar gönderilmesin; aksi halde satır silindikten sonra geri eklenir.
+    window.clearTimeout(timer.current)
+    pending.current = null
+    setDraft(null)
+    onDirty(line.productId, false)
     setRemoving(true)
     setError('')
     try {
@@ -153,7 +170,7 @@ export function CartPage() {
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [clearError, setClearError] = useState(false)
-  const anyDirty = Object.values(dirty).some(Boolean)
+  const anyDirty = cart?.lines.some((l) => dirty[l.productId]) ?? false
 
   const setDirtyFor = (id: string, d: boolean) =>
     setDirty((cur) => (!!cur[id] === d ? cur : { ...cur, [id]: d }))

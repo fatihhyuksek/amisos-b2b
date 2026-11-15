@@ -4,6 +4,7 @@ import { Link } from '../Link'
 import { Alert, Badge } from '../ui/components'
 import { formatInt } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
+import { useFailedNotificationCount } from './useFailedNotifications'
 import { useLoad } from './useLoad'
 
 function Stat({ to, label, value, note }: { to: string; label: string; value: number; note?: string }) {
@@ -24,8 +25,15 @@ const list = (s: DealerStatus) => `/yonetim/bayiler?durum=${s}`
 
 export function AdminHome() {
   const { state, reload } = useLoad<DealerCounts>((signal) => fetchDealerSummary(signal), 'summary')
+  const failed = useFailedNotificationCount()
   return (
     <AdminLayout title="Ana sayfa">
+      {failed > 0 && (
+        <Alert tone="danger">
+          <strong>{formatInt(failed)} e-posta gönderilemedi.</strong>{' '}
+          <Link to="/yonetim/bildirimler">Bildirimleri incele</Link>
+        </Alert>
+      )}
       {state.status === 'loading' && (
         <div className="ui-stats" aria-busy="true">
           {[0, 1, 2, 3].map((i) => (

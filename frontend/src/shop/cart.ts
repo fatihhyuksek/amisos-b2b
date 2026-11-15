@@ -7,7 +7,7 @@ export interface CartNotices {
   removed: { productId: string; name: string }[]
   adjusted: CartAdjusted[]
   /** Tekrar siparişte pasif olduğu için sepete eklenmeyenler. */
-  skipped: { productId: string; name: string }[]
+  skipped: { productId: string; name: string; reason?: string }[]
 }
 
 export interface Toast {
@@ -28,7 +28,7 @@ export interface CartContextValue {
   toast: Toast | null
   reload: () => Promise<void>
   /** Miktarı ayarlar (0 = kaldırır). Hata ApiError olarak fırlar (ör. 400 CASE_MULTIPLE). */
-  setQuantity: (productId: string, quantity: number) => Promise<Cart>
+  setQuantity: (productId: string, quantity: number | ((current: number) => number)) => Promise<Cart>
   removeLine: (productId: string) => Promise<Cart>
   clear: () => Promise<void>
   /** Başka bir uçtan (409 PRICE_CHANGED, tekrar sipariş) gelen güncel sepeti uygular. */

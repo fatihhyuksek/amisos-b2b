@@ -15,15 +15,34 @@ export function CartNotices() {
             <strong>{removed.map((r) => r.name).join(', ')}</strong>
           </p>
         )}
-        {skipped.length > 0 && (
+        {skipped.filter((r) => r.reason !== 'QUANTITY_LIMIT').length > 0 && (
           <p>
-            Satışta olmadığı için sepete eklenmedi: <strong>{skipped.map((r) => r.name).join(', ')}</strong>
+            Satışta olmadığı için sepete eklenmedi:{' '}
+            <strong>
+              {skipped
+                .filter((r) => r.reason !== 'QUANTITY_LIMIT')
+                .map((r) => r.name)
+                .join(', ')}
+            </strong>
+          </p>
+        )}
+        {skipped.filter((r) => r.reason === 'QUANTITY_LIMIT').length > 0 && (
+          <p>
+            Miktar sınırı aşıldığı için sepete eklenmedi:{' '}
+            <strong>
+              {skipped
+                .filter((r) => r.reason === 'QUANTITY_LIMIT')
+                .map((r) => r.name)
+                .join(', ')}
+            </strong>
           </p>
         )}
         {adjusted.map((a, i) => (
           <p key={`${a.productId}-${i}`}>
-            <strong>{a.name}</strong>: koli içi adedi ({a.caseQuantity}) değiştiği için miktar {a.from}{' '}
-            adetten {a.to} adede yükseltildi.
+            <strong>{a.name}</strong>:{' '}
+            {a.to < a.from
+              ? `miktar sınırı aşıldığı için ${a.from} adetten ${a.to} adede düşürüldü.`
+              : `koli içi adedi (${a.caseQuantity}) değiştiği için miktar ${a.from} adetten ${a.to} adede yükseltildi.`}
           </p>
         ))}
         <button type="button" className="ui-linklike ui-linklike--touch" onClick={dismissNotices}>

@@ -23,6 +23,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState(0)
   const [pending, setPending] = useState(0)
   const seq = useRef(0)
+  const latest = useRef<Cart | null>(null)
   const queue = useRef<Promise<unknown>>(Promise.resolve())
   const toastId = useRef(0)
   const ownerRef = useRef<string | null>(null)
@@ -44,6 +45,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const apply = useCallback(
     (cart: Cart) => {
+      latest.current = cart
       absorbNotices(cart)
       setData({ owner: ownerRef.current, status: 'ready', cart })
     },
@@ -57,7 +59,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     fetchCart()
       .then((cart) => {
         absorbNotices(cart)
-        if (mine === seq.current) setData({ owner: dealerId, status: 'ready', cart })
+        if (mine === seq.current) {
+          latest.current = cart
+          setData({ owner: dealerId, status: 'ready', cart })
+        }
       })
       .catch((err: unknown) => {
         if (mine !== seq.current) return
@@ -85,9 +90,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   )
 
   const setQuantity = useCallback(
-    (productId: string, quantity: number) =>
+    (productId: string, quantity: number | ((current: number) => number)) =>
       enqueue(async () => {
-        const cart = await putCartItem(productId, quantity)
+        // Hedef miktar kuyrukta, o anki son sepet durumundan hesaplanır (hızlı çift tıklama).
+        if (typeof quantity === 'function' && !latest.current) apply(await fetchCart())
+        const target =
+          typeof quantity === 'function'
+            ? quantity(latest.current?.lines.find((l) => l.productId === productId)?.quantity ?? 0)
+            : quantity
+        const cart = await putCartItem(productId, target)
         apply(cart)
         return cart
       }),

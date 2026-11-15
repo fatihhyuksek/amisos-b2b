@@ -504,6 +504,8 @@ export interface CartAdjusted {
 }
 
 export interface Cart {
+  /** Sepet sürümü; sipariş gönderirken expectedVersion olarak geri gönderilir. */
+  version: string
   lines: CartLine[]
   summary: MoneySummary
   warnings: { code: string; productId: string; name: string }[]
@@ -546,6 +548,7 @@ export interface OrderInput {
   carrierBranch?: string
   note?: string
   expectedTotal: string
+  expectedVersion: string
 }
 
 /** 409 PRICE_CHANGED gövdesindeki güncel sepeti de taşır. */
@@ -647,7 +650,12 @@ export function fetchOrder(id: string, signal?: AbortSignal): Promise<OrderDetai
 export interface ReorderResult {
   cart: Cart
   added: { productId: string; name: string; quantity: number }[]
-  skipped: { productId: string; name: string; barcode: string; reason: string }[]
+  skipped: {
+    productId: string
+    name: string
+    barcode: string
+    reason: 'INACTIVE' | 'QUANTITY_LIMIT' | string
+  }[]
   adjusted: CartAdjusted[]
 }
 
@@ -710,4 +718,43 @@ export async function deleteBanner(id: string): Promise<void> {
 
 export async function reorderBanners(ids: string[]): Promise<AdminBanner[]> {
   return (await (await put('/admin/banners/order', { ids })).json()) as AdminBanner[]
+}
+
+// ---------- Bildirimler / e-posta outbox (docs/api/siparis-api.md, GR-BLD-001) ----------
+
+export type NotificationStatus = 'pending' | 'sent' | 'failed'
+
+export type NotificationKind =
+  | 'order_confirmation'
+  | 'new_order_team'
+  | 'new_application'
+  | 'invitation'
+  | 'rejection'
+  | 'password_reset'
+  | 'email_verification'
+  | 'approval_reminder'
+
+export interface AdminNotification {
+  id: string
+  kind: NotificationKind
+  recipient: string
+  status: NotificationStatus
+  attempts: number
+  lastError: string | null
+  nextAttemptAt: string | null
+  createdAt: string
+  sentAt: string | null
+}
+
+export function fetchNotifications(
+  params: { status: NotificationStatus; page: number; pageSize: number },
+  signal?: AbortSignal,
+): Promise<Paged<AdminNotification>> {
+  return getJson(`/admin/notifications${qsOf(params)}`, signal)
+}
+
+export async function retryNotification(id: string): Promise<AdminNotification> {
+  return (await (
+    await post(`/admin/notifications/${encodeURIComponent(id)}/retry`)
+  ).json()) as AdminNotification
 }
