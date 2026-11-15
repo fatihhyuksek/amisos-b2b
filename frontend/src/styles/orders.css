@@ -641,3 +641,346 @@
     order: -1;
   }
 }
+
+/* ---------- Raporlar ---------- */
+.ui-chips--wrap .ui-chip {
+  min-height: var(--control-height);
+}
+
+.ui-chip[aria-selected='true'] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.ui-periodtext {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.ui-periodtext strong {
+  color: var(--color-text);
+}
+
+.ui-reportbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ui-reportbar > p {
+  margin: 0;
+  max-width: 40rem;
+}
+
+.ui-export {
+  display: grid;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.ui-reportgrid {
+  gap: var(--space-5);
+}
+
+/* KPI kartları */
+.ui-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-3);
+}
+
+.ui-kpi {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.ui-kpi__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.ui-kpi__value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.ui-kpi__cmp {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.ui-kpi__cmp dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ui-kpi__cmp dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+
+/* Fark göstergesi: ikon + metin + renk */
+.ui-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.ui-delta .ui-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.ui-delta--up {
+  color: var(--color-success);
+}
+
+.ui-delta--down {
+  color: var(--color-danger);
+}
+
+.ui-delta--flat {
+  color: var(--color-text-muted);
+}
+
+.ui-delta__pct {
+  font-weight: var(--font-weight-regular);
+}
+
+.ui-cmpcell {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+}
+
+@media (max-width: 47.99rem) {
+  .ui-cmpcell {
+    justify-items: end;
+  }
+}
+
+/* Grafikler */
+.ui-chart {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-chart__box {
+  width: 100%;
+  min-width: 0;
+}
+
+.ui-chart__box svg {
+  display: block;
+  max-width: 100%;
+}
+
+.ui-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.ui-chart__sw {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: var(--space-1);
+}
+
+.ui-chart__sw--bar {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.ui-chart__sw--line {
+  width: 1rem;
+  height: 0;
+  border-top: 3px dashed var(--color-bronze);
+}
+
+.ui-chart__grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.ui-chart__tick {
+  fill: var(--color-text-muted);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.ui-chart__bar {
+  fill: var(--color-accent);
+}
+
+.ui-chart__line {
+  stroke: var(--color-bronze);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
+}
+
+.ui-chart__dot {
+  fill: var(--color-surface);
+  stroke: var(--color-bronze);
+  stroke-width: 2;
+}
+
+.ui-hbars {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-hbars__row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.ui-hbars__label {
+  overflow-wrap: anywhere;
+}
+
+.ui-hbars__track {
+  height: 0.875rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+}
+
+.ui-hbars__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+.ui-hbars__text {
+  text-align: right;
+}
+
+@media (max-width: 39.99rem) {
+  .ui-hbars__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ui-hbars__track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* İlk 5 listeleri */
+.ui-minitables {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 60rem) {
+  .ui-minitables {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ui-toplist {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.ui-toplist li {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+/* Sıralanabilir tablo */
+.ui-thsort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.ui-thsort .ui-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.ui-xrow td {
+  background: var(--color-surface-sunken);
+  white-space: normal;
+}
+
+.ui-sortbar {
+  display: none;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+@media (max-width: 47.99rem) {
+  .ui-sortbar {
+    display: flex;
+  }
+}
+
+.ui-dealercell {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+/* Admin ana sayfa: Bugün / Bu ay */
+.ui-todaycards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-3);
+}
+
+.ui-todaycard {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  color: inherit;
+  text-decoration: none;
+}
+
+.ui-todaycard:hover {
+  background: var(--color-surface-hover);
+}
