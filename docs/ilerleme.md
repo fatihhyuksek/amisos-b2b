@@ -58,17 +58,25 @@ Son güncelleme: 2026-11-14
    - Katalog: en yeni sıralaması, stok filtresi, grup görselleri.
    - e2e testleri ayrı `_test` veritabanı kullanır.
 
+13. Admin sipariş yönetimi (branch `claude/admin-orders`):
+   - Sipariş listesi (durum sekmeleri, arama, tarih, bayi, BizimHesap'a girilmedi filtresi, Excel),
+     detay (bayi iletişim, satırlar, KDV ayrı toplamlar), durum değiştirme (bayiye görünür not,
+     iptalde zorunlu gerekçe, bayiye e-posta), durum geçmişi.
+   - BizimHesap'a elle giriş (K-17 yedek yolu): satırları kopyala, sipariş Excel'i, "girildi"
+     işareti (referans, kim, ne zaman); geri alma "elle girilecek" yapar (mükerrer aktarım yok).
+   - Admin ana sayfa sipariş kartları; bayi detayında son siparişler; bayi tarafında "Amisos notu".
+
 ## Sıradaki adım
 
-**Admin sipariş yönetimi** (GR-SIP-006, K-24, K-25, GR-BLD-001):
-- Admin sipariş listesi ve detayı, durum güncelleme (Görüşülüyor → Onaylandı → Sevk edildi → Teslim
-  edildi / İptal), durum değişince bayiye e-posta, BizimHesap'a elle giriş için satır listesi
-  (kopyala / Excel'e aktar).
+**Raporlar ve özet ana sayfa** (GR-RAP-001…003, K-46 – K-50):
+- Tarih aralığına göre ön siparişler; bayi bazında sipariş sayısı ve tutar; en çok sipariş edilen
+  ürünler; ürün grubu bazında satış; bayi bazında en çok alınan ürünler, son sipariş tarihi, 60 gündür
+  sipariş vermeyen bayiler; durum dağılımı ve ortalama bekleme; stokta yokken sipariş edilen ürünler.
+- Grafikler (aylık tutar trendi, grup dağılımı), önceki dönem ve geçen yıl karşılaştırması, Excel.
 
 ## Sonraki adımlar (sırayla)
 
-1. Raporlar ve özet ana sayfa (GR-RAP-001…003).
-2. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
+1. **BizimHesap entegrasyonu — ERTELENDİ, UNUTULMAYACAK** (iş sahibi kararı, 2026-11-14):
    - Ön sipariş aktarımı (`addinvoice`) ve ürün eşleştirme (GR-SIP-001, GR-SIP-002).
    - Stok "Var/Yok" bilgisini günde 5–6 kez çekme (GR-URN-002, K-19, K-34).
    - Önkoşullar: API token'ı, FirmID, test hesabı; kaydın sipariş mi fatura mı
