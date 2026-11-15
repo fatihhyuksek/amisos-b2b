@@ -21,6 +21,7 @@ import { networkMessage } from '../ui/networkMessage'
 import { orderStatusLabel } from '../ui/orderStatus'
 import { AdminLayout } from './AdminLayout'
 import { copyText, saveBlob } from './download'
+import { whatsappHref } from './phone'
 import { useLoad } from './useLoad'
 import { notifyOrdersChanged } from './orderSummary'
 
@@ -28,17 +29,6 @@ const NOTE_MAX = 1000
 const REF_MAX = 100
 
 const SOURCE_LABEL = { system: 'Sistem', admin: 'Admin', bizimhesap: 'BizimHesap' } as const
-
-/**
- * WhatsApp bağlantısı: yalnızca 0 ile başlayan 11 haneli yerel numaraya Türkiye öneki (90) eklenir;
- * "+" ile başlayan uluslararası numara olduğu gibi kullanılır; diğer biçimlerde bağlantı gösterilmez.
- */
-function whatsappHref(phone: string): string | null {
-  const compact = phone.replace(/[\s().-]/g, '')
-  if (/^\+\d{8,15}$/.test(compact)) return `https://wa.me/${compact.slice(1)}`
-  if (/^0\d{10}$/.test(compact)) return `https://wa.me/90${compact.slice(1)}`
-  return null
-}
 
 /** Hücreyi sekme/satır sonundan arındırır ve formül olarak yorumlanmasını engeller. */
 function tsvCell(value: string): string {

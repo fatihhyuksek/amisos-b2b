@@ -5,6 +5,7 @@ import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
 import { BannerListPage } from './admin/BannerListPage'
 import { OrderSummaryProvider } from './admin/OrderSummaryProvider'
+import { ReportsPage } from './admin/ReportsPage'
 import { OrderListPage } from './admin/OrderListPage'
 import { AdminOrderDetailPage } from './admin/OrderDetailPage'
 import { NotificationsPage } from './admin/NotificationsPage'
@@ -220,6 +221,12 @@ function Routes() {
       return (
         <Protected area="admin">
           <MediaLibraryPage />
+        </Protected>
+      )
+    case '/yonetim/raporlar':
+      return (
+        <Protected area="admin">
+          <ReportsPage />
         </Protected>
       )
     case '/yonetim/siparisler':

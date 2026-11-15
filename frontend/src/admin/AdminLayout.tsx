@@ -15,6 +15,11 @@ const LINKS = [
     label: 'Siparişler',
     match: (p: string) => p.startsWith('/yonetim/siparisler'),
   },
+  {
+    to: '/yonetim/raporlar',
+    label: 'Raporlar',
+    match: (p: string) => p.startsWith('/yonetim/raporlar'),
+  },
   { to: '/yonetim/bayiler', label: 'Bayiler', match: (p: string) => p.startsWith('/yonetim/bayiler') },
   { to: '/yonetim/urunler', label: 'Ürünler', match: (p: string) => p.startsWith('/yonetim/urunler') },
   {

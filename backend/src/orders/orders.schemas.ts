@@ -62,10 +62,16 @@ const paging = {
 export const orderListSchema = z.object(paging);
 export type OrderListQuery = z.infer<typeof orderListSchema>;
 
+/** Takvimde var olan gün mü (2030-02-30 gibi değerler geçersiz); geçersiz tarih istisna fırlatmaz. */
+const isRealDay = (v: string): boolean => {
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+};
+
 const day = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((v) => new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v, {
+  .refine((v) => isRealDay(v), {
     message: 'Geçerli bir tarih girin (YYYY-AA-GG).',
   });
 

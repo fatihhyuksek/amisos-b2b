@@ -6,6 +6,8 @@ import { formatInt } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
 import { useFailedNotificationCount } from './useFailedNotifications'
 import { useOrderSummary } from './orderSummary'
+import { fetchReport, type ReportToday } from '../api'
+import { formatTRY } from '../ui/format'
 import { useLoad } from './useLoad'
 
 function Stat({ to, label, value, note }: { to: string; label: string; value: number; note?: string }) {
@@ -28,6 +30,7 @@ export function AdminHome() {
   const { state, reload } = useLoad<DealerCounts>((signal) => fetchDealerSummary(signal), 'summary')
   const failed = useFailedNotificationCount()
   const orders = useOrderSummary()
+  const today = useLoad<ReportToday>((s) => fetchReport('today', {}, s), 'today')
   return (
     <AdminLayout title="Ana sayfa">
       {failed > 0 && (
@@ -35,6 +38,25 @@ export function AdminHome() {
           <strong>{formatInt(failed)} e-posta gönderilemedi.</strong>{' '}
           <Link to="/yonetim/bildirimler">Bildirimleri incele</Link>
         </Alert>
+      )}
+      {today.state.status === 'ready' && (
+        <section aria-labelledby="home-today" className="ui-stack">
+          <h2 id="home-today">Satış özeti</h2>
+          <div className="ui-todaycards">
+            {(
+              [
+                ['Bugün', today.state.data.today],
+                ['Bu ay', today.state.data.month],
+              ] as const
+            ).map(([label, v]) => (
+              <Link key={label} to="/yonetim/raporlar" className="ui-card ui-todaycard">
+                <span className="ui-stat__label">{label}</span>
+                <span className="ui-stat__value num">{formatTRY(v.netTotal)}</span>
+                <span className="muted">{formatInt(v.orderCount)} sipariş · net (KDV hariç)</span>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
       {orders && (
         <section aria-labelledby="home-orders" className="ui-stack">

@@ -1,0 +1,1 @@
+CREATE INDEX "orders_submitted_status_idx" ON "orders" USING btree ("submitted_at","status");

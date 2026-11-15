@@ -883,3 +883,182 @@ export async function downloadOrdersExcel(
   const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
   return { blob: await res.blob(), filename: m ? decodeURIComponent(m[1]) : null }
 }
+
+// ---------- Raporlar (docs/api/rapor-api.md; GR-RAP-001…003, K-46 – K-50) ----------
+// Tüm tutar, yüzde ve fark değerleri backend'den hazır gelir; arayüz hesaplamaz.
+
+/** Tutar metriklerinde `amount` metin ("123.45"), sayı metriklerinde sayı gelir; `percent` sayıdır. */
+export interface ReportChange<A = string> {
+  amount: A
+  /** Önceki değer 0 ise null. */
+  percent: number | null
+}
+
+export interface Comparable<T = string> {
+  current: T
+  previous: T
+  lastYear: T
+  changePrev: ReportChange<T>
+  changeYear: ReportChange<T>
+}
+
+export interface ReportRange {
+  from: string
+  to: string
+}
+
+export interface ReportOverview {
+  period: ReportRange
+  previous: ReportRange
+  lastYear: ReportRange
+  metrics: {
+    orderCount: Comparable<number>
+    netTotal: Comparable
+    vatTotal: Comparable
+    grandTotal: Comparable
+    orderingDealerCount: Comparable<number>
+    averageOrderNet: Comparable
+  }
+}
+
+export interface ReportTrendPoint {
+  month: string
+  orderCount: number
+  netTotal: string
+  lastYearNetTotal: string
+}
+
+export interface ReportOrderRow {
+  id: string
+  orderNo: number
+  submittedAt: string
+  dealer: { id: string; companyTitle: string }
+  status: OrderStatusValue
+  lineCount: number
+  netTotal: string
+  grandTotal: string
+}
+
+export interface ReportOrders extends Paged<ReportOrderRow> {
+  totals: { orderCount: number; netTotal: string; grandTotal: string }
+}
+
+export interface ReportDealerRow {
+  dealerId: string
+  companyTitle: string
+  city: string
+  orderCount: number
+  netTotal: Comparable
+  grandTotal: string
+  lastOrderAt: string
+}
+
+export interface ReportDealerProduct {
+  productId: string
+  barcode: string
+  name: string
+  groupName: string
+  quantity: number
+  netTotal: string
+}
+
+export interface ReportInactiveDealer {
+  dealerId: string
+  companyTitle: string
+  contactName: string
+  phone: string
+  city: string
+  lastOrderAt: string | null
+  daysSinceLastOrder: number | null
+  approvedAt: string | null
+}
+
+export interface ReportProductRow {
+  productId: string
+  barcode: string
+  code: string | null
+  name: string
+  groupName: string
+  quantity: number
+  orderCount: number
+  dealerCount: number
+  netTotal: string
+}
+
+export interface ReportGroupRow {
+  groupId: string
+  name: string
+  quantity: number
+  netTotal: Comparable
+  sharePercent: number
+}
+
+export interface ReportStatusRow {
+  status: OrderStatusValue
+  /** Türkçe durum adı (sunucudan). */
+  label: string
+  count: number
+  averageHoursInStatus: number | null
+}
+
+export interface ReportOutOfStockRow {
+  productId: string
+  barcode: string
+  name: string
+  groupName: string
+  quantity: number
+  orderCount: number
+  dealerCount: number
+  lastOrderedAt: string
+}
+
+export interface ReportToday {
+  today: { orderCount: number; netTotal: string }
+  month: { orderCount: number; netTotal: string }
+  pendingApplications: number
+  overdueApplications: number
+  newOrders: number
+  failedNotifications: number
+}
+
+export type ReportName =
+  | 'overview'
+  | 'trend'
+  | 'orders'
+  | 'dealers'
+  | 'products'
+  | 'groups'
+  | 'status'
+  | 'out-of-stock'
+  | 'inactive-dealers'
+
+type ReportParams = Record<string, string | number | undefined>
+
+export function fetchReport<T>(name: string, params: ReportParams, signal?: AbortSignal): Promise<T> {
+  return getJson(`/admin/reports/${name}${qsOf(params)}`, signal)
+}
+
+/**
+ * Liste raporları backend'de `{ period, ..., items }` biçiminde döner (docs/api/rapor-api.md);
+ * ekranlar yalnızca satırları kullanır. Düz dizi gelirse olduğu gibi döner.
+ */
+export async function fetchReportList<T>(
+  name: string,
+  params: ReportParams,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const body = await getJson<T[] | { items: T[] }>(`/admin/reports/${name}${qsOf(params)}`, signal)
+  return Array.isArray(body) ? body : body.items
+}
+
+/** Rapor Excel'ini aynı parametrelerle blob olarak indirir. */
+export async function downloadReportExcel(
+  name: ReportName,
+  params: ReportParams,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const res = await fetch(`/api/admin/reports/${name}/export.xlsx${qsOf(params)}`, { credentials: 'include' })
+  if (!res.ok) throw await toError(res)
+  const cd = res.headers.get('content-disposition') ?? ''
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
+  return { blob: await res.blob(), filename: m ? decodeURIComponent(m[1]) : null }
+}

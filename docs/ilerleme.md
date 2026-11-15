@@ -66,13 +66,19 @@ Son güncelleme: 2026-11-14
      işareti (referans, kim, ne zaman); geri alma "elle girilecek" yapar (mükerrer aktarım yok).
    - Admin ana sayfa sipariş kartları; bayi detayında son siparişler; bayi tarafında "Amisos notu".
 
+14. Raporlar (branch `claude/reports`):
+   - Dönem seçici; önceki dönem ve geçen yıl karşılaştırması (tutar + yüzde).
+   - Genel bakış (KPI, 12 ay trend, grup dağılımı), siparişler, bayiler, ürünler, ürün grupları, durumlar
+     (ortalama bekleme), stokta yokken sipariş, 60 gündür sipariş vermeyen bayiler; her biri Excel.
+   - Admin ana sayfa "Bugün / Bu ay" kartları; `npm run db:demo` örnek veri.
+
 ## Sıradaki adım
 
-**Raporlar ve özet ana sayfa** (GR-RAP-001…003, K-46 – K-50):
-- Tarih aralığına göre ön siparişler; bayi bazında sipariş sayısı ve tutar; en çok sipariş edilen
-  ürünler; ürün grubu bazında satış; bayi bazında en çok alınan ürünler, son sipariş tarihi, 60 gündür
-  sipariş vermeyen bayiler; durum dağılımı ve ortalama bekleme; stokta yokken sipariş edilen ürünler.
-- Grafikler (aylık tutar trendi, grup dağılımı), önceki dönem ve geçen yıl karşılaştırması, Excel.
+**Canlıya hazırlık** (iş sahibiyle karar gerekiyor):
+- Sunucu/barındırma seçimi ve kurulum (alan adı, SSL, veritabanı yedekleme, `TRUST_PROXY`).
+- `onay@amisosb2b.com` SMTP bilgileri ve gerçek e-posta gönderimi (outbox hazır).
+- KVKK aydınlatma metni ve kullanım koşulları metinleri.
+- Gerçek ürün listesi (Excel) ve görsellerin yüklenmesi; geliştirme hesaplarının kaldırılması.
 
 ## Sonraki adımlar (sırayla)
 

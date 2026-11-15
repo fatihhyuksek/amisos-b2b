@@ -52,6 +52,8 @@ Bildirimler: tüm e-postalar iş transaction'ında `notification_outbox`'a yazı
 
 Admin sipariş yönetimi: `orders.transfer_reference` (BizimHesap belge no) ve `orders.transferred_by` (elle girişi işaretleyen Admin) migration `0007_order_transfer_manual.sql` ile eklendi. Durum değişikliği satır kilidiyle yapılır, `order_status_history` ve audit_log'a yazılır, bayiye outbox e-postası gider. API: `docs/api/admin-siparis-api.md`.
 
+Raporlar: salt okunur SQL toplamları (`src/reports/`, `docs/api/rapor-api.md`); `orders(submitted_at) WHERE status <> 'cancelled'` kısmi indeksi (migration `0009_report_partial_index.sql`; 0008'deki bileşik indeks kaldırıldı). Demo verisi: `npm run db:demo` (README).
+
 Sepet/sipariş davranışı (şema değişmedi, migration yok): sipariş gönderimi bayi bazında `pg_advisory_xact_lock` ile
 sıralanır (çift gönderim tek sipariş); sipariş satırı birim fiyatı saklanmaz, `unit_list_price` ve `discount_percent`'ten
 türetilir. API: `docs/api/siparis-api.md`.

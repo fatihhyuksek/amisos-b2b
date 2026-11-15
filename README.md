@@ -57,6 +57,7 @@ Elle çalıştırmak için:
 | backend | `npm run lint` | Kod denetimi |
 | backend | `npm run db:generate` | Şemadan migration üretir |
 | backend | `npm run db:migrate` | Migration'ları veritabanına uygular |
+| backend | `npm run db:demo` | Geliştirme veritabanına gerçekçi demo verisi üretir: 8 bayi, 25 ürün, ~210 sipariş (son 14 ay, çeşitli durumlar; sabit tohumlu). Tekrar çalıştırılabilir: temizleme + üretim tek transaction; yalnızca kesin işaretli demo kayıtlarını (bayi e-postası `@demo.amisos.local`; ürün barkodu `869990…` VE kodu `DEMO-…`; grup anahtarı `… demo` VE sırası ≥ 9000) siler. Gerçek bir ürün aynı barkod önekini kullanıyorsa açık hatayla durur. `DATABASE_URL` yerel (localhost/127.0.0.1/db) değilse `--force` ister. `npm run db:demo -- --clear` yalnızca siler. Demo bayi girişi `bayi1@demo.amisos.local` … `bayi8@…` / `Demo1234`. Yalnızca `NODE_ENV=development` |
 | backend | `npm run db:seed` | Geliştirme hesaplarını oluşturur/sıfırlar: `admin@amisos.local` / `Admin1234`, `bayi@amisos.local` / `Bayi1234` (yalnızca development) |
 | backend | `npm run admin:create -- --email ... --name "..."` | Gerçek Admin hesabı oluşturur (şifreyi gizli sorar) |
 | frontend | `npm run build` | Üretim derlemesi |

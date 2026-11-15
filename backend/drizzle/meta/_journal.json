@@ -57,6 +57,20 @@
       "when": 1794744282305,
       "tag": "0007_order_transfer_manual",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794746732505,
+      "tag": "0008_report_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794753531648,
+      "tag": "0009_report_partial_index",
+      "breakpoints": true
     }
   ]
 }
