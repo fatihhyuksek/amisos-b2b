@@ -6,9 +6,15 @@ import { BrandLogo } from '../shop/brand'
 import { replace, useRoute } from '../router'
 import { Button } from '../ui/components'
 import { useFailedNotificationCount } from './useFailedNotifications'
+import { useOrderSummary } from './useOrderSummary'
 
 const LINKS = [
   { to: '/yonetim', label: 'Ana sayfa', match: (p: string) => p === '/yonetim' },
+  {
+    to: '/yonetim/siparisler',
+    label: 'Siparişler',
+    match: (p: string) => p.startsWith('/yonetim/siparisler'),
+  },
   { to: '/yonetim/bayiler', label: 'Bayiler', match: (p: string) => p.startsWith('/yonetim/bayiler') },
   { to: '/yonetim/urunler', label: 'Ürünler', match: (p: string) => p.startsWith('/yonetim/urunler') },
   {
@@ -41,6 +47,7 @@ export function AdminLayout({
   const { state, logout } = useAuth()
   const { path } = useRoute()
   const failed = useFailedNotificationCount()
+  const orders = useOrderSummary()
   const name = state.status === 'authenticated' ? state.user.name : ''
   return (
     <div className="ui-admin">
@@ -72,6 +79,12 @@ export function AdminLayout({
             aria-current={l.match(path) ? 'page' : undefined}
           >
             {l.label}
+            {l.to === '/yonetim/siparisler' && orders !== null && orders.submitted > 0 && (
+              <span className="ui-navbadge">
+                {orders.submitted}
+                <span className="visually-hidden"> yeni sipariş</span>
+              </span>
+            )}
             {l.to === '/yonetim/bildirimler' && failed > 0 && (
               <span className="ui-navbadge">
                 {failed}

@@ -231,6 +231,12 @@ export function OrderDetailPage({ id }: { id: string }) {
                     <li key={i}>
                       <strong>{orderStatusLabel(h.toStatus)}</strong>
                       <span className="muted">{formatDateTime(h.createdAt)}</span>
+                      {h.note && (
+                        <span className="ui-prewrap">
+                          <span className="muted">Amisos notu: </span>
+                          {h.note}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ol>

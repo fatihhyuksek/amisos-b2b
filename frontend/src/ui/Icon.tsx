@@ -18,6 +18,8 @@ const PATHS = {
 
 // Çizgi ikonlar (mağaza kabuğu): ince, sade; 24 piksel ızgara.
 const STROKES = {
+  download: 'M12 4v11m-4-4 4 4 4-4M5 19h14',
+  copy: 'M8 8h11v12H8V8Zm-3 8V4h11',
   menu: 'M4 7h16M4 12h16M4 17h16',
   home: 'M4 11 12 4l8 7v9h-5.5v-6h-5v6H4v-9Z',
   filter: 'M4 6.5h16M7 12h10M10 17.5h4',

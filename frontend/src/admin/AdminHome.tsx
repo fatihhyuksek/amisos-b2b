@@ -5,6 +5,7 @@ import { Alert, Badge } from '../ui/components'
 import { formatInt } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
 import { useFailedNotificationCount } from './useFailedNotifications'
+import { useOrderSummary } from './useOrderSummary'
 import { useLoad } from './useLoad'
 
 function Stat({ to, label, value, note }: { to: string; label: string; value: number; note?: string }) {
@@ -26,6 +27,7 @@ const list = (s: DealerStatus) => `/yonetim/bayiler?durum=${s}`
 export function AdminHome() {
   const { state, reload } = useLoad<DealerCounts>((signal) => fetchDealerSummary(signal), 'summary')
   const failed = useFailedNotificationCount()
+  const orders = useOrderSummary()
   return (
     <AdminLayout title="Ana sayfa">
       {failed > 0 && (
@@ -33,6 +35,26 @@ export function AdminHome() {
           <strong>{formatInt(failed)} e-posta gönderilemedi.</strong>{' '}
           <Link to="/yonetim/bildirimler">Bildirimleri incele</Link>
         </Alert>
+      )}
+      {orders && (
+        <section aria-labelledby="home-orders" className="ui-stack">
+          <h2 id="home-orders">Siparişler</h2>
+          <div className="ui-stats">
+            <Stat
+              to="/yonetim/siparisler?durum=submitted"
+              label="Yeni (Gönderildi)"
+              value={orders.submitted}
+            />
+            <Stat to="/yonetim/siparisler?durum=negotiating" label="Görüşülüyor" value={orders.negotiating} />
+            <Stat to="/yonetim/siparisler?durum=approved" label="Onaylandı" value={orders.approved} />
+            <Stat to="/yonetim/siparisler?durum=shipped" label="Sevk edildi" value={orders.shipped} />
+            <Stat
+              to="/yonetim/siparisler?aktarim=girilmedi"
+              label="BizimHesap'a girilmedi"
+              value={orders.notTransferred}
+            />
+          </div>
+        </section>
       )}
       {state.status === 'loading' && (
         <div className="ui-stats" aria-busy="true">

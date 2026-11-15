@@ -639,6 +639,8 @@ export interface OrderDetail {
     fromStatus: OrderStatusValue | null
     toStatus: OrderStatusValue
     source: string
+    /** Bayiye görünür Admin notu (K-26). */
+    note?: string | null
     createdAt: string
   }[]
 }
@@ -764,4 +766,119 @@ export async function retryNotification(id: string): Promise<AdminNotification> 
   return (await (
     await post(`/admin/notifications/${encodeURIComponent(id)}/retry`)
   ).json()) as AdminNotification
+}
+
+// ---------- Admin sipariş yönetimi (docs/api/admin-siparis-api.md) ----------
+
+export type TransferStatus = 'pending' | 'transferred'
+
+export interface AdminOrderListItem {
+  id: string
+  orderNo: number
+  submittedAt: string
+  status: OrderStatusValue
+  dealer: { id: string; companyTitle: string }
+  lineCount: number
+  netTotal: string
+  grandTotal: string
+  deliveryMethod: DeliveryMethod
+  transferStatus: TransferStatus
+  hasOutOfStock: boolean
+}
+
+export interface AdminOrderFilters {
+  status?: OrderStatusValue | ''
+  q?: string
+  transfer?: 'pending' | 'transferred' | ''
+  from?: string
+  to?: string
+  dealerId?: string
+}
+
+export interface AdminOrderSummary {
+  submitted: number
+  negotiating: number
+  approved: number
+  shipped: number
+  notTransferred: number
+}
+
+export interface AdminOrderDetail extends Omit<OrderDetail, 'history'> {
+  dealer: {
+    id: string
+    companyTitle: string
+    contactName: string
+    email: string
+    phone: string
+    city: string
+    district: string
+    address: string
+  }
+  allowedNextStatuses: OrderStatusValue[]
+  history: {
+    fromStatus: OrderStatusValue | null
+    toStatus: OrderStatusValue
+    source: 'system' | 'admin' | 'bizimhesap'
+    changedBy: { id: string; fullName: string } | null
+    note: string | null
+    createdAt: string
+  }[]
+  transfer: {
+    status: TransferStatus
+    reference: string | null
+    transferredAt: string | null
+    transferredBy: { id: string; fullName: string } | null
+  }
+}
+
+export function fetchAdminOrders(
+  params: AdminOrderFilters & { page: number; pageSize: number },
+  signal?: AbortSignal,
+): Promise<Paged<AdminOrderListItem>> {
+  return getJson(`/admin/orders${qsOf({ ...params })}`, signal)
+}
+
+export function fetchAdminOrderSummary(signal?: AbortSignal): Promise<AdminOrderSummary> {
+  return getJson('/admin/orders/summary', signal)
+}
+
+export function fetchAdminOrder(id: string, signal?: AbortSignal): Promise<AdminOrderDetail> {
+  return getJson(`/admin/orders/${encodeURIComponent(id)}`, signal)
+}
+
+export async function changeOrderStatus(
+  id: string,
+  status: OrderStatusValue,
+  note?: string,
+): Promise<AdminOrderDetail> {
+  const body = note ? { status, note } : { status }
+  return (await (
+    await post(`/admin/orders/${encodeURIComponent(id)}/status`, body)
+  ).json()) as AdminOrderDetail
+}
+
+export async function markOrderTransferred(id: string, reference?: string): Promise<AdminOrderDetail> {
+  const body = reference ? { reference } : {}
+  return (await (
+    await post(`/admin/orders/${encodeURIComponent(id)}/transfer`, body)
+  ).json()) as AdminOrderDetail
+}
+
+export async function unmarkOrderTransferred(id: string): Promise<AdminOrderDetail> {
+  return (await (await del(`/admin/orders/${encodeURIComponent(id)}/transfer`)).json()) as AdminOrderDetail
+}
+
+/** Excel dosyasını blob olarak indirir (tek sipariş veya liste). */
+export async function downloadOrdersExcel(
+  target: { orderId: string } | { filters: AdminOrderFilters },
+): Promise<{ blob: Blob; filename: string | null }> {
+  const path =
+    'orderId' in target
+      ? `/admin/orders/${encodeURIComponent(target.orderId)}/export.xlsx`
+      : `/admin/orders/export.xlsx${qsOf({ ...target.filters })}`
+  const res = await fetch(`/api${path}`, { credentials: 'include' })
+  if (!res.ok) throw await toError(res)
+  const cd = res.headers.get('content-disposition') ?? ''
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
+  return { blob: await res.blob(), filename: m ? decodeURIComponent(m[1]) : null }
 }
