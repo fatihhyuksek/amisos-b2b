@@ -7,11 +7,12 @@ export function Faq({ body }: { body: string }) {
   const { intro, items } = parseFaq(body)
   return (
     <>
-      {intro.map((b, i) => (
-        <div key={i} className="ui-richtext">
-          <BlockView block={b} />
-        </div>
-      ))}
+      {items.length > 0 &&
+        intro.map((b, i) => (
+          <div key={i} className="ui-richtext">
+            <BlockView block={b} />
+          </div>
+        ))}
       {items.length === 0 ? (
         <RichText body={body} />
       ) : (

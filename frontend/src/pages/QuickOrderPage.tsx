@@ -1,7 +1,7 @@
 // K-71: Hızlı sipariş. Barkod veya ürün kodu + adet satırları; "Excel'den yapıştır" (iki sütun, sekme veya ;).
 // Adet koli katına yukarı yuvarlanır; sonuç özeti (eklenenler, yuvarlananlar, hatalar) gösterilir.
 // Eşleştirme ve yuvarlama backend'dedir (POST /api/cart/quick-add); arayüz yalnızca biçimi kontrol eder.
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ApiError, quickAdd, type QuickAddResult } from '../api'
 import { Link } from '../Link'
 import { useCart } from '../shop/cart'
@@ -24,6 +24,7 @@ const ERROR_TEXT: Record<string, string> = {
   NOT_FOUND: 'Ürün bulunamadı (barkod/kod kontrol edin)',
   INACTIVE: 'Ürün artık satışta değil',
   INVALID_QUANTITY: 'Adet geçersiz',
+  AMBIGUOUS: 'Bu kod birden çok ürüne uyuyor; barkodla girin',
 }
 
 /** Yapıştırılan metni (sekme veya ";" ile ayrılmış iki sütun) satırlara çevirir. */
@@ -46,7 +47,8 @@ function parsePaste(text: string): { rows: { query: string; qty: string }[]; ski
 }
 
 export function QuickOrderPage() {
-  const { applyCart, notify } = useCart()
+  const { applyCart, notify, reload } = useCart()
+  const resultRef = useRef<HTMLElement>(null)
   const nextId = useRef(INITIAL_ROWS)
   const [rows, setRows] = useState<Row[]>(() =>
     Array.from({ length: INITIAL_ROWS }, (_, i) => ({ id: i, query: '', qty: '' })),
@@ -58,6 +60,10 @@ export function QuickOrderPage() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ data: QuickAddResult; queries: string[] } | null>(null)
   usePageTitle('Hızlı sipariş')
+
+  useEffect(() => {
+    if (result) resultRef.current?.focus()
+  }, [result])
 
   const filled = rows.filter((r) => r.query.trim() || r.qty.trim())
   const setRow = (id: number, patch: Partial<Row>) =>
@@ -74,12 +80,16 @@ export function QuickOrderPage() {
       setPasteInfo({ added: 0, skipped: ['Yapıştırılacak satır bulunamadı.'] })
       return
     }
-    setRows((cur) => {
-      const kept = cur.filter((r) => r.query.trim() || r.qty.trim())
-      const added = parsed.map((p) => ({ id: nextId.current++, query: p.query, qty: p.qty }))
-      return [...kept, ...added].slice(0, MAX_LINES)
+    const kept = rows.filter((r) => r.query.trim() || r.qty.trim())
+    const room = Math.max(0, MAX_LINES - kept.length)
+    const accepted = parsed.slice(0, room)
+    const extra = parsed.length - accepted.length
+    setRows([...kept, ...accepted.map((p) => ({ id: nextId.current++, query: p.query, qty: p.qty }))])
+    setPasteInfo({
+      added: accepted.length,
+      skipped:
+        extra > 0 ? [...skipped, `${extra} satır ${MAX_LINES} satır sınırı nedeniyle eklenmedi`] : skipped,
     })
-    setPasteInfo({ added: parsed.length, skipped })
     if (skipped.length === 0) setPaste('')
     setResult(null)
   }
@@ -145,6 +155,14 @@ export function QuickOrderPage() {
         cartLink: data.added.length > 0,
       })
     } catch (err) {
+      if (!(err instanceof ApiError) || err.status >= 500) {
+        // Yanıt kaybolmuş olabilir; sunucuda işlem tamamlanmış olabilir.
+        void reload()
+        setFormError(
+          'İşlem tamamlanmış olabilir, sepetinizi kontrol edin. Satırlar listede bırakıldı; sepeti görmeden tekrar göndermeyin.',
+        )
+        return
+      }
       setFormError(
         err instanceof ApiError && err.status === 400
           ? 'Satırlar geçersiz. Barkod/kod ve adetleri kontrol edin.'
@@ -219,6 +237,7 @@ export function QuickOrderPage() {
                     autoComplete="off"
                     value={r.qty}
                     aria-invalid={rowErrors[r.id] ? true : undefined}
+                    aria-describedby={rowErrors[r.id] ? `qo-e-${r.id}` : undefined}
                     onChange={(e) => setRow(r.id, { qty: e.target.value.replace(/\D/g, '') })}
                     onKeyDown={(e) => onQtyKey(e, r, i === rows.length - 1)}
                   />

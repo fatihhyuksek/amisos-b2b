@@ -21,7 +21,9 @@ export function FavoritesPage() {
   return (
     <ShopLayout>
       <header className="ui-pagetitle">
-        <h1>Favorilerim</h1>
+        <h1 id="fav-title" tabIndex={-1}>
+          Favorilerim
+        </h1>
         <p className="muted" aria-live="polite">
           {state.status === 'ready' ? `${formatInt(items.length)} ürün · ` : ''}Fiyatlar KDV hariçtir
         </p>
@@ -62,7 +64,19 @@ export function FavoritesPage() {
                 product={p}
                 onAdd={(prod) => void addToCart(prod)}
                 onFavoriteChange={(fav) => {
-                  if (!fav) setRemoved((r) => [...r, p.id])
+                  if (fav) return
+                  // Odak kaybolmasın: sonraki kartın başlık bağlantısı, yoksa öncekine, yoksa sayfa başlığına.
+                  const idx = items.findIndex((x) => x.id === p.id)
+                  const target = items[idx + 1] ?? items[idx - 1]
+                  setRemoved((r) => [...r, p.id])
+                  requestAnimationFrame(() => {
+                    const el = target
+                      ? document.querySelector<HTMLElement>(
+                          `a[href="#/urun/${encodeURIComponent(target.id)}"].ui-pcard__link`,
+                        )
+                      : document.getElementById('fav-title')
+                    el?.focus()
+                  })
                 }}
               />
             ))}

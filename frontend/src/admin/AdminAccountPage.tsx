@@ -81,7 +81,7 @@ export function AdminAccountPage() {
                 <dd>{state.data.lastLoginAt ? formatDateTime(state.data.lastLoginAt) : '—'}</dd>
               </div>
             </dl>
-            <NameForm key={state.data.fullName} account={state.data} onSaved={reload} />
+            <NameForm account={state.data} onSaved={reload} />
           </section>
           <section className="ui-card ui-card__body ui-section" aria-labelledby="adm-pw">
             <h2 id="adm-pw">Şifre değiştir</h2>

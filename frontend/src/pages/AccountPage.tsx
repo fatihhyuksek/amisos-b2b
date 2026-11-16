@@ -245,9 +245,7 @@ export function AccountPage() {
           {tab === 'bilgiler' && <InfoTab account={account} onSaved={reload} />}
           {tab === 'adresler' && <AddressesTab account={account} />}
           {tab === 'guvenlik' && <SecurityTab account={account} />}
-          {tab === 'tercihler' && (
-            <PrefsTab key={String(account.marketingConsent)} account={account} onSaved={reload} />
-          )}
+          {tab === 'tercihler' && <PrefsTab account={account} onSaved={reload} />}
         </div>
       )}
       <div>

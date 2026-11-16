@@ -28,6 +28,17 @@ function listPath(f: Filters, page: number): string {
   return `/yonetim/islem-gecmisi${s ? `?${s}` : ''}`
 }
 
+const ENTITY_TYPES: [string, string][] = [
+  ['dealers', 'Bayi'],
+  ['orders', 'Sipariş'],
+  ['products', 'Ürün'],
+  ['product_groups', 'Ürün grubu'],
+  ['banners', 'Kampanya görseli'],
+  ['site_settings', 'Site ayarları'],
+  ['admin_users', 'Admin hesabı'],
+  ['media', 'Görsel'],
+]
+
 const ACTOR_LABEL: Record<string, string> = { admin: 'Admin', dealer: 'Bayi', system: 'Sistem' }
 const ACTOR_TONE = { admin: 'info', dealer: 'success', system: 'neutral' } as const
 
@@ -158,24 +169,19 @@ export function AuditPage() {
           <option value="dealer">Bayi</option>
           <option value="system">Sistem</option>
         </select>
-        <div className="ui-field">
-          <input
-            className="ui-input"
-            aria-label="Kayıt türü"
-            list="audit-entity-types"
-            placeholder="Kayıt türü (ör. dealer)"
-            value={f.kayit}
-            onChange={(e) => go({ kayit: e.target.value.trim() })}
-          />
-          <datalist id="audit-entity-types">
-            <option value="dealer">Bayi</option>
-            <option value="order">Sipariş</option>
-            <option value="product">Ürün</option>
-            <option value="product_group">Ürün grubu</option>
-            <option value="banner">Kampanya görseli</option>
-            <option value="site">Site ayarları</option>
-          </datalist>
-        </div>
+        <select
+          className="ui-select"
+          aria-label="Kayıt türü"
+          value={f.kayit}
+          onChange={(e) => go({ kayit: e.target.value })}
+        >
+          <option value="">Kayıt türü: tümü</option>
+          {ENTITY_TYPES.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
         <label className="ui-field ui-datefield">
           <span className="ui-help">Başlangıç</span>
           <input

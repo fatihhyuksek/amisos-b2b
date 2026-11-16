@@ -1173,6 +1173,8 @@ export interface SitePage {
   /** Düz metin: boş satır paragraf, "## " alt başlık, "- " madde. HTML yoktur. */
   body: string
   updatedAt: string
+  /** Sayfa gövdesi değiştikçe 1 artar (onay metni sürümü). */
+  version: number
 }
 
 export function fetchSitePage(slug: string, signal?: AbortSignal): Promise<SitePage> {

@@ -15,7 +15,7 @@ import {
 } from '../api'
 import { Link } from '../Link'
 import { replace, useRoute } from '../router'
-import { Alert, Badge, Button, EmptyState, Pagination, StockBadge } from '../ui/components'
+import { Alert, Badge, Button, EmptyState, Modal, Pagination, StockBadge } from '../ui/components'
 import { ErrorAlert, LoadingCard, ProductImage } from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
 import { formatInt, formatTRY } from '../ui/format'
@@ -82,6 +82,12 @@ export function ProductListPage() {
   const setSelected = (ids: string[]) => setSel({ key: listKey, ids })
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkGroup, setBulkGroup] = useState('')
+  const [confirmBulk, setConfirmBulk] = useState<{
+    action: BulkAction
+    label: string
+    groupId?: string
+    text: string
+  } | null>(null)
 
   const groups = useLoad<ProductGroup[]>((s) => fetchProductGroups(s), 'groups')
   const { state, reload } = useLoad<Paged<AdminProduct>>(
@@ -388,7 +394,13 @@ export function ProductListPage() {
                   size="sm"
                   variant="secondary"
                   disabled={bulkBusy}
-                  onClick={() => void runBulk('deactivate', 'Pasife al')}
+                  onClick={() =>
+                    setConfirmBulk({
+                      action: 'deactivate',
+                      label: 'Pasife al',
+                      text: `${selected.length} ürün pasife alınacak ve bayilere görünmeyecek.`,
+                    })
+                  }
                 >
                   Pasife al
                 </Button>
@@ -444,7 +456,14 @@ export function ProductListPage() {
                   <Button
                     size="sm"
                     disabled={bulkBusy || !bulkGroup}
-                    onClick={() => void runBulk('set_group', 'Grup değiştir', bulkGroup)}
+                    onClick={() =>
+                      setConfirmBulk({
+                        action: 'set_group',
+                        label: 'Grup değiştir',
+                        groupId: bulkGroup,
+                        text: `${selected.length} ürün seçilen gruba taşınacak.`,
+                      })
+                    }
                   >
                     Gruba taşı
                   </Button>
@@ -454,6 +473,29 @@ export function ProductListPage() {
                 </Button>
               </div>
             </div>
+          )}
+          {confirmBulk && (
+            <Modal
+              title={`${confirmBulk.label}: onay`}
+              onClose={() => setConfirmBulk(null)}
+              dismissable={!bulkBusy}
+            >
+              <p>{confirmBulk.text} Devam edilsin mi?</p>
+              <div className="ui-modal__actions">
+                <Button variant="secondary" onClick={() => setConfirmBulk(null)} disabled={bulkBusy}>
+                  Vazgeç
+                </Button>
+                <Button
+                  disabled={bulkBusy}
+                  onClick={async () => {
+                    await runBulk(confirmBulk.action, confirmBulk.label, confirmBulk.groupId)
+                    setConfirmBulk(null)
+                  }}
+                >
+                  {bulkBusy ? 'Uygulanıyor…' : 'Onayla'}
+                </Button>
+              </div>
+            </Modal>
           )}
           <Pagination
             page={state.data.page}

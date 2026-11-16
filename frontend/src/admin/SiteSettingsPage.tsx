@@ -28,6 +28,7 @@ interface FormState {
     mapUrl: string
     phoneE164: string
     whatsappE164: string
+    whatsappOn: boolean
   }
   pages: AdminSite['pages']
 }
@@ -40,13 +41,14 @@ function toForm(s: AdminSite): FormState {
       mapUrl: s.contact.mapUrl ?? '',
       phoneE164: s.contact.phoneE164 ?? '',
       whatsappE164: s.contact.whatsappE164 ?? '',
+      whatsappOn: s.contact.whatsappE164 !== null,
     },
     pages: s.pages.map((p) => ({ ...p })),
   }
 }
 
 function toPayload(f: FormState): AdminSiteInput {
-  const { phoneE164, whatsappE164, ...rest } = f.contact
+  const { phoneE164, whatsappE164, whatsappOn, ...rest } = f.contact
   return {
     announcement: f.announcement.trim() || null,
     contact: {
@@ -59,7 +61,12 @@ function toPayload(f: FormState): AdminSiteInput {
       mapUrl: f.contact.mapUrl.trim() || null,
       // Boş bırakılırsa sunucu telefondan türetir.
       ...(phoneE164.trim() ? { phoneE164: phoneE164.trim() } : {}),
-      ...(whatsappE164.trim() ? { whatsappE164: whatsappE164.trim() } : {}),
+      // Kapalıysa null: WhatsApp butonu ve bağlantıları vitrinde gizlenir.
+      ...(!whatsappOn
+        ? { whatsappE164: null }
+        : whatsappE164.trim()
+          ? { whatsappE164: whatsappE164.trim() }
+          : {}),
     },
     pages: f.pages.map((p) => ({
       slug: p.slug,
@@ -101,7 +108,7 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
   const [busy, setBusy] = useState(false)
   const dirty = JSON.stringify(form) !== baseline
 
-  const setContact = (k: keyof FormState['contact'], v: string) =>
+  const setContact = (k: Exclude<keyof FormState['contact'], 'whatsappOn'>, v: string) =>
     setForm((f) => ({ ...f, contact: { ...f.contact, [k]: v } }))
   const setPage = (i: number, patch: Partial<AdminSite['pages'][number]>) =>
     setForm((f) => ({ ...f, pages: f.pages.map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
@@ -137,7 +144,11 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
   }
 
   const c = form.contact
-  const contactInput = (k: keyof FormState['contact'], errKey: string | null, extra?: { type?: string }) => (
+  const contactInput = (
+    k: Exclude<keyof FormState['contact'], 'whatsappOn'>,
+    errKey: string | null,
+    extra?: { type?: string },
+  ) => (
     <input
       id={`site-${k}`}
       className="ui-input"
@@ -206,13 +217,29 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
           >
             {contactInput('phoneE164', null)}
           </Field>
-          <Field
-            label="WhatsApp numarası (uluslararası)"
-            htmlFor="site-whatsappE164"
-            help="Örn. +905524925058"
-          >
-            {contactInput('whatsappE164', null)}
-          </Field>
+          <div className="ui-field">
+            <label className="ui-check ui-switch" htmlFor="site-whatsappOn">
+              <input
+                id="site-whatsappOn"
+                type="checkbox"
+                role="switch"
+                checked={c.whatsappOn}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, contact: { ...f.contact, whatsappOn: e.target.checked } }))
+                }
+              />
+              <span>WhatsApp butonunu göster</span>
+            </label>
+          </div>
+          {c.whatsappOn && (
+            <Field
+              label="WhatsApp numarası (uluslararası)"
+              htmlFor="site-whatsappE164"
+              help="Boşsa telefondan türetilir. Örn. +905524925058"
+            >
+              {contactInput('whatsappE164', null)}
+            </Field>
+          )}
           <Field label="Adres" htmlFor="site-address">
             {contactInput('address', null)}
           </Field>
