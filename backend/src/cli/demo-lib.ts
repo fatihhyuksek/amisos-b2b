@@ -120,10 +120,19 @@ const isDemoProduct = and(like(schema.products.barcode, `${DEMO_BARCODE_PREFIX}%
 const isDemoGroup = and(like(schema.productGroups.nameKey, '% demo'), gte(schema.productGroups.sortOrder, DEMO_GROUP_SORT));
 
 /** Temizle + üret tek transaction'da; çakışma varsa hiçbir şey yazılmadan açık hatayla durur. */
-/** Demo ürünleri yüklü mü (db:demo --if-empty için). */
+/**
+ * Güncel demo verisi (görselleriyle) yüklü mü (db:demo --if-empty için). Eski sürümün görselsiz demo verisi
+ * "yüklü değil" sayılır; böylece baslat.cmd onu görselli sürümle yeniler.
+ */
 export async function hasDemoData(db: Db): Promise<boolean> {
-  const rows = await db.select({ id: schema.products.id }).from(schema.products).where(isDemoProduct).limit(1);
-  return rows.length > 0;
+  const products = await db.select({ id: schema.products.id }).from(schema.products).where(isDemoProduct).limit(1);
+  if (products.length === 0) return false;
+  const images = await db
+    .select({ id: schema.media.id })
+    .from(schema.media)
+    .where(like(schema.media.originalName, `${DEMO_MEDIA_PREFIX}%`))
+    .limit(1);
+  return images.length > 0;
 }
 
 export interface DemoOptions {
@@ -177,7 +186,8 @@ async function assertNoConflicts(db: Executor): Promise<void> {
   const groups = await db
     .select({ nameKey: schema.productGroups.nameKey })
     .from(schema.productGroups)
-    .where(inArray(schema.productGroups.nameKey, keys));
+    // Demo işaretli grup (sıra ≥ 9000) yeniden kullanılır; yalnızca aynı anahtarlı gerçek grup çakışmadır.
+    .where(and(inArray(schema.productGroups.nameKey, keys), sql`${schema.productGroups.sortOrder} < ${DEMO_GROUP_SORT}`));
   if (groups.length > 0) {
     throw new DemoDataError(`Gerçek bir ürün grubu demo grup anahtarıyla çakışıyor (${groups[0].nameKey}); demo verisi üretilmedi.`);
   }
@@ -211,13 +221,23 @@ async function clear(db: Executor): Promise<string[]> {
     await db.delete(schema.dealers).where(inArray(schema.dealers.id, demoDealers));
   }
   if (demoProducts.length > 0) {
-    // Demo olmayan siparişlerde kullanılmış demo ürün olmamalı; kullanılmışsa silme atlanır.
-    const used = await db
-      .select({ id: schema.orderLines.productId })
-      .from(schema.orderLines)
-      .where(inArray(schema.orderLines.productId, demoProducts))
-      .limit(1);
-    if (used.length === 0) await db.delete(schema.products).where(inArray(schema.products.id, demoProducts));
+    // Demo olmayan bir siparişte (ör. geliştirme bayisiyle verilen) kullanılmış demo ürün silinemez. Sipariş satırı ürün
+    // bilgisini kopyaladığı için bu ürünler pasife alınıp demo işaretinden çıkarılır (barkod "eski-" önekli, kod boş);
+    // böylece yeni demo verisiyle çakışmazlar.
+    const used = (
+      await db
+        .selectDistinct({ id: schema.orderLines.productId })
+        .from(schema.orderLines)
+        .where(inArray(schema.orderLines.productId, demoProducts))
+    ).map((u) => u.id);
+    if (used.length > 0) {
+      await db
+        .update(schema.products)
+        .set({ isActive: false, isFeatured: false, code: null, barcode: sql`'eski-' || ${schema.products.barcode} || '-' || left(${schema.products.id}::text, 8)` })
+        .where(inArray(schema.products.id, used));
+    }
+    const unused = demoProducts.filter((id) => !used.includes(id));
+    if (unused.length > 0) await db.delete(schema.products).where(inArray(schema.products.id, unused));
   }
   await db
     .delete(schema.productGroups)
