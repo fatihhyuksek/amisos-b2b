@@ -1,6 +1,6 @@
 # Proje İlerlemesi
 
-Son güncelleme: 2026-11-14
+Son güncelleme: 2026-11-16
 
 ## Tamamlananlar
 
@@ -79,7 +79,16 @@ Son güncelleme: 2026-11-14
    - `/api/account` (bilgi, PATCH, şifre, diğer oturumlar, pazarlama onayı, kayıtlı adresler), favoriler,
      `POST /api/cart/quick-add`, fiyat listesi ve bayi sipariş Excel'i.
    - Admin: bayi PATCH, iç notlar, ürün `isFeatured` + toplu işlem, `GET /api/admin/audit`, admin hesabı/şifre.
-   - Migration `0010_vitrin_hesap`; e2e `test/vitrin-hesap.e2e-spec.ts` (fiyat sızmaması dahil). Demo verisi ana oturumda.
+   - Migration `0010_vitrin_hesap`; e2e `test/vitrin-hesap.e2e-spec.ts` (fiyat sızmaması dahil).
+   - Frontend:
+     - Açık vitrin (`/`, `/katalog`, `/urun/:id`, bilgi sayfaları) oturumsuz açılır; fiyat/stok yalnızca bayide. Girişten sonra `?donus=` ile dönüş.
+     - Yeni: ana sayfa vitrini, bilgi sayfaları (`/hakkimizda /sss /teslimat /kvkk /kullanim-kosullari /iletisim`), Hesabım sekmeleri,
+       `/favorilerim`, `/hizli-siparis`, sipariş onayında kayıtlı adres, sipariş yazdır/Excel, fiyat listesi indir.
+     - Admin: `/yonetim/site-ayarlari`, `/yonetim/islem-gecmisi`, `/yonetim/hesabim`, bayi düzenleme + iç notlar, ürün toplu işlem + öne çıkan.
+   - Demo: 31 ürün (6 grup, Dekorasyon dahil) çizim görselleriyle, 3 kampanya görseli, öne çıkan/yeni ürünler
+     (`backend/demo-assets/`, `npm run db:demo`; `baslat.cmd` boş veritabanında otomatik yükler).
+   - Kod incelemesi (backend + frontend) yapıldı, bulgular düzeltildi: e-posta değişiminde token iptali, KVKK sürümü,
+     şifre deneme sınırı, hızlı sipariş eşleşmesi, WhatsApp gizleme, işlem geçmişi süzgeci vb. (branch `claude/dreamy-albattani-rnp2v3`)
 
 ## Sıradaki adım
 
@@ -115,10 +124,3 @@ Son güncelleme: 2026-11-14
   yeni eklenen ajanlar bir sonraki oturumda kullanılabilir.
 - Tüm işler `main` branch'inde. Her yeni adım ayrı bir branch'te yapılır ve PR ile `main`'e alınır.
 - Eski Spring Boot iskeleti kaldırıldı (geçmişte `79e180e` commit'inde duruyor).
-
-## Frontend: açık vitrin ve hesap (K-66 – K-76)
-
-- Açık vitrin (`/`, `/katalog`, `/urun/:id`, bilgi sayfaları) oturumsuz açılır; fiyat/stok yalnızca bayide. Girişten sonra `?donus=` ile dönüş.
-- Yeni: ana sayfa vitrini, bilgi sayfaları (`/hakkimizda /sss /teslimat /kvkk /kullanim-kosullari /iletisim`), Hesabım sekmeleri,
-  `/favorilerim`, `/hizli-siparis`, sipariş onayında kayıtlı adres, sipariş yazdır/Excel, fiyat listesi indir.
-- Admin: `/yonetim/site-ayarlari`, `/yonetim/islem-gecmisi`, `/yonetim/hesabim`, bayi düzenleme + iç notlar, ürün toplu işlem + öne çıkan.

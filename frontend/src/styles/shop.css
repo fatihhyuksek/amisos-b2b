@@ -912,8 +912,9 @@
 }
 
 @media (max-width: 39.99rem) {
-  /* Mobilde oklar metnin üstüne biner; kaydırma ve noktalar yeterli. */
-  .ui-carousel__arrow {
+  /* Mobilde oklar ve alt başlık görseldeki metnin üstüne biner; kaydırma ve noktalar yeterli. */
+  .ui-carousel .ui-carousel__arrow,
+  .ui-carousel .ui-carousel__caption {
     display: none;
   }
 }
