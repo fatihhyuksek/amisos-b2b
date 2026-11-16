@@ -90,11 +90,11 @@ describe('Banner (e2e)', () => {
     await rm(process.env.MEDIA_DIR!, { recursive: true, force: true });
   });
 
-  it('K-65, GR-YON-001: anonim 401; bayi Admin uçlarında 403; Admin bayi ucunda 403', async () => {
+  it('K-65, GR-YON-001: anonim vitrin 200; bayi Admin uçlarında 403; Admin bayi ucunda 403', async () => {
     const anon = request(app.getHttpServer());
-    await anon.get('/api/catalog/banners').expect(401);
+    await anon.get('/api/catalog/banners').expect(200); // K-66: açık vitrin
     await anon.get('/api/admin/banners').expect(401);
-    await admin.get('/api/catalog/banners').expect(403);
+    await admin.get('/api/catalog/banners').expect(200);
     await dealer.get('/api/admin/banners').expect(403);
     await dealer.post('/api/admin/banners').send({}).expect(403);
     await dealer.put('/api/admin/banners/order').send({ ids: [] }).expect(403);

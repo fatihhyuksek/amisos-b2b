@@ -22,6 +22,7 @@ import { calculateDealerPrice } from '../pricing/pricing.service.js';
 import { CartService, type CartView } from './cart.service.js';
 import { Money } from '../common/money.js';
 import { roundUpToCase } from './order-math.js';
+import { buildOrderExport } from './order-export.js';
 import { MAX_QUANTITY } from './orders.schemas.js';
 import type { OrderListQuery, SubmitOrderInput } from './orders.schemas.js';
 
@@ -216,6 +217,16 @@ export class OrdersService {
         createdAt,
       })),
     };
+  }
+
+  /** K-72: bayinin kendi siparişi Excel olarak (admin ile aynı düzen; iç alanlar yok). Başkasınınki 404. */
+  async exportForDealer(dealerId: string, id: string) {
+    const order = await this.getForDealer(dealerId, id);
+    const [dealer] = await this.db
+      .select({ companyTitle: dealers.companyTitle, contactName: dealers.contactName, phone: dealers.phone })
+      .from(dealers)
+      .where(eq(dealers.id, dealerId));
+    return buildOrderExport({ ...order, dealer });
   }
 
   /** Bayi ve Admin detayının ortak gövdesi; history ham satırlardır (changedBy id, note). */

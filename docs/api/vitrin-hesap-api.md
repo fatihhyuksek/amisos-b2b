@@ -145,3 +145,25 @@ eylem adının kendisi). `entityLabel`: bayi → firma unvanı, sipariş → "#<
 ## 8. Demo verisi
 `npm run db:demo` artık ürün görselleri (demo görsel kütüphanesi `backend/demo-assets/`), öne çıkan ürünler, 3 kampanya
 görseli ve varsayılan site ayarlarını da üretir; `--clear` bunları da siler (yalnızca demo kayıtları).
+
+## Uygulama notları (backend)
+
+Migration: `0010_vitrin_hesap`. Alan adları sözleşmeyle aynıdır; aşağıdakiler belirsiz kalan noktaların netleştirmesidir.
+
+- **Stok alanı adı `stock`**: katalog öğesindeki mevcut alan adı korunur (`stock: "in_stock"|"out_of_stock"|null`); `stockStatus` yoktur.
+  Oturumsuz/Admin görünümünde `listPrice, price, discountPercent, stock, vatRate` = `null`. Detay yanıtında `priceVisible` üst düzeydir (öğe alanlarıyla yan yana).
+- **Oturumsuzda `stock=in_stock` filtresi yok sayılır** (stok bilgisi sızmasın); `stock=out_of_stock` hâlâ 400. `sort=price_*` bayide bayinin iskontolu fiyatına göre.
+- **Admin oturumu** katalogda 403 değil 200 döner, fiyatsız görünümle. `GET /api/catalog/price-list.xlsx` yalnızca bayi (anonim 401, Admin 403).
+- `isNew`: `createdAt` son 30 gün (`NEW_PRODUCT_DAYS`). Favoriler `GET /api/favorites` yanıtında `priceVisible` yoktur (her zaman bayi).
+- **Audit kapsamı**: favoriler ve hızlı sipariş (sepet işlemleri gibi, yüksek hacimli ve geri alınabilir) audit'e yazılmaz; diğer tüm yazmalar yazılır.
+  Eylemler: `dealer.profile_updated, dealer.password_changed, dealer.sessions_revoked, dealer.marketing_consent_changed, dealer.address_added|updated|deleted,
+  dealer.updated, dealer.note_added|deleted, product.bulk, site.updated, admin.profile_updated, admin.password_changed`.
+- `GET /api/account`: `orderCount` iptaller dahil tüm siparişler; `openOrderCount` ve `yearNetTotal` sözleşmedeki gibi. `PATCH /api/account` bilinmeyen alanı (ör. `companyTitle`, `email`) 400 `VALIDATION` ile reddeder. `taxOffice`/`taxNumber` boş metin = `null`.
+- `POST /api/account/password`: yeni şifre K-53; mevcut şifre yanlışsa 400 `WRONG_PASSWORD`. IP başına hız sınırı (429) vardır. Admin için aynı kurallar.
+- **Adresler**: `carrierName, carrierBranch, city, district` isteğe bağlı (boş metin kabul, varsayılan `""`); `label` 1–60, `address` 1–500 zorunlu. Varsayılan adres silinirse kalan en yeni adres varsayılan olur. `PATCH {isDefault:false}` varsayılanı kaldırır (varsayılansız kalabilir).
+- **Hızlı sipariş**: `quantity` tipi sayı olmalı (değilse 400); geçersiz/≤0/ondalık adet satır hatası `INVALID_QUANTITY`. Sepet üst sınırı (100 000) aşılırsa o ürün de `INVALID_QUANTITY` ile reddedilir. Aynı ürün birden çok satırda gelirse `added` içinde tek kayıt, `index` ilk satırın indeksi, `requested` toplamdır. Boş `query` = `NOT_FOUND`. Başarılı yanıt 200.
+- **Site**: `PUT /api/admin/site` gövdesindeki `pages` yalnızca değişen sayfaları içerebilir (gönderilmeyenler korunur); `announcement: null` şeridi gizler. `contact.phoneE164`/`whatsappE164` verilmezse telefondan türetilir, `null` verilirse gizlenir. Admin yanıtındaki sayfalara `updatedAt` eklenir; varsayılan içeriğin `updatedAt` değeri sabittir (`2026-11-16T00:00:00.000Z`). Yanıtlar `Vary: Cookie` taşır.
+- **Bayi PATCH (Admin)**: unvan tekilliği Türkçe büyük/küçük harf duyarsız; çakışmada 409 `DUPLICATE_EMAIL` / `DUPLICATE_COMPANY`. Gövde boşsa/değişiklik yoksa audit yazılmaz, güncel detay döner. Notlar `POST` yanıtı not nesnesidir.
+- **Toplu işlem**: `updated` = bulunan ürün sayısı (değeri zaten aynı olanlar dahil). `set_group` pasif/bilinmeyen grupta 400 `VALIDATION` (`fields.groupId`). Yanıt 200.
+- **İşlem geçmişi**: `entityLabel` ayrıca kampanya (başlık), ürün grubu (ad) ve Admin (ad) için de döner. `actor.name`: Admin adı, bayi firma unvanı, sistem `null`. `pageSize` varsayılan 50. `from/to` dahil (gün sonuna kadar).
+- Başvuru (`POST /api/applications`) `taxOffice`/`taxNumber` kabul eder; Admin bayi detayında `taxOffice`, `taxNumber` döner (başvuru e2e'si mail kuyruğu nedeniyle yok, şema birim testi var).

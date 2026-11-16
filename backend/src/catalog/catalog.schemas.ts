@@ -70,6 +70,7 @@ export const createProductSchema = z.object({
   vatRate: vatText.default('20.00'),
   stockStatus: stock.default('in_stock'),
   isActive: z.boolean().default(true),
+  isFeatured: z.boolean().default(false),
   mediaIds: mediaIds.optional(),
 });
 export type CreateProductInput = z.infer<typeof createProductSchema>;
@@ -85,9 +86,16 @@ export const updateProductSchema = z.object({
   vatRate: vatText.optional(),
   stockStatus: stock.optional(),
   isActive: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
   mediaIds: mediaIds.optional(),
 });
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+/** `?featured=true` biçimli isteğe bağlı bayrak; yalnızca "true" etkindir. */
+const boolFlag = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => v === 'true');
 
 const paging = {
   page: z.coerce.number().int().min(1).max(100_000).default(1),
@@ -101,6 +109,7 @@ export const adminProductListSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
+  featured: boolFlag,
   ...paging,
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -110,7 +119,10 @@ export const catalogListSchema = z.object({
   q: z.string().trim().max(100).optional(),
   groupId: z.uuid().optional(),
   stock: z.enum(['in_stock']).optional(),
-  sort: z.enum(['name', 'newest']).default('name'),
+  // K-66: price_* oturumsuzken isme göre sıralanır (servis katmanı).
+  sort: z.enum(['name', 'newest', 'price_asc', 'price_desc']).default('name'),
+  featured: boolFlag,
+  new: boolFlag,
   ...paging,
   pageSize: z.coerce.number().int().min(1).max(100).default(24),
 });
@@ -152,3 +164,18 @@ export const groupDiscountsSchema = z.object({
     }),
 });
 export type GroupDiscountsInput = z.infer<typeof groupDiscountsSchema>;
+
+/** K-75: toplu işlem. `set_group` için `groupId` zorunlu. */
+export const bulkProductsSchema = z
+  .object({
+    ids: z.array(z.uuid()).min(1).max(500),
+    action: z.enum(['activate', 'deactivate', 'in_stock', 'out_of_stock', 'feature', 'unfeature', 'set_group']),
+    groupId: z.uuid().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.action === 'set_group' && !v.groupId) {
+      ctx.addIssue({ code: 'custom', path: ['groupId'], message: 'Grup seçimi zorunludur.' });
+    }
+  })
+  .transform((v) => ({ ...v, ids: [...new Set(v.ids)] }));
+export type BulkProductsInput = z.infer<typeof bulkProductsSchema>;

@@ -9,6 +9,20 @@ export const cartItemSchema = z.object({
 });
 export type CartItemInput = z.infer<typeof cartItemSchema>;
 
+/** K-71: hızlı sipariş. Adet doğrulaması satır bazlıdır (kısmi başarı), bu yüzden şema yalnızca tipi denetler. */
+export const quickAddSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        query: z.string().trim().max(100),
+        quantity: z.number(),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type QuickAddInput = z.infer<typeof quickAddSchema>;
+
 const text = (max: number) => z.string().trim().max(max);
 
 export const submitOrderSchema = z

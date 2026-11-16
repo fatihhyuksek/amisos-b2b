@@ -189,6 +189,73 @@ export class AuthService {
   }
 
   /**
+   * K-67, K-75: oturum açmış kullanıcının şifre değişikliği. Mevcut şifre yanlışsa 400 WRONG_PASSWORD;
+   * başarıda bu oturum dışındaki tüm oturumlar kapanır. Yeni şifre kuralı (K-53) şema katmanında.
+   */
+  async changePassword(
+    type: SubjectType,
+    id: string,
+    currentToken: string | undefined,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const [row] =
+      type === 'admin'
+        ? await this.db
+            .select({ hash: adminUsers.passwordHash })
+            .from(adminUsers)
+            .where(eq(adminUsers.id, id))
+        : await this.db
+            .select({ hash: dealers.passwordHash })
+            .from(dealers)
+            .where(eq(dealers.id, id));
+    const ok = await this.passwords.verify(row?.hash, currentPassword);
+    if (!ok) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'WRONG_PASSWORD',
+        message: 'Mevcut şifre hatalı.',
+      });
+    }
+    const passwordHash = await this.passwords.hash(newPassword);
+    await this.db.transaction(async (tx) => {
+      if (type === 'admin') {
+        await tx.update(adminUsers).set({ passwordHash }).where(eq(adminUsers.id, id));
+      } else {
+        await tx.update(dealers).set({ passwordHash }).where(eq(dealers.id, id));
+      }
+      if (currentToken) await this.sessions.destroyOthers(type, id, currentToken, tx);
+      await this.audit.record(
+        {
+          actorType: type,
+          actorId: id,
+          action: type === 'admin' ? 'admin.password_changed' : 'dealer.password_changed',
+          entityType: type === 'admin' ? 'admin_users' : 'dealers',
+          entityId: id,
+        },
+        tx,
+      );
+    });
+  }
+
+  /** K-67: diğer cihazlardan çıkış. */
+  async revokeOtherSessions(type: SubjectType, id: string, currentToken: string | undefined): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      if (currentToken) await this.sessions.destroyOthers(type, id, currentToken, tx);
+      await this.audit.record(
+        {
+          actorType: type,
+          actorId: id,
+          action: 'dealer.sessions_revoked',
+          entityType: 'dealers',
+          entityId: id,
+        },
+        tx,
+      );
+    });
+  }
+
+  /**
    * Şifre sıfırlama isteği. Yanıt süresi hesabın varlığını sızdırmasın diye iş arka planda yapılır
    * ve çağıran hemen döner (controller 202). E-posta yalnızca giriş yapabilecek durumdaki hesaba
    * gider (GR-BAYI-007). Hata olursa yalnızca log'a yazılır.

@@ -72,6 +72,15 @@ Son güncelleme: 2026-11-14
      (ortalama bekleme), stokta yokken sipariş, 60 gündür sipariş vermeyen bayiler; her biri Excel.
    - Admin ana sayfa "Bugün / Bu ay" kartları; `npm run db:demo` örnek veri.
 
+15. Açık vitrin, bayi hesabı ve admin araçları — backend (K-66 – K-76, sözleşme `docs/api/vitrin-hesap-api.md`):
+   - Katalog/banner/grup uçları oturumsuz açık (OptionalAuthGuard); oturumsuz ve Admin oturumunda fiyat, iskonto,
+     stok, KDV null (`priceVisible`); `isFavorite/isFeatured/isNew`, `featured`/`new` süzgeçleri, fiyat sıralaması.
+   - `site_settings`, `GET /api/site`, `/api/site/pages/:slug`, admin `GET/PUT /api/admin/site`; varsayılan Türkçe içerikler.
+   - `/api/account` (bilgi, PATCH, şifre, diğer oturumlar, pazarlama onayı, kayıtlı adresler), favoriler,
+     `POST /api/cart/quick-add`, fiyat listesi ve bayi sipariş Excel'i.
+   - Admin: bayi PATCH, iç notlar, ürün `isFeatured` + toplu işlem, `GET /api/admin/audit`, admin hesabı/şifre.
+   - Migration `0010_vitrin_hesap`; e2e `test/vitrin-hesap.e2e-spec.ts` (fiyat sızmaması dahil). Demo verisi ana oturumda.
+
 ## Sıradaki adım
 
 **Canlıya hazırlık** (iş sahibiyle karar gerekiyor):

@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import type { Env } from '../config/env.js';
-import { AdminGuard, AuthenticatedGuard, DealerGuard } from './auth.guards.js';
+import { AdminGuard, AuthenticatedGuard, DealerGuard, OptionalAuthGuard } from './auth.guards.js';
+import { AdminAccountController } from './admin-account.controller.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthTokensService } from './auth-tokens.service.js';
@@ -25,7 +26,7 @@ import { SessionsService } from './sessions.service.js';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AdminAccountController],
   providers: [
     AuthService,
     AuthTokensService,
@@ -35,6 +36,7 @@ import { SessionsService } from './sessions.service.js';
     AuthenticatedGuard,
     AdminGuard,
     DealerGuard,
+    OptionalAuthGuard,
   ],
   exports: [
     ThrottlerModule,
@@ -45,6 +47,7 @@ import { SessionsService } from './sessions.service.js';
     AuthenticatedGuard,
     AdminGuard,
     DealerGuard,
+    OptionalAuthGuard,
   ],
 })
 export class AuthModule {}

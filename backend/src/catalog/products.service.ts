@@ -17,6 +17,7 @@ import { DB, type Database } from '../database/database.module.js';
 import { media, productGroups, productImages, products } from '../database/schema.js';
 import type {
   AdminProductListQuery,
+  BulkProductsInput,
   CreateProductInput,
   UpdateProductInput,
 } from './catalog.schemas.js';
@@ -85,6 +86,7 @@ export class ProductsService {
     if (query.groupId) filters.push(eq(products.groupId, query.groupId));
     if (query.stock) filters.push(eq(products.stockStatus, query.stock));
     if (query.active !== undefined) filters.push(eq(products.isActive, query.active));
+    if (query.featured) filters.push(eq(products.isFeatured, true));
     const where = and(...filters);
 
     const [{ total }] = await this.db
@@ -145,6 +147,7 @@ export class ProductsService {
             stockSource: 'manual',
             stockUpdatedAt: now,
             isActive: input.isActive,
+            isFeatured: input.isFeatured,
           })
           .returning({ id: products.id });
         await this.setImages(tx, row.id, input.mediaIds ?? []);
@@ -162,6 +165,7 @@ export class ProductsService {
               vatRate: input.vatRate,
               stockStatus: input.stockStatus,
               isActive: input.isActive,
+              isFeatured: input.isFeatured,
             },
           },
           tx,
@@ -200,6 +204,7 @@ export class ProductsService {
         track('vatRate', input.vatRate);
         track('stockStatus', input.stockStatus);
         track('isActive', input.isActive);
+        track('isFeatured', input.isFeatured);
         if (changes.stockStatus) {
           set.stockSource = 'manual';
           set.stockUpdatedAt = this.clock.now();
@@ -234,6 +239,70 @@ export class ProductsService {
       return mapProductConflict(error);
     }
     return this.get(id);
+  }
+
+  /**
+   * K-75: toplu işlem. Bilinmeyen id'ler yok sayılır; `updated` bulunan ürün sayısıdır. Stok değişiminde
+   * `stockUpdatedAt` güncellenir ve kaynak `manual` olur (K-18). Tek audit kaydı (`product.bulk`).
+   */
+  async bulk(input: BulkProductsInput, adminId: string): Promise<{ updated: number }> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const set: Partial<typeof products.$inferInsert> = {};
+        switch (input.action) {
+          case 'activate':
+            set.isActive = true;
+            break;
+          case 'deactivate':
+            set.isActive = false;
+            break;
+          case 'in_stock':
+          case 'out_of_stock':
+            set.stockStatus = input.action;
+            set.stockSource = 'manual';
+            set.stockUpdatedAt = this.clock.now();
+            break;
+          case 'feature':
+            set.isFeatured = true;
+            break;
+          case 'unfeature':
+            set.isFeatured = false;
+            break;
+          case 'set_group': {
+            const [g] = await tx
+              .select({ id: productGroups.id, isActive: productGroups.isActive })
+              .from(productGroups)
+              .where(eq(productGroups.id, input.groupId as string));
+            if (!g || !g.isActive) throw validationError({ groupId: 'Aktif bir ürün grubu seçin.' });
+            set.groupId = g.id;
+            break;
+          }
+        }
+        const updated = await tx
+          .update(products)
+          .set(set)
+          .where(inArray(products.id, input.ids))
+          .returning({ id: products.id });
+        await this.audit.record(
+          {
+            actorType: 'admin',
+            actorId: adminId,
+            action: 'product.bulk',
+            entityType: 'products',
+            entityId: 'bulk',
+            data: {
+              action: input.action,
+              ids: updated.map((u) => u.id),
+              ...(input.action === 'set_group' ? { groupId: input.groupId } : {}),
+            },
+          },
+          tx,
+        );
+        return { updated: updated.length };
+      });
+    } catch (error) {
+      return mapProductConflict(error);
+    }
   }
 
   private async assertGroup(tx: Tx, groupId: string): Promise<void> {
@@ -275,6 +344,7 @@ export class ProductsService {
       vatRate: row.vatRate,
       stockStatus: row.stockStatus,
       isActive: row.isActive,
+      isFeatured: row.isFeatured,
       images: images.map(adminImageDto),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
