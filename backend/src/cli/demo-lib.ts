@@ -89,8 +89,11 @@ const BANNERS: { file: string; title: string; subtitle: string; group: string }[
   { file: 'kampanya-mutfak', title: 'Profesyonel mutfak ekipmanı', subtitle: 'Tencere ve tavada koli bazında toptan fiyat', group: 'Tencere ve Tava' },
   { file: 'kampanya-dekor', title: 'Evlere sıcaklık katan detaylar', subtitle: 'Dekorasyon ürünleri stokta', group: 'Dekorasyon' },
 ];
-/** Demo görselleri `originalName` önekiyle ayrılır. */
-const DEMO_MEDIA_PREFIX = 'demo-';
+/**
+ * Demo görselleri `originalName` önekiyle ayrılır. Önek "/" içerir: yüklenen dosya adlarından yol kısmı atıldığı için
+ * (media.service.ts fixFilename) Admin'in yüklediği bir görsel bu önekle başlayamaz.
+ */
+const DEMO_MEDIA_PREFIX = 'demo-assets/';
 const DEALERS = [
   ['Güneş Züccaciye', 'Mehmet Güneş', 'Kayseri', 'Melikgazi'],
   ['Yıldız Ev Gereçleri', 'Ayşe Yıldız', 'Ankara', 'Çankaya'],
@@ -218,7 +221,10 @@ async function clear(db: Executor): Promise<string[]> {
     await db.select({ id: schema.media.id }).from(schema.media).where(like(schema.media.originalName, `${DEMO_MEDIA_PREFIX}%`))
   ).map((m) => m.id);
   if (demoMedia.length === 0) return [];
-  await db.delete(schema.banners).where(inArray(schema.banners.mediaId, demoMedia));
+  // Yalnızca demo kampanyaları silinir (demo görselli VE demo başlıklı); gerçek bir kampanya demo görselini kullanıyorsa kalır.
+  await db
+    .delete(schema.banners)
+    .where(and(inArray(schema.banners.mediaId, demoMedia), inArray(schema.banners.title, BANNERS.map((b) => b.title))));
   const removed = await db
     .delete(schema.media)
     .where(
@@ -244,7 +250,7 @@ async function storeDemoImage(db: Executor, file: string, adminId: string, media
   await db.insert(schema.media).values({
     id,
     storageKey: id,
-    originalName: `${DEMO_MEDIA_PREFIX}${path.basename(file)}`,
+    originalName: `${DEMO_MEDIA_PREFIX}${path.basename(path.dirname(file))}/${path.basename(file)}`,
     mime: processed.mime,
     size: processed.large.length,
     width: processed.width,
