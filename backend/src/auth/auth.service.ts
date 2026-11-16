@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-import { LoginAttemptLimiter } from './login-attempt-limiter.js';
+import { LoginAttemptLimiter, passwordChangeKey } from './login-attempt-limiter.js';
 import { ConfigService } from '@nestjs/config';
 import { and, eq, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
@@ -16,6 +16,7 @@ import type { Env } from '../config/env.js';
 import { DB, type Database } from '../database/database.module.js';
 import { adminUsers, consents, dealers } from '../database/schema.js';
 import { CONSENT_DOCUMENT_VERSION } from '../common/consents.js';
+import { currentConsentVersions } from '../site/consent-versions.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import {
   EMAIL_VERIFICATION_TTL_MS,
@@ -199,6 +200,9 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
+    // Mevcut şifre tahminini sınırla (giriştekiyle aynı eşik): kilitliyse 429.
+    const limitKey = passwordChangeKey(id);
+    this.limiter.assertAllowed(type, limitKey);
     const [row] =
       type === 'admin'
         ? await this.db
@@ -211,12 +215,14 @@ export class AuthService {
             .where(eq(dealers.id, id));
     const ok = await this.passwords.verify(row?.hash, currentPassword);
     if (!ok) {
+      this.limiter.recordFailure(type, limitKey);
       throw new BadRequestException({
         statusCode: 400,
         code: 'WRONG_PASSWORD',
         message: 'Mevcut şifre hatalı.',
       });
     }
+    this.limiter.reset(type, limitKey);
     const passwordHash = await this.passwords.hash(newPassword);
     await this.db.transaction(async (tx) => {
       if (type === 'admin') {
@@ -224,6 +230,8 @@ export class AuthService {
       } else {
         await tx.update(dealers).set({ passwordHash }).where(eq(dealers.id, id));
       }
+      // Bekleyen şifre sıfırlama bağlantıları, eski şifreyi bilmeyen biri tarafından kullanılamasın.
+      await this.tokens.invalidateAll(type, id, ['password_reset'], tx);
       if (currentToken) await this.sessions.destroyOthers(type, id, currentToken, tx);
       await this.audit.record(
         {
@@ -491,6 +499,11 @@ export class AuthService {
     return `${this.appUrl()}/#/davet?token=${token}`;
   }
 
+  /** K-75: bayi e-postası değişince kullanılmamış tüm bağlantıları geçersiz kılar. */
+  invalidateDealerTokens(dealerId: string, tx: DbExecutor): Promise<void> {
+    return this.tokens.invalidateAll('dealer', dealerId, ['invitation', 'password_reset', 'email_verification'], tx);
+  }
+
   /** Davet e-postasını çağıranın transaction'ında kuyruğa yazar; commit sonrası `dispatchSoon` ile gönderilir. */
   enqueueInvitation(to: string, link: string, tx: DbExecutor): Promise<string> {
     return this.notifications.enqueue('invitation', to, { link }, tx);
@@ -555,6 +568,7 @@ export class AuthService {
       .select({ type: consents.type, granted: consents.granted })
       .from(consents)
       .where(eq(consents.dealerId, dealerId));
+    const versions = await currentConsentVersions(tx);
     const rows = (['kvkk', 'terms', 'marketing'] as const).flatMap((type) => {
       const records = existing.filter((c) => c.type === type);
       const granted = input[type];
@@ -562,7 +576,13 @@ export class AuthService {
       if (records.some((c) => c.granted)) return [];
       if (!granted && records.length > 0) return [];
       return [
-        { dealerId, type, documentVersion: CONSENT_DOCUMENT_VERSION, granted },
+        {
+          dealerId,
+          type,
+          // KVKK/koşul: onay anındaki sayfa sürümü; pazarlama metni için sabit sürüm.
+          documentVersion: type === 'marketing' ? CONSENT_DOCUMENT_VERSION : versions[type],
+          granted,
+        },
       ];
     });
     if (rows.length) await tx.insert(consents).values(rows);

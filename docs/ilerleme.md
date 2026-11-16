@@ -115,3 +115,10 @@ Son güncelleme: 2026-11-14
   yeni eklenen ajanlar bir sonraki oturumda kullanılabilir.
 - Tüm işler `main` branch'inde. Her yeni adım ayrı bir branch'te yapılır ve PR ile `main`'e alınır.
 - Eski Spring Boot iskeleti kaldırıldı (geçmişte `79e180e` commit'inde duruyor).
+
+## Frontend: açık vitrin ve hesap (K-66 – K-76)
+
+- Açık vitrin (`/`, `/katalog`, `/urun/:id`, bilgi sayfaları) oturumsuz açılır; fiyat/stok yalnızca bayide. Girişten sonra `?donus=` ile dönüş.
+- Yeni: ana sayfa vitrini, bilgi sayfaları (`/hakkimizda /sss /teslimat /kvkk /kullanim-kosullari /iletisim`), Hesabım sekmeleri,
+  `/favorilerim`, `/hizli-siparis`, sipariş onayında kayıtlı adres, sipariş yazdır/Excel, fiyat listesi indir.
+- Admin: `/yonetim/site-ayarlari`, `/yonetim/islem-gecmisi`, `/yonetim/hesabim`, bayi düzenleme + iç notlar, ürün toplu işlem + öne çıkan.

@@ -110,29 +110,47 @@ export class CartService {
               .innerJoin(productGroups, eq(productGroups.id, products.groupId))
               .where(
                 or(
-                  inArray(products.barcode, queries),
+                  inArray(
+                    sql`lower(${products.barcode})`,
+                    queries.map((q) => q.toLowerCase()),
+                  ),
                   inArray(
                     sql`lower(${products.code})`,
                     queries.map((q) => q.toLowerCase()),
                   ),
                 ),
               );
-      const byBarcode = new Map(found.map((f) => [f.product.barcode, f]));
-      const byCode = new Map<string, (typeof found)[number]>();
-      for (const f of found) if (f.product.code) byCode.set(f.product.code.toLowerCase(), f);
+      type Found = (typeof found)[number];
+      const byBarcode = new Map<string, Found[]>();
+      const byCode = new Map<string, Found[]>();
+      const push = (m: Map<string, Found[]>, key: string, f: Found) => m.set(key, [...(m.get(key) ?? []), f]);
+      for (const f of found) {
+        push(byBarcode, f.product.barcode.toLowerCase(), f);
+        if (f.product.code) push(byCode, f.product.code.toLowerCase(), f);
+      }
+      const isActive = (f: Found) => f.product.isActive && f.groupActive;
+      /** Önce barkod (aktif), sonra kod (aktif); biri birden çok aktif ürüne uyarsa AMBIGUOUS. */
+      const resolve = (query: string): { match: Found } | { error: 'NOT_FOUND' | 'INACTIVE' | 'AMBIGUOUS' } => {
+        const key = query.toLowerCase();
+        const barcodes = byBarcode.get(key) ?? [];
+        const codes = byCode.get(key) ?? [];
+        for (const group of [barcodes, codes]) {
+          const active = group.filter(isActive);
+          if (active.length === 1) return { match: active[0] };
+          if (active.length > 1) return { error: 'AMBIGUOUS' };
+        }
+        return { error: barcodes.length + codes.length > 0 ? 'INACTIVE' : 'NOT_FOUND' };
+      };
 
-      const errors: { index: number; query: string; code: 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY' }[] = [];
+      const errors: { index: number; query: string; code: 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY' | 'AMBIGUOUS' }[] = [];
       const grouped = new Map<string, { product: ProductRow; firstIndex: number; requested: number }>();
       for (const [index, line] of input.lines.entries()) {
-        const match = line.query ? (byBarcode.get(line.query) ?? byCode.get(line.query.toLowerCase())) : undefined;
-        if (!match) {
-          errors.push({ index, query: line.query, code: 'NOT_FOUND' });
+        const resolved = line.query ? resolve(line.query) : ({ error: 'NOT_FOUND' } as const);
+        if ('error' in resolved) {
+          errors.push({ index, query: line.query, code: resolved.error });
           continue;
         }
-        if (!match.product.isActive || !match.groupActive) {
-          errors.push({ index, query: line.query, code: 'INACTIVE' });
-          continue;
-        }
+        const match = resolved.match;
         if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_QUANTITY) {
           errors.push({ index, query: line.query, code: 'INVALID_QUANTITY' });
           continue;

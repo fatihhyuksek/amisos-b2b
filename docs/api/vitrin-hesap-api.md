@@ -167,3 +167,10 @@ Migration: `0010_vitrin_hesap`. Alan adları sözleşmeyle aynıdır; aşağıda
 - **Toplu işlem**: `updated` = bulunan ürün sayısı (değeri zaten aynı olanlar dahil). `set_group` pasif/bilinmeyen grupta 400 `VALIDATION` (`fields.groupId`). Yanıt 200.
 - **İşlem geçmişi**: `entityLabel` ayrıca kampanya (başlık), ürün grubu (ad) ve Admin (ad) için de döner. `actor.name`: Admin adı, bayi firma unvanı, sistem `null`. `pageSize` varsayılan 50. `from/to` dahil (gün sonuna kadar).
 - Başvuru (`POST /api/applications`) `taxOffice`/`taxNumber` kabul eder; Admin bayi detayında `taxOffice`, `taxNumber` döner (başvuru e2e'si mail kuyruğu nedeniyle yok, şema birim testi var).
+
+### İnceleme düzeltmeleri
+- **Sayfa sürümü**: `GET /api/site/pages/:slug` yanıtına `version` (tamsayı, ilk sürüm 1) eklendi; admin sayfa öğelerinde de var. Sayfa gövdesi her değiştiğinde 1 artar. Yeni KVKK/koşul onayları (başvuru, davet kabulü) `consents.documentVersion` alanına o anki sürümü `v<N>` olarak yazar; pazarlama onayı sabit `taslak-1` kalır.
+- `site.updated` audit verisi: `{ changes: { "<anahtar>": { previous, next } } }`, yalnızca değişen anahtarlar (`announcement`, `contact`, `page:<slug>`). Değişiklik yoksa yazma ve audit olmaz.
+- **Admin e-posta değişikliği**: bayinin kullanılmamış davet, şifre sıfırlama ve e-posta doğrulama bağlantıları geçersiz olur; `emailVerifiedAt` korunur (Admin güvenilir kaynak). Davet bekleyen (şifresiz) aktif bayiye yeni adrese davet otomatik gönderilir; `pending_email` bayiye yeni doğrulama e-postası gider.
+- **Şifre değiştirme** (bayi ve admin): mevcut şifre denemeleri hesap bazında sayılır, giriş eşiğiyle aynı sınır (dakikada `AUTH_RATE_LIMIT_PER_MINUTE`); kilitliyken 429. Başarıda kullanılmamış şifre sıfırlama bağlantıları geçersiz olur.
+- **Hızlı sipariş eşleşmesi**: barkod ve kod karşılaştırması büyük/küçük harf duyarsız (SQL `lower()`). Önce aktif barkod eşleşmesi, yoksa aktif kod eşleşmesi. Bir anahtar birden çok aktif ürüne uyarsa satır hatası `AMBIGUOUS`. Yalnızca pasif ürün uyuyorsa `INACTIVE`. Hata kodları: `NOT_FOUND | INACTIVE | INVALID_QUANTITY | AMBIGUOUS`.

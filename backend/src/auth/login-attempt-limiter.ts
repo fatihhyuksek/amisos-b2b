@@ -65,3 +65,6 @@ export class LoginAttemptLimiter {
     return this.config.get('AUTH_RATE_LIMIT_PER_MINUTE', { infer: true });
   }
 }
+
+/** Şifre değiştirme denemeleri hesap (kimlik) bazında sayılır; giriş denemeleriyle ayrı anahtar. */
+export const passwordChangeKey = (id: string): string => `pwchange:${id}`;

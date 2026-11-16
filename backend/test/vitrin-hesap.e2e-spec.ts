@@ -19,6 +19,7 @@ import {
   dealerFavorites,
   dealerNotes,
   dealers,
+  notificationOutbox,
   orders,
   productGroups,
   products,
@@ -27,6 +28,8 @@ import {
 } from '../src/database/schema.js';
 import { companyTitleKey } from '../src/dealers/company-title.js';
 import { MAIL_SERVICE } from '../src/mail/mail.service.js';
+import { AuthTokensService } from '../src/auth/auth-tokens.service.js';
+import { LoginAttemptLimiter, passwordChangeKey } from '../src/auth/login-attempt-limiter.js';
 
 const PASSWORD = 'Sifre-12345';
 const NEW_PASSWORD = 'Yeni-Sifre-678';
@@ -124,6 +127,7 @@ describe('Vitrin ve hesap (e2e)', () => {
       await db.delete(auditLog).where(or(inArray(auditLog.actorId, [...adminIds, ...dealerIds]), inArray(auditLog.entityId, all)));
       await db.delete(sessions).where(inArray(sessions.subjectId, [...adminIds, ...dealerIds]));
       await db.delete(siteSettings);
+      await db.delete(notificationOutbox).where(like(notificationOutbox.recipient, `%${run}%`));
       if (dealerIds.length) {
         await db.delete(orders).where(inArray(orders.dealerId, dealerIds));
         await db.delete(consents).where(inArray(consents.dealerId, dealerIds));
@@ -685,6 +689,103 @@ describe('Vitrin ve hesap (e2e)', () => {
       await second.get('/api/admin/account').expect(401);
       await a.agent.get('/api/admin/account').expect(200);
       await request(server()).post('/api/auth/admin/login').send({ email: a.admin.email, password: NEW_PASSWORD }).expect(200);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('inceleme düzeltmeleri', () => {
+    const ttl = 3_600_000;
+
+    it('Admin e-postayı değiştirince eski davet/sıfırlama bağlantıları geçersiz; davet yeni adrese gider', async () => {
+      const d = await newDealer('eposta', { passwordHash: null });
+      const tokens = app.get(AuthTokensService);
+      const oldInvite = await tokens.issue('dealer', d.id, 'invitation', ttl);
+      const oldReset = await tokens.issue('dealer', d.id, 'password_reset', ttl);
+      const newEmail = `yeni-eposta-${run}@test.example`;
+      await admin.agent.patch(`/api/admin/dealers/${d.id}`).send({ email: newEmail }).expect(200);
+      await request(server()).post('/api/auth/invitation/accept').send({ token: oldInvite, password: NEW_PASSWORD, consents: { kvkk: true, terms: true } }).expect(400);
+      await request(server()).post('/api/auth/password-reset/confirm').send({ token: oldReset, password: NEW_PASSWORD }).expect(400);
+      const outbox = await db.select().from(notificationOutbox).where(and(eq(notificationOutbox.recipient, newEmail), eq(notificationOutbox.kind, 'invitation')));
+      expect(outbox).toHaveLength(1);
+      const [row] = await db.select().from(dealers).where(eq(dealers.id, d.id));
+      expect(row.emailVerifiedAt).not.toBeNull(); // Admin güvenilir kaynak: korunur
+    });
+
+    it('şifre değişince kullanılmamış sıfırlama bağlantıları geçersiz', async () => {
+      const d = await dealerAgent('sifirla');
+      const reset = await app.get(AuthTokensService).issue('dealer', d.dealer.id, 'password_reset', ttl);
+      await d.agent.post('/api/account/password').send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD }).expect(204);
+      await request(server()).post('/api/auth/password-reset/confirm').send({ token: reset, password: 'Baska-Sifre-9' }).expect(400);
+    });
+
+    it('mevcut şifre denemeleri hesap bazında sınırlanır (bayi ve admin): kilitliyken 429', async () => {
+      const limiter = app.get(LoginAttemptLimiter);
+      const d = await dealerAgent('kilit');
+      const a = await adminAgent('kilit');
+      for (let i = 0; i < 1000; i++) {
+        limiter.recordFailure('dealer', passwordChangeKey(d.dealer.id));
+        limiter.recordFailure('admin', passwordChangeKey(a.admin.id));
+      }
+      // Doğru şifre bile kilitliyken denenmez.
+      await d.agent.post('/api/account/password').send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD }).expect(429);
+      await a.agent.post('/api/admin/account/password').send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD }).expect(429);
+      limiter.reset('dealer', passwordChangeKey(d.dealer.id));
+      limiter.reset('admin', passwordChangeKey(a.admin.id));
+      await d.agent.post('/api/account/password').send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD }).expect(204);
+    });
+
+    it('KVKK/koşul sürümü: gövde değişince artar; yeni onaylar o sürümle; audit yalnızca değişen anahtarlar', async () => {
+      await db.delete(siteSettings);
+      const page = async () => (await request(server()).get('/api/site/pages/kvkk').expect(200)).body;
+      expect((await page()).version).toBe(1);
+      const current = (await admin.agent.get('/api/admin/site').expect(200)).body;
+      const put = (kvkkBody: string) =>
+        admin.agent
+          .put('/api/admin/site')
+          .send({ announcement: current.announcement, contact: current.contact, pages: [{ slug: 'kvkk', title: 'KVKK', body: kvkkBody, published: true }] })
+          .expect(200);
+      await put('Yeni KVKK metni');
+      expect((await page()).version).toBe(2);
+      await put('Yeni KVKK metni'); // değişmedi: sürüm ve audit sabit
+      expect((await page()).version).toBe(2);
+      await put('Yeni KVKK metni, ikinci');
+      expect((await page()).version).toBe(3);
+      const logs = await db.select().from(auditLog).where(and(eq(auditLog.action, 'site.updated'), eq(auditLog.actorId, admin.admin.id))).orderBy(desc(auditLog.id));
+      const data = logs[0].data as { changes: Record<string, { previous: { body: string }; next: { body: string } }> };
+      expect(Object.keys(data.changes)).toEqual(['page:kvkk']);
+      expect(data.changes['page:kvkk'].previous.body).toBe('Yeni KVKK metni');
+      expect(data.changes['page:kvkk'].next.body).toBe('Yeni KVKK metni, ikinci');
+
+      const d = await newDealer('surum', { passwordHash: null });
+      const invite = await app.get(AuthTokensService).issue('dealer', d.id, 'invitation', ttl);
+      await request(server()).post('/api/auth/invitation/accept').send({ token: invite, password: NEW_PASSWORD, consents: { kvkk: true, terms: true, marketing: true } }).expect(204);
+      const rows = await db.select().from(consents).where(eq(consents.dealerId, d.id));
+      const ver = Object.fromEntries(rows.map((r) => [r.type, r.documentVersion]));
+      expect(ver.kvkk).toBe('v3');
+      expect(ver.terms).toBe('v1');
+      expect(ver.marketing).toBe('taslak-1');
+      await db.delete(siteSettings);
+    });
+
+    it('hızlı sipariş: büyük/küçük harf, AMBIGUOUS, pasif barkod varsa aktif kod eşleşmesine düşer', async () => {
+      const d = await dealerAgent('belirsiz');
+      const a = await createProduct(groupA, 'ka', { code: `Kod-${run}` });
+      const b = await createProduct(groupA, 'kb', { code: `kod-${run}` });
+      const inactive = await createProduct(groupA, 'pasifbc', { isActive: false });
+      const viaCode = await createProduct(groupA, 'kc', { code: inactive.barcode });
+      const res = await d.agent
+        .post('/api/cart/quick-add')
+        .send({
+          lines: [
+            { query: `KOD-${run}`, quantity: 6 },
+            { query: inactive.barcode, quantity: 6 },
+            { query: a.barcode.toLowerCase(), quantity: 6 },
+          ],
+        })
+        .expect(200);
+      expect(res.body.errors).toEqual([{ index: 0, query: `KOD-${run}`, code: 'AMBIGUOUS' }]);
+      expect(res.body.added.map((x: { productId: string }) => x.productId).sort()).toEqual([viaCode.id, a.id].sort());
+      expect(b.id).toBeDefined();
     });
   });
 });

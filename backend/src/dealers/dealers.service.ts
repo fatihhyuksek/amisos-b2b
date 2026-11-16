@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm';
 import { Cron } from '@nestjs/schedule';
 import { CONSENT_DOCUMENT_VERSION } from '../common/consents.js';
+import { currentConsentVersions } from '../site/consent-versions.js';
 import {
   runExclusive,
   LOCK_STALE_APPLICATIONS,
@@ -149,11 +150,13 @@ export class DealersService {
             source: 'application',
           })
           .returning({ id: dealers.id });
+        const versions = await currentConsentVersions(tx);
         await tx.insert(consents).values(
           (['kvkk', 'terms', 'marketing'] as const).map((type) => ({
             dealerId: dealer.id,
             type,
-            documentVersion: CONSENT_DOCUMENT_VERSION,
+            // KVKK/koşul: onay anındaki sayfa sürümü; pazarlama metni için sabit sürüm.
+            documentVersion: type === 'marketing' ? CONSENT_DOCUMENT_VERSION : versions[type],
             granted: input.consents[type] ?? false,
           })),
         );
@@ -221,6 +224,8 @@ export class DealersService {
 
   /** K-75: yalnızca değişen alanlar yazılır; tekillik ihlali DUPLICATE_EMAIL / DUPLICATE_COMPANY (409). */
   async update(id: string, input: UpdateDealerInput, adminId: string) {
+    let outboxId: string | null = null;
+    let reverify = false;
     try {
       await this.db.transaction(async (tx) => {
         const [current] = await tx.select().from(dealers).where(eq(dealers.id, id)).for('update');
@@ -246,6 +251,18 @@ export class DealersService {
         if (Object.keys(changes).length === 0) return;
         if (set.companyTitle) set.companyTitleKey = companyTitleKey(set.companyTitle);
         await tx.update(dealers).set(set).where(eq(dealers.id, id));
+        if (changes.email) {
+          // Eski adrese gitmiş bağlantılar (davet, şifre sıfırlama, e-posta doğrulama) geçersiz olur.
+          // emailVerifiedAt bilinçli korunur: e-postayı değiştiren Admin güvenilir kaynaktır.
+          await this.auth.invalidateDealerTokens(id, tx);
+          if (current.passwordHash === null && current.status === 'active') {
+            // Davet bekleyen bayi: yeni adrese davet otomatik yeniden gönderilir.
+            const link = await this.auth.issueInvitationLink(id, tx);
+            outboxId = await this.auth.enqueueInvitation(input.email as string, link, tx);
+          } else if (current.status === 'pending_email') {
+            reverify = true;
+          }
+        }
         await this.audit.record(
           {
             actorType: 'admin',
@@ -271,6 +288,8 @@ export class DealersService {
       }
       throw error;
     }
+    if (outboxId) this.notifications.dispatchSoon([outboxId]);
+    if (reverify) this.auth.queueEmailVerification(id);
     return this.detail(id);
   }
 

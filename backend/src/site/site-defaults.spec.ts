@@ -35,3 +35,14 @@ describe('actionLabel', () => {
     expect(actionLabel('baska.eylem')).toBe('baska.eylem');
   });
 });
+
+describe('onay sürümü (GR-KVK-001)', () => {
+  it('sürüm yoksa 1; geçersiz değerler 1', async () => {
+    const { pageVersionOf, consentVersionLabel } = await import('./consent-versions.js');
+    expect(pageVersionOf({ title: 'x' })).toBe(1);
+    expect(pageVersionOf({ version: 3 })).toBe(3);
+    expect(pageVersionOf({ version: 0 })).toBe(1);
+    expect(pageVersionOf(null)).toBe(1);
+    expect(consentVersionLabel(2)).toBe('v2');
+  });
+});
