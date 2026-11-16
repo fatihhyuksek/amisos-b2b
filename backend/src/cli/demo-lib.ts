@@ -120,6 +120,12 @@ const isDemoProduct = and(like(schema.products.barcode, `${DEMO_BARCODE_PREFIX}%
 const isDemoGroup = and(like(schema.productGroups.nameKey, '% demo'), gte(schema.productGroups.sortOrder, DEMO_GROUP_SORT));
 
 /** Temizle + üret tek transaction'da; çakışma varsa hiçbir şey yazılmadan açık hatayla durur. */
+/** Demo ürünleri yüklü mü (db:demo --if-empty için). */
+export async function hasDemoData(db: Db): Promise<boolean> {
+  const rows = await db.select({ id: schema.products.id }).from(schema.products).where(isDemoProduct).limit(1);
+  return rows.length > 0;
+}
+
 export interface DemoOptions {
   clearOnly?: boolean;
   /**

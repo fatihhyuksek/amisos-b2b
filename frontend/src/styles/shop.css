@@ -905,8 +905,17 @@
 
 .ui-carousel__slide img {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  /* Dar ekranda 3:1 görsel kırpılır; kampanya metni genelde solda olduğundan sol taraf korunur. */
+  aspect-ratio: 2 / 1;
   object-fit: cover;
+  object-position: left center;
+}
+
+@media (max-width: 39.99rem) {
+  /* Mobilde oklar metnin üstüne biner; kaydırma ve noktalar yeterli. */
+  .ui-carousel__arrow {
+    display: none;
+  }
 }
 
 @media (min-width: 40rem) {
@@ -2762,4 +2771,9 @@
 
 .ui-admin__link[aria-current='page'] {
   color: var(--color-accent-strong);
+}
+
+/* Başlık eylem etiketleri tek satırda kalır ("Hızlı sipariş" iki satıra bölünmesin). */
+.ui-headlink__label {
+  white-space: nowrap;
 }
