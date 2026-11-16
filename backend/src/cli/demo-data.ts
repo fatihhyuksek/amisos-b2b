@@ -3,6 +3,8 @@
 //           npm run db:demo -- --clear (yalnızca demo verisini siler)
 //           --force: DATABASE_URL yerel (localhost/127.0.0.1/db) değilse gerekli.
 import { drizzle } from 'drizzle-orm/node-postgres';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import * as schema from '../database/schema.js';
 import { runDemo } from './demo-lib.js';
@@ -29,7 +31,10 @@ async function main(): Promise<void> {
   const pool = new pg.Pool({ connectionString: url });
   try {
     const db = drizzle(pool, { schema, casing: 'snake_case' });
-    const message = await runDemo(db, { clearOnly: process.argv.includes('--clear') });
+    // dist/cli/demo-data.js -> backend/demo-assets
+    const assetsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'demo-assets');
+    const mediaDir = process.env.MEDIA_DIR?.trim() || 'storage/media';
+    const message = await runDemo(db, { clearOnly: process.argv.includes('--clear'), mediaDir, assetsDir });
     console.log(message ?? 'Demo verisi silindi.');
   } finally {
     await pool.end();
