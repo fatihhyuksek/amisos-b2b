@@ -1,8 +1,11 @@
-// GR-SIP-005, GR-SIP-006, GR-SIP-008, K-22, K-25, K-27, K-33, K-44: Sipariş ayrıntısı (/siparislerim/:id).
+// GR-SIP-005, GR-SIP-006, GR-SIP-008, K-22, K-25, K-27, K-33, K-44, K-72: Sipariş ayrıntısı (/siparislerim/:id).
 // Fiyatlar sipariş anındaki kopyadır. Düzenleme ve iptal yoktur (K-22).
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, fetchOrder, reorder, type OrderDetail, type OrderLine } from '../api'
+import { ApiError, downloadMyOrderExcel, fetchOrder, reorder, type OrderDetail, type OrderLine } from '../api'
+import { saveBlob } from '../admin/download'
 import { useLoad } from '../admin/useLoad'
+import { BrandLogo } from '../shop/brand'
+import { usePageTitle } from '../shop/pageTitle'
 import { Link } from '../Link'
 import { navigate, useRoute } from '../router'
 import { useCart } from '../shop/cart'
@@ -49,12 +52,28 @@ export function OrderDetailPage({ id }: { id: string }) {
   const { applyCart, addNotices } = useCart()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [exporting, setExporting] = useState(false)
   const okRef = useRef<HTMLDivElement>(null)
   const o = state.status === 'ready' ? state.data : null
+  usePageTitle(o ? `Sipariş #${o.orderNo}` : 'Sipariş')
 
   useEffect(() => {
     if (fresh && o) okRef.current?.focus()
   }, [fresh, o])
+
+  async function exportExcel() {
+    if (!o) return
+    setExporting(true)
+    setError('')
+    try {
+      const { blob, filename } = await downloadMyOrderExcel(id)
+      saveBlob(blob, filename ?? `siparis-${o.orderNo}.xlsx`)
+    } catch (err) {
+      setError(networkMessage(err, 'Excel dosyası indirilemedi. Lütfen tekrar deneyin.'))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function doReorder() {
     setBusy(true)
@@ -97,7 +116,7 @@ export function OrderDetailPage({ id }: { id: string }) {
       {o && (
         <>
           {fresh && (
-            <div ref={okRef} tabIndex={-1} className="ui-orderok">
+            <div ref={okRef} tabIndex={-1} className="ui-orderok ui-noprint">
               <Alert tone="info">
                 <strong>Ön siparişiniz alındı #{o.orderNo}</strong>
                 <br />
@@ -111,9 +130,28 @@ export function OrderDetailPage({ id }: { id: string }) {
               <h1>Sipariş #{o.orderNo}</h1>
               <OrderStatusBadge status={o.status} />
             </div>
-            <Button icon="bag" disabled={busy} onClick={doReorder}>
-              {busy ? 'Ekleniyor…' : 'Tekrar sipariş ver'}
-            </Button>
+            <div className="ui-actions ui-noprint">
+              <Button variant="secondary" icon="print" onClick={() => window.print()}>
+                Yazdır
+              </Button>
+              <Button
+                variant="secondary"
+                icon="download"
+                disabled={exporting}
+                onClick={() => void exportExcel()}
+              >
+                {exporting ? 'Hazırlanıyor…' : 'Excel indir'}
+              </Button>
+              <Button icon="bag" disabled={busy} onClick={doReorder}>
+                {busy ? 'Ekleniyor…' : 'Tekrar sipariş ver'}
+              </Button>
+            </div>
+          </div>
+          <div className="ui-printhead" aria-hidden="true">
+            <BrandLogo size="md" />
+            <p>
+              Ön sipariş #{o.orderNo} · {formatDateTime(o.submittedAt)} · Fiyatlar KDV hariçtir
+            </p>
           </div>
           <p className="muted">
             {formatDateTime(o.submittedAt)} tarihinde gönderildi · Tekrar siparişte güncel fiyatlar kullanılır
@@ -247,7 +285,7 @@ export function OrderDetailPage({ id }: { id: string }) {
               <div className="ui-card__body ui-stack">
                 <h2 id="od-summary">Sipariş toplamı</h2>
                 <OrderTotals summary={o.summary} />
-                <p className="muted ui-summary__note">
+                <p className="muted ui-summary__note ui-noprint">
                   Gönderilen sipariş portalda değiştirilemez ve iptal edilemez. Değişiklik için bizi arayın:{' '}
                   <a href={PHONE_HREF}>{CONTACT.phone}</a>
                 </p>

@@ -19,6 +19,8 @@ import { Link } from '../Link'
 import { Alert, Badge, Button, DealerStatusBadge, Field, Modal, OrderStatusBadge } from '../ui/components'
 import { formatDateTime, formatPercent, formatTRY } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
+import { DealerEditDialog } from './DealerEditDialog'
+import { DealerNotes } from './DealerNotes'
 import { GroupDiscounts } from './GroupDiscounts'
 import { useLoad } from './useLoad'
 
@@ -187,7 +189,7 @@ function Dl({ items }: { items: [string, React.ReactNode][] }) {
 
 export function DealerDetailPage({ id }: { id: string }) {
   const { state, reload } = useLoad<DealerDetail>((signal) => fetchDealer(id, signal), id)
-  const [dialog, setDialog] = useState<'approve' | 'reject' | 'deactivate' | null>(null)
+  const [dialog, setDialog] = useState<'approve' | 'reject' | 'deactivate' | 'edit' | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null)
 
@@ -271,6 +273,17 @@ export function DealerDetailPage({ id }: { id: string }) {
       {state.status === 'ready' && (
         <Detail dealer={state.data} busy={busy} run={run} openDialog={setDialog} />
       )}
+      {dialog === 'edit' && state.status === 'ready' && (
+        <DealerEditDialog
+          dealer={state.data}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null)
+            setNotice({ tone: 'info', text: 'Bayi bilgileri güncellendi.' })
+            reload()
+          }}
+        />
+      )}
       {dialog === 'approve' && (
         <ActionDialog
           title="Bayiyi onayla"
@@ -317,7 +330,7 @@ function Detail({
   dealer: DealerDetail
   busy: boolean
   run: (fn: () => Promise<void>, success: string) => Promise<boolean>
-  openDialog: (d: 'approve' | 'reject' | 'deactivate') => void
+  openDialog: (d: 'approve' | 'reject' | 'deactivate' | 'edit') => void
 }) {
   const canResend = d.status === 'active' && !d.hasPassword
   return (
@@ -327,7 +340,18 @@ function Detail({
           <DealerStatusBadge status={d.status} />
           {d.approvalOverdue && <Badge tone="danger">Gecikmiş</Badge>}
         </div>
-        <h2 id="sec-info">Bilgiler</h2>
+        <div className="ui-pagehead">
+          <h2 id="sec-info">Bilgiler</h2>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="edit"
+            disabled={busy}
+            onClick={() => openDialog('edit')}
+          >
+            Bilgileri düzenle
+          </Button>
+        </div>
         <Dl
           items={[
             ['Yetkili', d.contactName],
@@ -335,6 +359,8 @@ function Detail({
             ['Telefon', d.phone],
             ['İl / ilçe', `${d.city} / ${d.district}`],
             ['Adres', d.address],
+            ['Vergi dairesi', d.taxOffice || '—'],
+            ['Vergi no / TC kimlik no', d.taxNumber || '—'],
             ['Kaynak', d.source === 'application' ? 'Başvuru' : 'Davet'],
             ['Şifre', d.hasPassword ? 'Belirlendi' : 'Henüz belirlenmedi'],
             ['Kayıt tarihi', formatDateTime(d.createdAt)],
@@ -460,6 +486,8 @@ function Detail({
           </ol>
         )}
       </section>
+
+      <DealerNotes dealerId={d.id} />
 
       <DealerOrders dealerId={d.id} />
     </>

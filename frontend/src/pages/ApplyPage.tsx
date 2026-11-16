@@ -12,7 +12,8 @@ import {
   type DealerFieldName,
 } from '../dealers/form'
 import { Link } from '../Link'
-import { Alert, AuthCard, Button, Checkbox, Modal } from '../ui/components'
+import { PageTextModal } from '../shop/PageTextModal'
+import { Alert, AuthCard, Button, Checkbox, Field } from '../ui/components'
 
 const DUPLICATE =
   'Bu e-posta veya firma unvanıyla bekleyen ya da aktif bir kayıt var. E-postanızdaki doğrulama bağlantısını kullanın; bağlantının süresi dolduysa 24 saat sonra yeniden başvurabilirsiniz. Hesabınız aktifse giriş yapın veya şifre sıfırlamayı kullanın.'
@@ -31,6 +32,9 @@ export function ApplyPage() {
   const [kvkk, setKvkk] = useState(false)
   const [terms, setTerms] = useState(false)
   const [marketing, setMarketing] = useState(false) // GR-KVK-001: varsayılan işaretsiz
+  const [taxOffice, setTaxOffice] = useState('')
+  const [taxNumber, setTaxNumber] = useState('')
+  const [taxErrors, setTaxErrors] = useState<{ taxOffice?: string; taxNumber?: string }>({})
   const [errors, setErrors] = useState<DealerErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [duplicate, setDuplicate] = useState(false)
@@ -49,25 +53,43 @@ export function ApplyPage() {
     const next: DealerErrors = validateDealer(values)
     if (!kvkk) next.kvkk = 'KVKK aydınlatma metnini onaylamanız gerekir.'
     if (!terms) next.terms = 'Kullanım koşullarını onaylamanız gerekir.'
+    const tax: { taxOffice?: string; taxNumber?: string } = {}
+    // K-68: vergi bilgisi isteğe bağlı; yazıldıysa VKN (10) veya TCKN (11) hane olmalı.
+    if (taxNumber.trim() && !/^(\d{10}|\d{11})$/.test(taxNumber.trim()))
+      tax.taxNumber = 'Vergi numarası 10 (VKN) veya 11 (TCKN) haneli olmalıdır.'
+    if (taxOffice.trim().length > 100) tax.taxOffice = 'Vergi dairesi en fazla 100 karakter olabilir.'
     setErrors(next)
+    setTaxErrors(tax)
     setFormError(null)
     setDuplicate(false)
-    if (Object.keys(next).length > 0) {
+    if (Object.keys(next).length > 0 || Object.keys(tax).length > 0) {
       focusFirstError()
       return
     }
     setBusy(true)
     try {
-      await submitApplication({ ...trimmed(values), consents: { kvkk, terms, marketing } })
+      await submitApplication({
+        ...trimmed(values),
+        ...(taxOffice.trim() ? { taxOffice: taxOffice.trim() } : {}),
+        ...(taxNumber.trim() ? { taxNumber: taxNumber.trim() } : {}),
+        consents: { kvkk, terms, marketing },
+      })
       setDone(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.code === 'DUPLICATE_APPLICATION') {
         setDuplicate(true)
       } else if (err instanceof ApiError && err.status === 400 && err.code === 'VALIDATION') {
-        const { errors: serverErrors, unknown } = mapServerFields(err.fields)
+        const dealerFields = Object.fromEntries(
+          Object.entries(err.fields ?? {}).filter(([k]) => k !== 'taxOffice' && k !== 'taxNumber'),
+        )
+        const { errors: serverErrors, unknown } = mapServerFields(dealerFields)
         setErrors(serverErrors)
-        if (unknown || Object.keys(serverErrors).length === 0)
-          setFormError('Formdaki bilgileri kontrol edin.')
+        const serverTax: { taxOffice?: string; taxNumber?: string } = {}
+        if (err.fields?.taxOffice) serverTax.taxOffice = err.fields.taxOffice
+        if (err.fields?.taxNumber) serverTax.taxNumber = err.fields.taxNumber
+        setTaxErrors(serverTax)
+        const hasFieldError = Object.keys(serverErrors).length + Object.keys(serverTax).length > 0
+        if (unknown || !hasFieldError) setFormError('Formdaki bilgileri kontrol edin.')
         focusFirstError()
       } else {
         setFormError(errorMessage(err))
@@ -111,12 +133,46 @@ export function ApplyPage() {
         <div className="ui-card__body ui-auth__body">
           <div className="ui-auth__head">
             <h1 id="apply-title">Bayi başvurusu</h1>
-            <p className="muted">Tüm alanlar zorunludur. Başvurunuz Amisos onayından sonra hesaba dönüşür.</p>
+            <p className="muted">
+              Vergi bilgileri dışındaki tüm alanlar zorunludur. Başvurunuz Amisos onayından sonra hesaba
+              dönüşür.
+            </p>
           </div>
           <form ref={formRef} className="ui-auth__form" onSubmit={onSubmit} noValidate>
             {duplicate && <Alert tone="danger">{DUPLICATE}</Alert>}
             {formError && <Alert tone="danger">{formError}</Alert>}
             <DealerFields idPrefix="apply" values={values} errors={errors} onChange={setField} />
+            <fieldset className="ui-fieldset">
+              <legend>Vergi bilgileri (isteğe bağlı)</legend>
+              <div className="ui-form-grid ui-form-grid--2">
+                <Field label="Vergi dairesi" htmlFor="apply-taxOffice" error={taxErrors.taxOffice}>
+                  <input
+                    id="apply-taxOffice"
+                    className="ui-input"
+                    autoComplete="off"
+                    value={taxOffice}
+                    onChange={(e) => setTaxOffice(e.target.value)}
+                    aria-invalid={taxErrors.taxOffice ? true : undefined}
+                  />
+                </Field>
+                <Field
+                  label="Vergi no / TC kimlik no"
+                  htmlFor="apply-taxNumber"
+                  help="10 haneli VKN veya 11 haneli TCKN"
+                  error={taxErrors.taxNumber}
+                >
+                  <input
+                    id="apply-taxNumber"
+                    className="ui-input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={taxNumber}
+                    onChange={(e) => setTaxNumber(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    aria-invalid={taxErrors.taxNumber ? true : undefined}
+                  />
+                </Field>
+              </div>
+            </fieldset>
             <Checkbox id="apply-kvkk" checked={kvkk} onChange={setKvkk} error={errors.kvkk}>
               KVKK aydınlatma metnini okudum, anladım. ({textLink('Metni oku', 'KVKK aydınlatma metni')})
             </Checkbox>
@@ -138,12 +194,11 @@ export function ApplyPage() {
         </p>
       </div>
       {textModal && (
-        <Modal title={textModal} onClose={() => setTextModal(null)}>
-          <p>Metin hazırlanıyor. Yayınlandığında burada okuyabileceksiniz.</p>
-          <div className="ui-modal__actions">
-            <Button onClick={() => setTextModal(null)}>Kapat</Button>
-          </div>
-        </Modal>
+        <PageTextModal
+          slug={textModal === 'KVKK aydınlatma metni' ? 'kvkk' : 'kullanim-kosullari'}
+          title={textModal}
+          onClose={() => setTextModal(null)}
+        />
       )}
     </main>
   )

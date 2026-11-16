@@ -2,6 +2,9 @@
 import { useState, type ReactNode } from 'react'
 import type { CatalogProduct } from '../api'
 import { Link } from '../Link'
+import { FavoriteButton } from '../shop/FavoriteButton'
+import { useShopMode } from '../shop/mode'
+import { PriceLock } from '../shop/PriceLock'
 import { Price } from './components'
 import { formatPercent } from './format'
 import { Icon } from './Icon'
@@ -24,7 +27,7 @@ export function ProductImage({
   const [failed, setFailed] = useState<string | null>(null)
   const ok = src && failed !== src
   return (
-    <div className="ui-img" style={{ aspectRatio: ratio }}>
+    <div className={ok ? 'ui-img' : 'ui-img ui-img--empty'} style={{ aspectRatio: ratio }}>
       {ok ? (
         <img
           src={src}
@@ -35,7 +38,8 @@ export function ProductImage({
           onError={() => setFailed(src)}
         />
       ) : (
-        <Icon name="box" />
+        // Görseli olmayan ürün: soluk monogram (zarif yer tutucu, dekoratif).
+        <img className="ui-img__ph" src="/brand/logo-64.webp" alt="" width={64} height={64} />
       )}
     </div>
   )
@@ -70,37 +74,48 @@ export function ErrorAlert({ children, onRetry }: { children: ReactNode; onRetry
   )
 }
 
-// ---------- Bayi ürün kartı (GR-URN-003, GR-URN-002, GR-FIY-003, K-10, K-18) ----------
+// ---------- Ürün kartı (GR-URN-003, GR-URN-002, GR-FIY-003, K-10, K-18, K-66, K-70, K-74) ----------
 /**
- * Kare görsel, sol üstte rozetler (Stokta yok, iskonto), barkod, ad (2 satır), koli içi, fiyat ve
- * sağ altta "sepete ekle" ikon butonu. `onAdd` verilmezse buton ürün detayına götürür
- * (sepet bağlanınca `onAdd` ile değişir). Kartın tamamı ürün detayına tıklanabilir.
+ * Kare görsel, sol üstte rozetler (Yeni, Öne çıkan, Stokta yok, iskonto), sağ üstte favori kalbi, barkod,
+ * ad (2 satır), koli içi, fiyat ve sağ altta "sepete ekle" ikon butonu. Oturumsuz/Admin görünümünde fiyat
+ * null gelir; fiyat yerine "giriş yapın" bağlantısı gösterilir ve sepete ekle yoktur (K-66).
+ * Kartın tamamı ürün detayına tıklanabilir.
  */
 export function ProductCard({
   product: p,
   onAdd,
+  onFavoriteChange,
   headingLevel = 3,
 }: {
   product: CatalogProduct
   onAdd?: (product: CatalogProduct) => void
+  onFavoriteChange?: (favorite: boolean) => void
   headingLevel?: 2 | 3
 }) {
+  const mode = useShopMode()
   const href = `/urun/${encodeURIComponent(p.id)}`
-  const out = p.stock !== 'in_stock'
+  const out = p.stock === 'out_of_stock'
+  const priced = p.price !== null
   const H = headingLevel === 2 ? 'h2' : 'h3'
   const addLabel = `Sepete ekle: ${p.name}`
+  const hasBadges = out || p.discountPercent || p.isNew || p.isFeatured
   return (
     <li className="ui-pcard">
       <div className="ui-pcard__media">
         <ProductImage src={p.images[0]?.thumbUrl} alt="" ratio="1" fit="contain" />
-        {(out || p.discountPercent) && (
+        {hasBadges && (
           <div className="ui-pcard__badges">
+            {p.isNew && <span className="ui-pill ui-pill--soft">Yeni</span>}
+            {p.isFeatured && <span className="ui-pill ui-pill--soft">Öne çıkan</span>}
             {out && <span className="ui-pill ui-pill--warning">Stokta yok</span>}
             {p.discountPercent && (
               <span className="ui-pill ui-pill--accent">{formatPercent(p.discountPercent)} iskonto</span>
             )}
           </div>
         )}
+        <div className="ui-pcard__fav">
+          <FavoriteButton productId={p.id} name={p.name} initial={p.isFavorite} onChange={onFavoriteChange} />
+        </div>
       </div>
       <div className="ui-pcard__body">
         <p className="ui-pcard__barcode num">
@@ -114,27 +129,32 @@ export function ProductCard({
         </H>
         <p className="ui-pcard__case num">Koli içi: {p.caseQuantity} adet</p>
         <div className="ui-pcard__foot">
-          <Price
-            value={p.price}
-            listValue={p.discountPercent ? p.listPrice : undefined}
-            discountPercent={p.discountPercent ?? undefined}
-            hideDiscount
-          />
-          {onAdd ? (
-            <button
-              type="button"
-              className="ui-pcard__add"
-              aria-label={addLabel}
-              title="Sepete ekle"
-              onClick={() => onAdd(p)}
-            >
-              <Icon name="bagPlus" />
-            </button>
+          {priced ? (
+            <Price
+              value={p.price as string}
+              listValue={p.discountPercent && p.listPrice ? p.listPrice : undefined}
+              discountPercent={p.discountPercent ?? undefined}
+              hideDiscount
+            />
           ) : (
-            <Link to={href} className="ui-pcard__add" aria-label={addLabel} title="Sepete ekle">
-              <Icon name="bagPlus" />
-            </Link>
+            <PriceLock />
           )}
+          {mode === 'dealer' &&
+            (onAdd ? (
+              <button
+                type="button"
+                className="ui-pcard__add"
+                aria-label={addLabel}
+                title="Sepete ekle"
+                onClick={() => onAdd(p)}
+              >
+                <Icon name="bagPlus" />
+              </button>
+            ) : (
+              <Link to={href} className="ui-pcard__add" aria-label={addLabel} title="Sepete ekle">
+                <Icon name="bagPlus" />
+              </Link>
+            ))}
         </div>
       </div>
     </li>

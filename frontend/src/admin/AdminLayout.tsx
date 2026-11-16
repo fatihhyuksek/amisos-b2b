@@ -38,6 +38,16 @@ const LINKS = [
     label: 'Bildirimler',
     match: (p: string) => p.startsWith('/yonetim/bildirimler'),
   },
+  {
+    to: '/yonetim/site-ayarlari',
+    label: 'Site ayarları',
+    match: (p: string) => p.startsWith('/yonetim/site-ayarlari'),
+  },
+  {
+    to: '/yonetim/islem-gecmisi',
+    label: 'İşlem geçmişi',
+    match: (p: string) => p.startsWith('/yonetim/islem-gecmisi'),
+  },
 ]
 
 export function AdminLayout({
@@ -61,7 +71,16 @@ export function AdminLayout({
           <BrandLogo size="sm" suffix="Yönetim" />
         </div>
         <div className="ui-admin__user">
-          <span>{name}</span>
+          <Link to="/" className="ui-admin__sitelink">
+            Vitrini gör
+          </Link>
+          <Link
+            to="/yonetim/hesabim"
+            className="ui-admin__sitelink"
+            aria-current={path === '/yonetim/hesabim' ? 'page' : undefined}
+          >
+            {name || 'Hesabım'}
+          </Link>
           <Button
             variant="secondary"
             size="sm"

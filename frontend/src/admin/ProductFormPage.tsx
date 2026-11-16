@@ -39,6 +39,7 @@ interface Values {
   vatRate: string
   stockStatus: StockStatus
   isActive: boolean
+  isFeatured: boolean
 }
 
 type Errors = Partial<Record<keyof Values, string>>
@@ -54,6 +55,7 @@ const EMPTY: Values = {
   vatRate: '20',
   stockStatus: 'in_stock',
   isActive: true,
+  isFeatured: false,
 }
 
 /** "19,99" ve "19.99" kabul edilir; gönderirken noktalı biçime çevrilir. */
@@ -74,6 +76,7 @@ function fromProduct(p: AdminProduct): Values {
     vatRate: String(Number(p.vatRate)).replace('.', ','),
     stockStatus: p.stockStatus,
     isActive: p.isActive,
+    isFeatured: p.isFeatured ?? false,
   }
 }
 
@@ -200,6 +203,7 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
       vatRate: normalizeDecimal(values.vatRate)!,
       stockStatus: values.stockStatus,
       isActive: values.isActive,
+      isFeatured: values.isFeatured,
       mediaIds: images.map((i) => i.mediaId),
     }
     setBusy(true)
@@ -344,6 +348,16 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
           <Checkbox id="p-active" checked={values.isActive} onChange={(v) => set('isActive', v)}>
             Aktif (bayilere satışta görünür)
           </Checkbox>
+          <label className="ui-check ui-switch" htmlFor="p-featured">
+            <input
+              id="p-featured"
+              type="checkbox"
+              role="switch"
+              checked={values.isFeatured}
+              onChange={(e) => set('isFeatured', e.target.checked)}
+            />
+            <span>Öne çıkan ürün (ana sayfada "Öne çıkan ürünler" bölümünde gösterilir)</span>
+          </label>
         </section>
 
         <section className="ui-card ui-card__body ui-form-section" aria-labelledby="sec-img">

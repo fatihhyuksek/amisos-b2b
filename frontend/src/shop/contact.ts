@@ -1,4 +1,6 @@
-// İletişim bilgileri (K-64). Değişirse yalnızca burası güncellenir.
+// İletişim bilgileri (K-64). Asıl kaynak GET /api/site (K-73); bu sabitler yalnızca sunucuya ulaşılamazsa
+// kullanılır. Değişirse Admin "Site ayarları"ndan güncellenir.
+import type { SiteContact } from '../api'
 
 export const CONTACT = {
   /** Görünen telefon (aynı numara WhatsApp hattı). */
@@ -9,5 +11,33 @@ export const CONTACT = {
   address: 'İSTOÇ Z Blok No: 91',
 } as const
 
+export const DEFAULT_CONTACT: SiteContact = {
+  phone: CONTACT.phone,
+  phoneE164: CONTACT.phoneE164,
+  whatsappE164: CONTACT.phoneE164,
+  email: CONTACT.email,
+  address: CONTACT.address,
+  city: 'İstanbul',
+  workingHours: 'Hafta içi 09:00 – 18:30, Cumartesi 09:00 – 14:00',
+  mapUrl: null,
+}
+
+/** Sunucudan sayfa listesi gelmezse bağlantılar yine de görünür (içerik sayfada alınır). */
+export const DEFAULT_PAGES: { slug: string; title: string }[] = [
+  { slug: 'hakkimizda', title: 'Hakkımızda' },
+  { slug: 'sss', title: 'Sık sorulan sorular' },
+  { slug: 'teslimat', title: 'Teslimat' },
+  { slug: 'kvkk', title: 'KVKK aydınlatma metni' },
+  { slug: 'kullanim-kosullari', title: 'Kullanım koşulları' },
+]
+
 export const PHONE_HREF = `tel:${CONTACT.phoneE164}`
 export const WHATSAPP_HREF = `https://wa.me/${CONTACT.phoneE164.replace('+', '')}`
+
+export function phoneHref(c: SiteContact): string {
+  return `tel:${c.phoneE164 || CONTACT.phoneE164}`
+}
+
+export function whatsappLink(c: SiteContact): string {
+  return `https://wa.me/${(c.whatsappE164 || c.phoneE164 || CONTACT.phoneE164).replace(/\D/g, '')}`
+}

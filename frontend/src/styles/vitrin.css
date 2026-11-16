@@ -1,0 +1,844 @@
+/* Açık vitrin (K-66), ana sayfa, bilgi sayfaları, favoriler. Değerler tokens.css'ten gelir. */
+
+/* ---------- Admin gezinti şeridi (vitrinde) ---------- */
+.ui-adminbar {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  border-bottom: 1px solid var(--color-gold-line);
+  font-size: var(--font-size-sm);
+}
+
+.ui-adminbar__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding-block: var(--space-1);
+}
+
+.ui-adminbar p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-adminbar__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.ui-adminbar__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-accent-strong);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- Başlık: oturumsuz eylemleri ---------- */
+.ui-headbtn {
+  min-height: var(--control-height);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.ui-shophead__actions .ui-headbtn:last-child:not(:first-child) {
+  display: none;
+}
+
+@media (min-width: 24rem) {
+  .ui-shophead__actions .ui-headbtn:last-child:not(:first-child) {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 29.99rem) {
+  .ui-headbtn {
+    padding-inline: var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+}
+
+.ui-headlink--wide {
+  display: none;
+}
+
+@media (min-width: 60rem) {
+  .ui-headlink--wide {
+    display: inline-flex;
+  }
+}
+
+/* Telefonda Siparişlerim simgesi yalnızca çekmecede */
+@media (max-width: 39.99rem) {
+  .ui-headlink--collapse {
+    display: none;
+  }
+}
+
+.ui-strip--preview {
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Fiyat kilidi ---------- */
+.ui-pricelock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+}
+
+.ui-pricelock .ui-icon {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.ui-pricelock--lg {
+  font-size: var(--font-size-lg);
+}
+
+.ui-lockbox {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-gold-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.ui-lockbox__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---------- Favori (kalp) ---------- */
+.ui-favbtn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.ui-favbtn:hover {
+  background: var(--color-surface-hover);
+}
+
+.ui-favbtn:active {
+  transform: scale(0.92);
+}
+
+.ui-favbtn[aria-pressed='true'] {
+  color: var(--color-bronze);
+}
+
+.ui-favbtn:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.ui-favbtn .ui-icon {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.ui-favbtn--inline {
+  display: inline-flex;
+  gap: var(--space-2);
+  width: auto;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ui-pcard__fav {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  z-index: 2;
+}
+
+.ui-pcard__badges {
+  right: calc(var(--space-1) + var(--control-height) + var(--space-1));
+}
+
+.ui-detail__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---------- Rozetler ve görsel yer tutucu ---------- */
+.ui-pill--soft {
+  background: var(--color-surface);
+  color: var(--color-accent-strong);
+  box-shadow: inset 0 0 0 1px var(--color-gold-line);
+}
+
+.ui-pill--inline {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.ui-img--empty {
+  background: radial-gradient(circle at 50% 42%, var(--color-surface) 0%, var(--color-surface-sunken) 72%);
+}
+
+.ui-img .ui-img__ph {
+  width: 34%;
+  height: auto;
+  max-width: 5rem;
+  opacity: 0.4;
+  filter: saturate(0.7);
+}
+
+/* ---------- Sayfa başlığı ---------- */
+.ui-pagetitle {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* ---------- Düz metin gövdesi ---------- */
+.ui-richtext {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 46rem;
+  line-height: 1.7;
+}
+
+.ui-richtext h2 {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.ui-richtext p {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.ui-richtext ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.ui-richtext li::marker {
+  color: var(--color-bronze);
+}
+
+.ui-acc__body.ui-richtext {
+  max-width: 48rem;
+  gap: var(--space-3);
+}
+
+/* ---------- Bilgi sayfası ---------- */
+.ui-infopage {
+  display: grid;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .ui-infopage {
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: var(--space-10);
+  }
+}
+
+.ui-infonav ul {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+}
+
+.ui-infonav a {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.ui-infonav a:hover {
+  background: var(--color-surface-hover);
+}
+
+.ui-infonav a[aria-current='page'] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  box-shadow: inset 0 0 0 1px var(--color-gold-line);
+  font-weight: var(--font-weight-bold);
+}
+
+@media (min-width: 60rem) {
+  .ui-infonav {
+    position: sticky;
+    top: 8rem;
+  }
+
+  .ui-infonav ul {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .ui-infonav a {
+    border-radius: var(--radius-md);
+    box-shadow: none;
+    white-space: normal;
+  }
+}
+
+.ui-infopage__body {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.ui-infopage__head {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--color-gold-line);
+}
+
+.ui-helpcard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-gold-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.ui-helpcard > div:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ui-helpcard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ui-modal__scroll {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+/* ---------- İletişim ---------- */
+.ui-contactgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-contactcard {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.ui-contactcard > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-contactcard h2 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.ui-contactcard__main {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.ui-creamband--cta {
+  align-items: center;
+}
+
+.ui-creamband__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (min-width: 60rem) {
+  .ui-creamband--cta {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+/* ---------- Ana sayfa ---------- */
+.ui-promo__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ui-eyebrow {
+  color: var(--color-bronze);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ui-valuestrip {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-5) 0;
+  list-style: none;
+  border-block: 1px solid var(--color-gold-line);
+}
+
+@media (min-width: 40rem) {
+  .ui-valuestrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .ui-valuestrip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-6);
+  }
+}
+
+.ui-valuestrip li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ui-valuestrip li > span:last-child {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Bayi hızlı erişim */
+.ui-quick {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-5);
+  border: 1px solid var(--color-gold-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-sunken);
+}
+
+@media (min-width: 64rem) {
+  .ui-quick {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-areas:
+      'lead orders'
+      'stats orders';
+    padding: var(--space-8);
+  }
+
+  .ui-quick__lead {
+    grid-area: lead;
+  }
+
+  .ui-quick__stats {
+    grid-area: stats;
+  }
+
+  .ui-quick__orders {
+    grid-area: orders;
+  }
+}
+
+.ui-quick__lead {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.ui-quick__lead h2 {
+  font-family: var(--font-serif);
+  font-size: clamp(1.375rem, 1.1rem + 1vw, 1.875rem);
+  overflow-wrap: anywhere;
+}
+
+.ui-quick__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ui-quick__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.ui-quick__skel {
+  height: 4.5rem;
+  border-radius: var(--radius-md);
+}
+
+.ui-quickstat {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.ui-quickstat__label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ui-quickstat strong {
+  font-size: var(--font-size-lg);
+  overflow-wrap: anywhere;
+}
+
+.ui-quick__orders {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  min-width: 0;
+}
+
+.ui-quick__ordershead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ui-quick__orderlist {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-quick__orderlist a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  transition: background-color var(--transition-fast);
+}
+
+.ui-quick__orderlist a:hover {
+  background: var(--color-surface-hover);
+}
+
+.ui-quick__ordertotal {
+  margin-left: auto;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Ürün grubu kartları */
+.ui-catcards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 40rem) {
+  .ui-catcards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@media (min-width: 64rem) {
+  .ui-catcards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-5);
+  }
+}
+
+.ui-catcard {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.ui-catcard__img {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+  transition:
+    box-shadow var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.ui-catcard__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 300ms ease;
+}
+
+.ui-catcard__img--empty {
+  background: radial-gradient(circle at 50% 42%, var(--color-surface) 0%, var(--color-surface-sunken) 72%);
+}
+
+.ui-catcard__img .ui-img__ph {
+  width: 30%;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.4;
+}
+
+.ui-catcard:hover .ui-catcard__img {
+  border-color: var(--color-gold-line);
+  box-shadow: var(--shadow-md);
+}
+
+.ui-catcard:hover .ui-catcard__img:not(.ui-catcard__img--empty) img {
+  transform: scale(1.04);
+}
+
+.ui-catcard:focus-visible .ui-catcard__img {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.ui-catcard__name {
+  margin-top: var(--space-2);
+  font-weight: var(--font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.ui-catcard__count {
+  font-size: var(--font-size-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-catcard:hover .ui-catcard__img img {
+    transform: none;
+  }
+}
+
+/* Nasıl çalışır */
+.ui-steps4 {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 40rem) {
+  .ui-steps4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .ui-steps4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.ui-steps4 li {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.ui-steps4 li > span:last-child {
+  font-size: var(--font-size-sm);
+}
+
+.ui-steps4__no {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  color: var(--color-gold-line);
+  font-family: var(--font-serif);
+  font-size: var(--font-size-3xl);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Bayimiz olun çağrısı */
+.ui-becomedealer {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-8) var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--color-strip-bg);
+  color: var(--color-strip-text);
+}
+
+@media (min-width: 60rem) {
+  .ui-becomedealer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: var(--space-10) var(--space-12);
+  }
+}
+
+.ui-becomedealer > div:first-child {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 44rem;
+}
+
+.ui-becomedealer h2 {
+  color: var(--color-gold);
+  font-family: var(--font-serif);
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+}
+
+.ui-becomedealer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Koyu şerit üstünde birincil ve ikincil düğme okunur kalsın */
+.ui-becomedealer .ui-button--primary {
+  background: var(--color-strip-text);
+  color: var(--color-strip-bg);
+}
+
+.ui-becomedealer .ui-button--secondary {
+  background: transparent;
+  border-color: var(--color-strip-text);
+  color: var(--color-strip-text);
+}
+
+.ui-becomedealer .ui-button--secondary:hover {
+  background: color-mix(in srgb, var(--color-strip-text) 14%, transparent);
+}
+
+.ui-becomedealer :focus-visible {
+  outline-color: var(--color-gold);
+}
+
+/* Katalog süzgeçleri: anahtarlar alt alta */
+.ui-filter .ui-switch + .ui-switch {
+  margin-top: var(--space-1);
+}
+
+/* Anahtar (switch) */
+.ui-switch input[role='switch'] {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 2.75rem;
+  height: 1.5rem;
+  margin: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.ui-switch input[role='switch']::after {
+  content: '';
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background: var(--color-surface);
+  transition: transform var(--transition-base);
+}
+
+.ui-switch input[role='switch']:checked {
+  background: var(--color-accent);
+}
+
+.ui-switch input[role='switch']:checked::after {
+  background: var(--color-text-on-accent);
+  transform: translateX(1.25rem);
+}
+
+.ui-switch input[role='switch']:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}

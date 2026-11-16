@@ -4,19 +4,35 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { Link } from '../Link'
 import { Icon } from '../ui/Icon'
+import { useShopMode } from './mode'
 import type { Banner } from './useBanners'
 
 export function AnnouncementCard() {
+  const mode = useShopMode()
+  const dealer = mode === 'dealer'
   return (
     <section className="ui-promo" aria-labelledby="promo-title">
       <div className="ui-promo__text">
         <p className="ui-promo__eyebrow">Duyuru</p>
-        <h2 id="promo-title">Yeni sezon ürünleri katalogda</h2>
-        <p>Güncel fiyatlarınız ve stok durumu ile tüm ürünlere göz atın.</p>
-        <Link to="/katalog" className="ui-button ui-button--primary ui-promo__cta">
-          Kataloğa git
-          <Icon name="arrowRight" />
-        </Link>
+        <h2 id="promo-title">
+          {dealer ? 'Yeni sezon ürünleri katalogda' : 'Züccaciye ürünlerinde toptan fiyatlar'}
+        </h2>
+        <p>
+          {dealer
+            ? 'Güncel fiyatlarınız ve stok durumu ile tüm ürünlere göz atın.'
+            : 'Mutfak eşyaları ve dekorasyon ürünlerini inceleyin; bayiye özel fiyatlar için başvurun.'}
+        </p>
+        <span className="ui-promo__ctas">
+          <Link to="/katalog" className="ui-button ui-button--primary ui-promo__cta">
+            Kataloğa git
+            <Icon name="arrowRight" />
+          </Link>
+          {mode === 'guest' && (
+            <Link to="/basvuru" className="ui-button ui-button--secondary ui-promo__cta">
+              Bayi ol
+            </Link>
+          )}
+        </span>
       </div>
       <div className="ui-promo__art" aria-hidden="true">
         <span />

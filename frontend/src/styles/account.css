@@ -1,0 +1,514 @@
+/* Hesabım, hızlı sipariş, formlar. Değerler tokens.css'ten gelir. */
+
+.ui-fieldset {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.ui-fieldset legend {
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ui-formnarrow {
+  max-width: 28rem;
+}
+
+.ui-prewrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Salt okunur bilgiler */
+.ui-readonly {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.ui-readonly__note {
+  font-size: var(--font-size-sm);
+}
+
+/* Şifre kuralları göstergesi */
+.ui-pwrules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.ui-pwrules li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.ui-pwrules .ui-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.ui-pwrules li[data-ok='true'] {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Sekmeler */
+.ui-tabs ul {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ui-tabs__tab {
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.ui-tabs__tab:hover {
+  color: var(--color-text);
+}
+
+.ui-tabs__tab[aria-current='page'] {
+  border-bottom-color: var(--color-gold);
+  color: var(--color-text);
+}
+
+.ui-tabpanel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-accstats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-accstats .ui-stat__value {
+  font-size: var(--font-size-xl);
+  overflow-wrap: anywhere;
+}
+
+.ui-accgrid {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .ui-accgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ui-contactlist {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-contactlist li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+  overflow-wrap: anywhere;
+}
+
+.ui-contactlist .ui-icon {
+  flex: none;
+  color: var(--color-bronze);
+}
+
+/* Adresler */
+.ui-addrgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-addr {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-width: 0;
+}
+
+.ui-addr__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ui-addr .ui-icon {
+  display: inline-block;
+  width: 1.125rem;
+  height: 1.125rem;
+  vertical-align: text-bottom;
+}
+
+/* Hızlı sipariş */
+.ui-quickorder {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .ui-quickorder {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.ui-qorows {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ui-qorow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem var(--control-height);
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.ui-qorow--head {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ui-qorow__error {
+  grid-column: 1 / -1;
+}
+
+.ui-qoresult:focus {
+  outline: none;
+}
+
+.ui-qosummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-qosummary li {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+}
+
+.ui-qosummary li[data-tone='success'] {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.ui-qosummary li[data-tone='warning'] {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.ui-qosummary li[data-tone='danger'] {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.ui-qolist {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-qolist li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.ui-qolist--errors li > span:last-child {
+  color: var(--color-danger);
+}
+
+/* Admin: site ayarları, işlem geçmişi, toplu işlem, notlar */
+.ui-admin__sitelink {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.ui-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.ui-pageedit {
+  display: grid;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-pageedit__item {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.ui-pageedit__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ui-pageedit__preview {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-gold-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.ui-pageedit__preview > h2 {
+  font-family: var(--font-serif);
+}
+
+.ui-datefield {
+  min-width: 0;
+}
+
+.ui-audit {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-audit__row {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.ui-audit__row > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-4);
+  list-style: none;
+  cursor: pointer;
+}
+
+.ui-audit__row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ui-audit__row > summary > .ui-icon {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  transition: transform var(--transition-base);
+}
+
+.ui-audit__row[open] > summary > .ui-icon {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 60rem) {
+  .ui-audit__row > summary {
+    grid-template-columns: 11rem minmax(0, 1fr) 14rem auto;
+  }
+
+  .ui-audit__row > summary > .ui-icon {
+    grid-row: auto;
+    grid-column: auto;
+  }
+}
+
+.ui-audit__time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ui-audit__action {
+  overflow-wrap: anywhere;
+}
+
+.ui-audit__actor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.ui-audit__detail {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.ui-audit__data {
+  max-height: 20rem;
+  margin: 0 var(--space-4) var(--space-4);
+  padding: var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  font-size: var(--font-size-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ui-bulkbar {
+  position: sticky;
+  bottom: var(--space-3);
+  z-index: 5;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-gold-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.ui-bulkbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-bulkbar__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ui-bulkbar__group .ui-select {
+  min-height: var(--control-height-sm);
+  max-width: 100%;
+}
+
+.ui-selcol {
+  width: 2.75rem;
+  padding-right: 0;
+}
+
+.ui-selbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.ui-table tr[data-selected] {
+  background: var(--color-accent-soft);
+}
+
+.ui-prodcard {
+  position: relative;
+}
+
+.ui-prodcard[data-selected] {
+  border-color: var(--color-gold-line);
+  background: var(--color-accent-soft);
+}
+
+.ui-prodcard__sel {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
+.ui-notes {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-notes li {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-gold-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+}
+
+.ui-notes__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
