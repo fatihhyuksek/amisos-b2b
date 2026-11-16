@@ -39,6 +39,7 @@ const TABS: { id: Tab; label: string }[] = [
 function SummaryTab({ account: a }: { account: Account }) {
   const site = useSite()
   const c = site.contact
+  const wa = whatsappLink(c)
   return (
     <div className="ui-stack">
       <ul className="ui-stats ui-accstats" aria-label="Sipariş özeti">
@@ -96,12 +97,14 @@ function SummaryTab({ account: a }: { account: Account }) {
               <Icon name="phone" />
               <a href={phoneHref(c)}>{c.phone}</a>
             </li>
-            <li>
-              <Icon name="whatsapp" />
-              <a href={whatsappLink(c)} target="_blank" rel="noopener noreferrer">
-                WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
-              </a>
-            </li>
+            {wa && (
+              <li>
+                <Icon name="whatsapp" />
+                <a href={wa} target="_blank" rel="noopener noreferrer">
+                  WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
+                </a>
+              </li>
+            )}
             <li>
               <Icon name="mail" />
               <a href={`mailto:${c.email}`}>{c.email}</a>

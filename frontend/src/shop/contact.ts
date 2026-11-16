@@ -35,9 +35,12 @@ export const PHONE_HREF = `tel:${CONTACT.phoneE164}`
 export const WHATSAPP_HREF = `https://wa.me/${CONTACT.phoneE164.replace('+', '')}`
 
 export function phoneHref(c: SiteContact): string {
-  return `tel:${c.phoneE164 || CONTACT.phoneE164}`
+  return `tel:${c.phoneE164 || c.phone.replace(/[^\d+]/g, '') || CONTACT.phoneE164}`
 }
 
-export function whatsappLink(c: SiteContact): string {
-  return `https://wa.me/${(c.whatsappE164 || c.phoneE164 || CONTACT.phoneE164).replace(/\D/g, '')}`
+/** WhatsApp numarası Admin tarafından gizlendiyse (null) null döner; arayüz bağlantıyı göstermez (K-73). */
+export function whatsappLink(c: SiteContact): string | null {
+  if (c.whatsappE164 === null) return null
+  const digits = (c.whatsappE164 || c.phoneE164 || CONTACT.phoneE164).replace(/\D/g, '')
+  return digits ? `https://wa.me/${digits}` : null
 }

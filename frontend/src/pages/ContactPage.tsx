@@ -22,6 +22,7 @@ function Card({ icon, title, children }: { icon: IconName; title: string; childr
 
 export function ContactPage() {
   const { contact: c } = useSite()
+  const wa = whatsappLink(c)
   usePageTitle('İletişim')
   const mapOk = c.mapUrl !== null && /^https:\/\//.test(c.mapUrl)
   return (
@@ -50,17 +51,14 @@ export function ContactPage() {
           </a>
           <p className="muted">Arayın veya mesaj bırakın.</p>
         </Card>
-        <Card icon="whatsapp" title="WhatsApp">
-          <a
-            href={whatsappLink(c)}
-            className="ui-contactcard__main"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
-          </a>
-          <p className="muted">Hızlı sorular ve sipariş takibi için.</p>
-        </Card>
+        {wa && (
+          <Card icon="whatsapp" title="WhatsApp">
+            <a href={wa} className="ui-contactcard__main" target="_blank" rel="noopener noreferrer">
+              WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
+            </a>
+            <p className="muted">Hızlı sorular ve sipariş takibi için.</p>
+          </Card>
+        )}
         <Card icon="mail" title="E-posta">
           <a href={`mailto:${c.email}`} className="ui-contactcard__main">
             {c.email}

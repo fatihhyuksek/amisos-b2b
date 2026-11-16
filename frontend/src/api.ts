@@ -1146,8 +1146,10 @@ export type PageSlug = 'hakkimizda' | 'sss' | 'teslimat' | 'kvkk' | 'kullanim-ko
 
 export interface SiteContact {
   phone: string
-  phoneE164: string
-  whatsappE164: string
+  /** Boş/null ise arama bağlantısı görünen telefondan türetilir. */
+  phoneE164: string | null
+  /** null: Admin WhatsApp bağlantısını gizlemiş. */
+  whatsappE164: string | null
   email: string
   address: string
   city: string
@@ -1180,6 +1182,16 @@ export function fetchSitePage(slug: string, signal?: AbortSignal): Promise<SiteP
 export interface AdminSite {
   announcement: string | null
   contact: SiteContact
+  pages: { slug: string; title: string; body: string; published: boolean; updatedAt?: string }[]
+}
+
+/** Kayıt gövdesi: E.164 alanları verilmezse sunucu telefondan türetir, null verilirse gizler. */
+export interface AdminSiteInput {
+  announcement: string | null
+  contact: Omit<SiteContact, 'phoneE164' | 'whatsappE164'> & {
+    phoneE164?: string | null
+    whatsappE164?: string | null
+  }
   pages: { slug: string; title: string; body: string; published: boolean }[]
 }
 
@@ -1187,7 +1199,7 @@ export function fetchAdminSite(signal?: AbortSignal): Promise<AdminSite> {
   return getJson('/admin/site', signal)
 }
 
-export async function saveAdminSite(input: AdminSite): Promise<AdminSite> {
+export async function saveAdminSite(input: AdminSiteInput): Promise<AdminSite> {
   return (await (await put('/admin/site', input)).json()) as AdminSite
 }
 

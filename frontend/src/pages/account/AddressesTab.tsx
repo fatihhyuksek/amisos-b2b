@@ -28,8 +28,6 @@ function validate(f: Form): Errors {
   if (f.carrierName.trim().length > 100) e.carrierName = 'En fazla 100 karakter.'
   if (f.carrierBranch.trim().length > 100) e.carrierBranch = 'En fazla 100 karakter.'
   if (!f.address.trim() || f.address.trim().length > 500) e.address = 'Adres 1–500 karakter olmalıdır.'
-  if (!f.city) e.city = 'İl seçin.'
-  if (!f.district.trim()) e.district = 'İlçe zorunludur.'
   return e
 }
 
@@ -128,7 +126,7 @@ function AddressDialog({
               aria-invalid={errors.city ? true : undefined}
               onChange={(e) => set('city', e.target.value)}
             >
-              <option value="">İl seçin</option>
+              <option value="">İl seçin (isteğe bağlı)</option>
               {CITIES.map((c) => (
                 <option key={c} value={c}>
                   {c}

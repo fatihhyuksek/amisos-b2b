@@ -1,7 +1,14 @@
 // K-73: Site ayarları (Admin): duyuru şeridi, iletişim bilgileri, bilgi sayfaları (düzenleyici, önizleme, yayımla anahtarı).
 // PUT /api/admin/site tüm bölümü birlikte kaydeder.
 import { useState, type FormEvent } from 'react'
-import { ApiError, fetchAdminSite, saveAdminSite, type AdminSite, type SiteContact } from '../api'
+import {
+  ApiError,
+  fetchAdminSite,
+  saveAdminSite,
+  type AdminSite,
+  type AdminSiteInput,
+  type SiteContact,
+} from '../api'
 import { invalidateSite } from '../shop/site'
 import { Alert, Button, Field } from '../ui/components'
 import { ErrorAlert, LoadingCard } from '../ui/catalog'
@@ -17,31 +24,49 @@ const BODY_MAX = 20000
 
 interface FormState {
   announcement: string
-  contact: Omit<SiteContact, 'mapUrl'> & { mapUrl: string }
+  contact: Omit<SiteContact, 'mapUrl' | 'phoneE164' | 'whatsappE164'> & {
+    mapUrl: string
+    phoneE164: string
+    whatsappE164: string
+  }
   pages: AdminSite['pages']
 }
 
 function toForm(s: AdminSite): FormState {
   return {
     announcement: s.announcement ?? '',
-    contact: { ...s.contact, mapUrl: s.contact.mapUrl ?? '' },
+    contact: {
+      ...s.contact,
+      mapUrl: s.contact.mapUrl ?? '',
+      phoneE164: s.contact.phoneE164 ?? '',
+      whatsappE164: s.contact.whatsappE164 ?? '',
+    },
     pages: s.pages.map((p) => ({ ...p })),
   }
 }
 
-function toPayload(f: FormState): AdminSite {
+function toPayload(f: FormState): AdminSiteInput {
+  const { phoneE164, whatsappE164, ...rest } = f.contact
   return {
     announcement: f.announcement.trim() || null,
     contact: {
-      ...f.contact,
+      ...rest,
       phone: f.contact.phone.trim(),
       email: f.contact.email.trim(),
       address: f.contact.address.trim(),
       city: f.contact.city.trim(),
       workingHours: f.contact.workingHours.trim(),
       mapUrl: f.contact.mapUrl.trim() || null,
+      // Boş bırakılırsa sunucu telefondan türetir.
+      ...(phoneE164.trim() ? { phoneE164: phoneE164.trim() } : {}),
+      ...(whatsappE164.trim() ? { whatsappE164: whatsappE164.trim() } : {}),
     },
-    pages: f.pages.map((p) => ({ ...p, title: p.title.trim() })),
+    pages: f.pages.map((p) => ({
+      slug: p.slug,
+      title: p.title.trim(),
+      body: p.body,
+      published: p.published,
+    })),
   }
 }
 
@@ -177,7 +202,7 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
           <Field
             label="Telefon (uluslararası)"
             htmlFor="site-phoneE164"
-            help="Arama bağlantısı için. Örn. +905524925058"
+            help="Arama bağlantısı için (boşsa telefondan türetilir). Örn. +905524925058"
           >
             {contactInput('phoneE164', null)}
           </Field>

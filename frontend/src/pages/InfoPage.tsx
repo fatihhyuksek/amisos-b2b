@@ -16,6 +16,7 @@ import { ShopLayout } from './ShopLayout'
 
 export function InfoPage({ slug }: { slug: string }) {
   const site = useSite()
+  const wa = whatsappLink(site.contact)
   const { state, reload } = useLoad<SitePage>((s) => fetchSitePage(slug, s), slug)
   const page = state.status === 'ready' ? state.data : null
   const fallbackTitle = site.pages.find((p) => p.slug === slug)?.title
@@ -94,16 +95,18 @@ export function InfoPage({ slug }: { slug: string }) {
                   <Link to="/iletisim" className="ui-button ui-button--secondary">
                     İletişim
                   </Link>
-                  <a
-                    href={whatsappLink(site.contact)}
-                    className="ui-button ui-button--primary"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Icon name="whatsapp" />
-                    WhatsApp
-                    <span className="visually-hidden"> (yeni sekmede açılır)</span>
-                  </a>
+                  {wa && (
+                    <a
+                      href={wa}
+                      className="ui-button ui-button--primary"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Icon name="whatsapp" />
+                      WhatsApp
+                      <span className="visually-hidden"> (yeni sekmede açılır)</span>
+                    </a>
+                  )}
                 </div>
               </aside>
             </>

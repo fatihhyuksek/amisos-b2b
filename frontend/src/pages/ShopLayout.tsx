@@ -521,6 +521,7 @@ function FooterColumn({ id, title, children }: { id: string; title: string; chil
 function Footer({ mode }: { mode: ShopMode }) {
   const site = useSite()
   const c = site.contact
+  const wa = whatsappLink(c)
   const legal = site.pages.filter((p) => p.slug === 'kvkk' || p.slug === 'kullanim-kosullari')
   const corporate = site.pages.filter((p) => p.slug !== 'kvkk' && p.slug !== 'kullanim-kosullari')
   const li = (to: string, label: string) => (
@@ -595,17 +596,14 @@ function Footer({ mode }: { mode: ShopMode }) {
                   {c.phone}
                 </a>
               </li>
-              <li>
-                <Icon name="whatsapp" />
-                <a
-                  href={whatsappLink(c)}
-                  className="ui-footer__link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
-                </a>
-              </li>
+              {wa && (
+                <li>
+                  <Icon name="whatsapp" />
+                  <a href={wa} className="ui-footer__link" target="_blank" rel="noopener noreferrer">
+                    WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
+                  </a>
+                </li>
+              )}
               <li>
                 <Icon name="mail" />
                 <a href={`mailto:${c.email}`} className="ui-footer__link">
@@ -644,6 +642,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
   const { state } = useAuth()
   const mode = useShopMode()
   const site = useSite()
+  const wa = whatsappLink(site.contact)
   const { path, query } = useRoute()
   const groups = useCatalogGroups()
   const groupList = groups.state.status === 'ready' ? groups.state.data : []
@@ -735,16 +734,18 @@ export function ShopLayout({ children }: { children: ReactNode }) {
         <div className="ui-shop__container ui-shop__content">{children}</div>
       </main>
       <Footer mode={mode} />
-      <a
-        href={whatsappLink(site.contact)}
-        className="ui-wafab"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="WhatsApp ile yazın (yeni sekmede açılır)"
-        title="WhatsApp ile yazın"
-      >
-        <Icon name="whatsapp" />
-      </a>
+      {wa && (
+        <a
+          href={wa}
+          className="ui-wafab"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="WhatsApp ile yazın (yeni sekmede açılır)"
+          title="WhatsApp ile yazın"
+        >
+          <Icon name="whatsapp" />
+        </a>
+      )}
       <CartToast />
       <Drawer
         open={drawer}
