@@ -3,12 +3,13 @@
 // koli içi adedi değişen satırlar yeni koli katına yukarı yuvarlanır (ikisi de yanıtta bildirilir).
 import { createHash } from 'node:crypto';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { catalogImageDto, loadImages } from '../catalog/product-images.js';
 import { lockDealerCart, type Tx } from '../common/advisory-lock.js';
 import { DB, type Database } from '../database/database.module.js';
 import { cartItems, dealers, orders, productGroups, products } from '../database/schema.js';
 import { loadDealerRates } from '../pricing/dealer-rates.js';
+import { MAX_QUANTITY, type QuickAddInput } from './orders.schemas.js';
 import { priceLine, roundUpToCase, summarize, type LinePricing, type OrderSummary } from './order-math.js';
 
 type ProductRow = typeof products.$inferSelect;
@@ -88,6 +89,119 @@ export class CartService {
           set: { quantity, updatedAt: new Date() },
         });
       return (await this.snapshot(tx, dealerId)).view;
+    });
+  }
+
+  /**
+   * K-71: barkod veya ürün koduyla çok satırlı ekleme. Her satır ayrı değerlendirilir (kısmi başarı);
+   * aynı ürün birden çok satırda gelirse adetler toplanır, toplam koli katına yukarı yuvarlanır ve sepetteki
+   * adede eklenir (GR-SIP-004). Eşleşme: önce barkod, sonra kod (büyük/küçük harf duyarsız). Tek transaction.
+   */
+  quickAdd(dealerId: string, input: QuickAddInput) {
+    return this.db.transaction(async (tx) => {
+      await lockDealerCart(tx, dealerId);
+      const queries = [...new Set(input.lines.map((l) => l.query).filter((q) => q.length > 0))];
+      const found =
+        queries.length === 0
+          ? []
+          : await tx
+              .select({ product: products, groupActive: productGroups.isActive })
+              .from(products)
+              .innerJoin(productGroups, eq(productGroups.id, products.groupId))
+              .where(
+                or(
+                  inArray(
+                    sql`lower(${products.barcode})`,
+                    queries.map((q) => q.toLowerCase()),
+                  ),
+                  inArray(
+                    sql`lower(${products.code})`,
+                    queries.map((q) => q.toLowerCase()),
+                  ),
+                ),
+              );
+      type Found = (typeof found)[number];
+      const byBarcode = new Map<string, Found[]>();
+      const byCode = new Map<string, Found[]>();
+      const push = (m: Map<string, Found[]>, key: string, f: Found) => m.set(key, [...(m.get(key) ?? []), f]);
+      for (const f of found) {
+        push(byBarcode, f.product.barcode.toLowerCase(), f);
+        if (f.product.code) push(byCode, f.product.code.toLowerCase(), f);
+      }
+      const isActive = (f: Found) => f.product.isActive && f.groupActive;
+      /** Önce barkod (aktif), sonra kod (aktif); biri birden çok aktif ürüne uyarsa AMBIGUOUS. */
+      const resolve = (query: string): { match: Found } | { error: 'NOT_FOUND' | 'INACTIVE' | 'AMBIGUOUS' } => {
+        const key = query.toLowerCase();
+        const barcodes = byBarcode.get(key) ?? [];
+        const codes = byCode.get(key) ?? [];
+        for (const group of [barcodes, codes]) {
+          const active = group.filter(isActive);
+          if (active.length === 1) return { match: active[0] };
+          if (active.length > 1) return { error: 'AMBIGUOUS' };
+        }
+        return { error: barcodes.length + codes.length > 0 ? 'INACTIVE' : 'NOT_FOUND' };
+      };
+
+      const errors: { index: number; query: string; code: 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY' | 'AMBIGUOUS' }[] = [];
+      const grouped = new Map<string, { product: ProductRow; firstIndex: number; requested: number }>();
+      for (const [index, line] of input.lines.entries()) {
+        const resolved = line.query ? resolve(line.query) : ({ error: 'NOT_FOUND' } as const);
+        if ('error' in resolved) {
+          errors.push({ index, query: line.query, code: resolved.error });
+          continue;
+        }
+        const match = resolved.match;
+        if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_QUANTITY) {
+          errors.push({ index, query: line.query, code: 'INVALID_QUANTITY' });
+          continue;
+        }
+        const entry = grouped.get(match.product.id);
+        if (entry) entry.requested += line.quantity;
+        else grouped.set(match.product.id, { product: match.product, firstIndex: index, requested: line.quantity });
+      }
+
+      const existing = new Map(
+        (await tx.select().from(cartItems).where(eq(cartItems.dealerId, dealerId))).map((c) => [c.productId, c.quantity]),
+      );
+      const added: {
+        index: number;
+        productId: string;
+        name: string;
+        barcode: string;
+        requested: number;
+        quantity: number;
+        caseQuantity: number;
+        outOfStock: boolean;
+      }[] = [];
+      for (const { product, firstIndex, requested } of grouped.values()) {
+        const quantity = roundUpToCase(requested, product.caseQuantity);
+        const total = (existing.get(product.id) ?? 0) + quantity;
+        if (total > MAX_QUANTITY) {
+          // Sepet üst sınırı aşılıyor: satır eklenmez (sepet değişmez).
+          errors.push({ index: firstIndex, query: product.barcode, code: 'INVALID_QUANTITY' });
+          continue;
+        }
+        await tx
+          .insert(cartItems)
+          .values({ dealerId, productId: product.id, quantity: total })
+          .onConflictDoUpdate({
+            target: [cartItems.dealerId, cartItems.productId],
+            set: { quantity: total, updatedAt: new Date() },
+          });
+        added.push({
+          index: firstIndex,
+          productId: product.id,
+          name: product.name,
+          barcode: product.barcode,
+          requested,
+          quantity,
+          caseQuantity: product.caseQuantity,
+          outOfStock: product.stockStatus === 'out_of_stock',
+        });
+      }
+      added.sort((a, b) => a.index - b.index);
+      errors.sort((a, b) => a.index - b.index);
+      return { added, errors, cart: (await this.snapshot(tx, dealerId)).view };
     });
   }
 

@@ -57,6 +57,15 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T
 }
 
+/** GET ile dosya indirir (Excel); dosya adı Content-Disposition başlığından alınır. */
+export async function downloadFile(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const res = await fetch(`/api${path}`, { credentials: 'include' })
+  if (!res.ok) throw await toError(res)
+  const cd = res.headers.get('content-disposition') ?? ''
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
+  return { blob: await res.blob(), filename: m ? decodeURIComponent(m[1]) : null }
+}
+
 /** Oturum yoksa null döner; başka hatalarda ApiError / ağ hatası fırlatır. */
 export async function fetchMe(signal?: AbortSignal): Promise<AuthUser | null> {
   const res = await fetch('/api/auth/me', { credentials: 'include', signal })
@@ -98,6 +107,9 @@ export interface DealerInput {
 }
 
 export interface ApplicationInput extends DealerInput {
+  /** İsteğe bağlı (K-68). */
+  taxOffice?: string
+  taxNumber?: string
   consents: { kvkk: boolean; terms: boolean; marketing: boolean }
 }
 
@@ -123,6 +135,8 @@ export interface DealerSummary {
 
 export interface DealerDetail extends DealerSummary {
   address: string
+  taxOffice?: string | null
+  taxNumber?: string | null
   emailVerifiedAt: string | null
   rejectionReason: string | null
   consents: { type: string; granted: boolean; documentVersion: string; createdAt: string }[]
@@ -316,6 +330,8 @@ export interface AdminProduct {
   vatRate: string
   stockStatus: StockStatus
   isActive: boolean
+  /** Ana sayfada "Öne çıkan ürünler"de gösterilir (K-74). */
+  isFeatured?: boolean
   images: (ProductImage & { mediaId: string; sortOrder: number })[]
   createdAt: string
   updatedAt: string
@@ -332,11 +348,20 @@ export interface ProductInput {
   vatRate: string
   stockStatus: StockStatus
   isActive: boolean
+  isFeatured?: boolean
   mediaIds: string[]
 }
 
 export function fetchAdminProducts(
-  params: { q?: string; groupId?: string; stock?: string; active?: string; page: number; pageSize: number },
+  params: {
+    q?: string
+    groupId?: string
+    stock?: string
+    active?: string
+    featured?: string
+    page: number
+    pageSize: number
+  },
   signal?: AbortSignal,
 ): Promise<Paged<AdminProduct>> {
   return getJson(`/admin/products${qsOf(params)}`, signal)
@@ -424,7 +449,11 @@ export async function saveGroupDiscounts(
   await send('PUT', `${dealerPath(dealerId)}/group-discounts`, { items })
 }
 
-// Bayi kataloğu (K-40)
+// Bayi kataloğu (K-40) ve açık vitrin (K-66)
+/**
+ * Oturumsuz ve Admin oturumunda fiyat, iskonto, KDV ve stok alanları null gelir (K-66);
+ * arayüz bu durumda fiyat yerine "giriş yapın" bağlantısı gösterir.
+ */
 export interface CatalogProduct {
   id: string
   name: string
@@ -434,12 +463,15 @@ export interface CatalogProduct {
   groupId: string
   groupName: string
   caseQuantity: number
-  stock: StockStatus
-  listPrice: string
-  price: string
+  stock: StockStatus | null
+  listPrice: string | null
+  price: string | null
   discountPercent: string | null
-  vatRate: string
+  vatRate: string | null
   images: ProductImage[]
+  isFavorite: boolean
+  isFeatured: boolean
+  isNew: boolean
 }
 
 export interface CatalogGroup {
@@ -454,22 +486,67 @@ export function fetchCatalogGroups(signal?: AbortSignal): Promise<CatalogGroup[]
   return getJson('/catalog/groups', signal)
 }
 
-export function fetchCatalogProducts(
+/** Sözleşmede alan adı `stockStatus`; mevcut uç `stock` döndürüyordu. İkisi de kabul edilir. */
+function normalizeProduct(raw: Record<string, unknown>): CatalogProduct {
+  const r = raw as Partial<CatalogProduct> & { stockStatus?: StockStatus | null }
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    barcode: r.barcode as string,
+    code: r.code ?? null,
+    description: r.description ?? null,
+    groupId: r.groupId as string,
+    groupName: r.groupName as string,
+    caseQuantity: r.caseQuantity as number,
+    stock: r.stock ?? r.stockStatus ?? null,
+    listPrice: r.listPrice ?? null,
+    price: r.price ?? null,
+    discountPercent: r.discountPercent ?? null,
+    vatRate: r.vatRate ?? null,
+    images: r.images ?? [],
+    isFavorite: r.isFavorite ?? false,
+    isFeatured: r.isFeatured ?? false,
+    isNew: r.isNew ?? false,
+  }
+}
+
+export interface CatalogList extends Paged<CatalogProduct> {
+  priceVisible: boolean
+}
+
+export async function fetchCatalogProducts(
   params: {
     q?: string
     groupId?: string
     sort?: 'newest'
     stock?: 'in_stock'
+    featured?: boolean
+    isNew?: boolean
     page: number
     pageSize: number
   },
   signal?: AbortSignal,
-): Promise<Paged<CatalogProduct>> {
-  return getJson(`/catalog/products${qsOf(params)}`, signal)
+): Promise<CatalogList> {
+  const { featured, isNew, ...rest } = params
+  const body = await getJson<Paged<Record<string, unknown>> & { priceVisible?: boolean }>(
+    `/catalog/products${qsOf({ ...rest, featured: featured ? 'true' : undefined, new: isNew ? 'true' : undefined })}`,
+    signal,
+  )
+  const items = body.items.map(normalizeProduct)
+  return {
+    ...body,
+    items,
+    priceVisible: body.priceVisible ?? items.some((p) => p.price !== null),
+  }
 }
 
-export function fetchCatalogProduct(id: string, signal?: AbortSignal): Promise<CatalogProduct> {
-  return getJson(`/catalog/products/${encodeURIComponent(id)}`, signal)
+export async function fetchCatalogProduct(id: string, signal?: AbortSignal): Promise<CatalogProduct> {
+  return normalizeProduct(await getJson(`/catalog/products/${encodeURIComponent(id)}`, signal))
+}
+
+/** Bayi kendine özel net fiyatlı fiyat listesini Excel olarak indirir (K-72). */
+export function downloadPriceList(): Promise<{ blob: Blob; filename: string | null }> {
+  return downloadFile('/catalog/price-list.xlsx')
 }
 
 // ---------- Sepet ve ön sipariş (docs/api/siparis-api.md) ----------
@@ -1061,4 +1138,296 @@ export async function downloadReportExcel(
   const cd = res.headers.get('content-disposition') ?? ''
   const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
   return { blob: await res.blob(), filename: m ? decodeURIComponent(m[1]) : null }
+}
+
+// ---------- Site ayarları ve bilgi sayfaları (docs/api/vitrin-hesap-api.md §2, K-73) ----------
+
+export type PageSlug = 'hakkimizda' | 'sss' | 'teslimat' | 'kvkk' | 'kullanim-kosullari'
+
+export interface SiteContact {
+  phone: string
+  /** Boş/null ise arama bağlantısı görünen telefondan türetilir. */
+  phoneE164: string | null
+  /** null: Admin WhatsApp bağlantısını gizlemiş. */
+  whatsappE164: string | null
+  email: string
+  address: string
+  city: string
+  workingHours: string
+  mapUrl: string | null
+}
+
+export interface SiteInfo {
+  announcement: string | null
+  contact: SiteContact
+  pages: { slug: string; title: string }[]
+}
+
+export function fetchSite(signal?: AbortSignal): Promise<SiteInfo> {
+  return getJson('/site', signal)
+}
+
+export interface SitePage {
+  slug: string
+  title: string
+  /** Düz metin: boş satır paragraf, "## " alt başlık, "- " madde. HTML yoktur. */
+  body: string
+  updatedAt: string
+  /** Sayfa gövdesi değiştikçe 1 artar (onay metni sürümü). */
+  version: number
+}
+
+export function fetchSitePage(slug: string, signal?: AbortSignal): Promise<SitePage> {
+  return getJson(`/site/pages/${encodeURIComponent(slug)}`, signal)
+}
+
+export interface AdminSite {
+  announcement: string | null
+  contact: SiteContact
+  pages: { slug: string; title: string; body: string; published: boolean; updatedAt?: string }[]
+}
+
+/** Kayıt gövdesi: E.164 alanları verilmezse sunucu telefondan türetir, null verilirse gizler. */
+export interface AdminSiteInput {
+  announcement: string | null
+  contact: Omit<SiteContact, 'phoneE164' | 'whatsappE164'> & {
+    phoneE164?: string | null
+    whatsappE164?: string | null
+  }
+  pages: { slug: string; title: string; body: string; published: boolean }[]
+}
+
+export function fetchAdminSite(signal?: AbortSignal): Promise<AdminSite> {
+  return getJson('/admin/site', signal)
+}
+
+export async function saveAdminSite(input: AdminSiteInput): Promise<AdminSite> {
+  return (await (await put('/admin/site', input)).json()) as AdminSite
+}
+
+// ---------- Bayi hesabı (§3, K-67 – K-69) ----------
+
+export interface Account {
+  companyTitle: string
+  taxOffice: string | null
+  taxNumber: string | null
+  contactName: string
+  email: string
+  phone: string
+  city: string
+  district: string
+  address: string
+  generalDiscountPercent: string | null
+  memberSince: string
+  lastLoginAt: string | null
+  marketingConsent: boolean
+  stats: { orderCount: number; openOrderCount: number; yearNetTotal: string; lastOrderAt: string | null }
+}
+
+export interface AccountPatch {
+  contactName?: string
+  phone?: string
+  city?: string
+  district?: string
+  address?: string
+  taxOffice?: string | null
+  taxNumber?: string | null
+}
+
+export function fetchAccount(signal?: AbortSignal): Promise<Account> {
+  return getJson('/account', signal)
+}
+
+export async function patchAccount(patch: AccountPatch): Promise<Account> {
+  return (await (await send('PATCH', '/account', patch)).json()) as Account
+}
+
+export async function changeAccountPassword(currentPassword: string, newPassword: string): Promise<void> {
+  await post('/account/password', { currentPassword, newPassword })
+}
+
+export async function revokeOtherSessions(): Promise<void> {
+  await post('/account/sessions/revoke-others')
+}
+
+export async function setMarketingConsent(granted: boolean): Promise<void> {
+  await put('/account/marketing-consent', { granted })
+}
+
+export interface DealerAddress {
+  id: string
+  label: string
+  carrierName: string
+  carrierBranch: string
+  address: string
+  city: string
+  district: string
+  isDefault: boolean
+  createdAt: string
+}
+
+export type DealerAddressInput = Omit<DealerAddress, 'id' | 'createdAt' | 'isDefault'> & {
+  isDefault?: boolean
+}
+
+export function fetchAddresses(signal?: AbortSignal): Promise<DealerAddress[]> {
+  return getJson('/account/addresses', signal)
+}
+
+export async function createAddress(input: DealerAddressInput): Promise<DealerAddress> {
+  return (await (await post('/account/addresses', input)).json()) as DealerAddress
+}
+
+export async function updateAddress(id: string, patch: Partial<DealerAddressInput>): Promise<DealerAddress> {
+  return (await (
+    await send('PATCH', `/account/addresses/${encodeURIComponent(id)}`, patch)
+  ).json()) as DealerAddress
+}
+
+export async function deleteAddress(id: string): Promise<void> {
+  await del(`/account/addresses/${encodeURIComponent(id)}`)
+}
+
+// ---------- Favoriler (§4, K-70) ----------
+
+export async function fetchFavorites(signal?: AbortSignal): Promise<CatalogProduct[]> {
+  const body = await getJson<{ items: Record<string, unknown>[] }>('/favorites', signal)
+  return body.items.map((r) => ({ ...normalizeProduct(r), isFavorite: true }))
+}
+
+export async function addFavorite(productId: string): Promise<void> {
+  await put(`/favorites/${encodeURIComponent(productId)}`)
+}
+
+export async function removeFavorite(productId: string): Promise<void> {
+  await del(`/favorites/${encodeURIComponent(productId)}`)
+}
+
+// ---------- Hızlı sipariş (§5, K-71) ----------
+
+export type QuickAddErrorCode = 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY'
+
+export interface QuickAddResult {
+  added: {
+    index: number
+    productId: string
+    name: string
+    barcode: string
+    requested: number
+    quantity: number
+    caseQuantity: number
+    outOfStock: boolean
+  }[]
+  errors: { index: number; query: string; code: QuickAddErrorCode | string }[]
+  cart: Cart
+}
+
+export async function quickAdd(lines: { query: string; quantity: number }[]): Promise<QuickAddResult> {
+  return (await (await post('/cart/quick-add', { lines })).json()) as QuickAddResult
+}
+
+/** Bayinin kendi siparişi için Excel (K-72). */
+export function downloadMyOrderExcel(orderId: string): Promise<{ blob: Blob; filename: string | null }> {
+  return downloadFile(`/orders/${encodeURIComponent(orderId)}/export.xlsx`)
+}
+
+// ---------- Admin araçları (§7, K-74, K-75) ----------
+
+export interface DealerPatch {
+  companyTitle?: string
+  contactName?: string
+  email?: string
+  phone?: string
+  city?: string
+  district?: string
+  address?: string
+  taxOffice?: string | null
+  taxNumber?: string | null
+}
+
+export async function patchDealer(id: string, patch: DealerPatch): Promise<DealerDetail> {
+  return (await (await send('PATCH', dealerPath(id), patch)).json()) as DealerDetail
+}
+
+export interface DealerNote {
+  id: string
+  body: string
+  createdAt: string
+  createdBy: { id: string; fullName: string }
+}
+
+export function fetchDealerNotes(dealerId: string, signal?: AbortSignal): Promise<DealerNote[]> {
+  return getJson(`${dealerPath(dealerId)}/notes`, signal)
+}
+
+export async function addDealerNote(dealerId: string, body: string): Promise<DealerNote> {
+  return (await (await post(`${dealerPath(dealerId)}/notes`, { body })).json()) as DealerNote
+}
+
+export async function deleteDealerNote(dealerId: string, noteId: string): Promise<void> {
+  await del(`${dealerPath(dealerId)}/notes/${encodeURIComponent(noteId)}`)
+}
+
+export type BulkAction =
+  | 'activate'
+  | 'deactivate'
+  | 'in_stock'
+  | 'out_of_stock'
+  | 'feature'
+  | 'unfeature'
+  | 'set_group'
+
+export async function bulkProducts(input: {
+  ids: string[]
+  action: BulkAction
+  groupId?: string
+}): Promise<{ updated: number }> {
+  return (await (await post('/admin/products/bulk', input)).json()) as { updated: number }
+}
+
+export interface AuditEntry {
+  id: string
+  createdAt: string
+  actor: { type: 'admin' | 'dealer' | 'system'; id: string | null; name: string | null }
+  action: string
+  actionLabel: string
+  entityType: string
+  entityId: string | null
+  entityLabel: string | null
+  reason: string | null
+  data: unknown
+}
+
+export function fetchAudit(
+  params: {
+    page: number
+    pageSize: number
+    entityType?: string
+    actorType?: string
+    q?: string
+    from?: string
+    to?: string
+  },
+  signal?: AbortSignal,
+): Promise<Paged<AuditEntry>> {
+  return getJson(`/admin/audit${qsOf(params)}`, signal)
+}
+
+export interface AdminAccount {
+  id: string
+  email: string
+  fullName: string
+  lastLoginAt: string | null
+}
+
+export function fetchAdminAccount(signal?: AbortSignal): Promise<AdminAccount> {
+  return getJson('/admin/account', signal)
+}
+
+export async function patchAdminAccount(fullName: string): Promise<AdminAccount> {
+  return (await (await send('PATCH', '/admin/account', { fullName })).json()) as AdminAccount
+}
+
+export async function changeAdminPassword(currentPassword: string, newPassword: string): Promise<void> {
+  await post('/admin/account/password', { currentPassword, newPassword })
 }

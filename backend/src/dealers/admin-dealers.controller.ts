@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -24,6 +25,10 @@ import {
 import { createValidationPipe } from '../common/validation.js';
 import {
   createDealerSchema,
+  createNoteSchema,
+  updateDealerSchema,
+  type CreateNoteInput,
+  type UpdateDealerInput,
   listQuerySchema,
   reasonOptionalSchema,
   reasonRequiredSchema,
@@ -64,6 +69,41 @@ export class AdminDealersController {
     @CurrentUser() admin: AuthIdentity,
   ) {
     return this.dealers.createWithInvitation(body, admin.id);
+  }
+
+  // K-75: bayi bilgilerini düzenleme.
+  @Patch(':id')
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: updateDealerSchema }) body: UpdateDealerInput,
+    @CurrentUser() admin: AuthIdentity,
+  ) {
+    return this.dealers.update(id, body, admin.id);
+  }
+
+  // K-75: iç notlar (yalnızca Admin).
+  @Get(':id/notes')
+  notes(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.dealers.listNotes(id);
+  }
+
+  @Post(':id/notes')
+  addNote(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: createNoteSchema }) body: CreateNoteInput,
+    @CurrentUser() admin: AuthIdentity,
+  ) {
+    return this.dealers.addNote(id, body.body, admin.id);
+  }
+
+  @Delete(':id/notes/:noteId')
+  @HttpCode(204)
+  async deleteNote(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('noteId', new ParseUUIDPipe()) noteId: string,
+    @CurrentUser() admin: AuthIdentity,
+  ): Promise<void> {
+    await this.dealers.deleteNote(id, noteId, admin.id);
   }
 
   @Post(':id/approve')

@@ -15,13 +15,9 @@ export const DEV_ADMIN = {
 };
 export const DEV_DEALER = { email: 'bayi@amisos.local', password: 'Bayi1234' };
 
-const DEV_GROUPS = ['Bardak', 'Tabak', 'Mutfak Gereçleri'];
-const DEV_PRODUCTS = [
-  { group: 'Bardak', barcode: '8690000000017', code: 'DEV-BRD-1', name: "Çay Bardağı 6'lı", description: 'Geliştirme örneği.', caseQuantity: 12, listPrice: '48.90', stock: 'in_stock' as const },
-  { group: 'Bardak', barcode: '8690000000024', code: 'DEV-BRD-2', name: "Su Bardağı 6'lı", description: null, caseQuantity: 8, listPrice: '39.50', stock: 'out_of_stock' as const },
-  { group: 'Tabak', barcode: '8690000000031', code: 'DEV-TBK-1', name: 'Yemek Tabağı 24 cm', description: 'Geliştirme örneği.', caseQuantity: 6, listPrice: '19.99', stock: 'in_stock' as const },
-  { group: 'Mutfak Gereçleri', barcode: '8690000000048', code: null, name: 'Süzgeç Paslanmaz', description: null, caseQuantity: 1, listPrice: '129.00', stock: 'in_stock' as const },
-];
+/** Eski sürümlerde db:seed'in eklediği örnek grup ve ürünler (artık eklenmiyor, pasife alınıyor). */
+const LEGACY_DEV_GROUPS = ['Bardak', 'Tabak', 'Mutfak Gereçleri'];
+const LEGACY_DEV_BARCODES = ['8690000000017', '8690000000024', '8690000000031', '8690000000048'];
 
 async function main(): Promise<void> {
   try {
@@ -92,37 +88,19 @@ async function main(): Promise<void> {
       });
     }
 
-    // Örnek grup ve ürünler (görselsiz); tekrar çalıştırılabilir: var olanlara dokunulmaz.
-    const groupIds = new Map<string, string>();
-    for (const [index, name] of DEV_GROUPS.entries()) {
-      const key = companyTitleKey(name);
-      await db
-        .insert(schema.productGroups)
-        .values({ name, nameKey: key, sortOrder: index })
-        .onConflictDoNothing();
-      const [group] = await db
-        .select({ id: schema.productGroups.id })
-        .from(schema.productGroups)
-        .where(sql`${schema.productGroups.nameKey} = ${key}`);
-      groupIds.set(name, group.id);
-    }
+    // Eski sürümlerin oluşturduğu görselsiz örnek ürünler vitrinde kalabalık yapmasın diye pasife alınır
+    // (silinmez: siparişlerde kullanılmış olabilir). Örnek katalog artık `npm run db:demo` ile gelir.
     await db
-      .insert(schema.products)
-      .values(
-        DEV_PRODUCTS.map((p) => ({
-          groupId: groupIds.get(p.group)!,
-          barcode: p.barcode,
-          code: p.code,
-          name: p.name,
-          description: p.description,
-          caseQuantity: p.caseQuantity,
-          listPrice: p.listPrice,
-          vatRate: '20.00',
-          stockStatus: p.stock,
-          stockUpdatedAt: new Date(),
-        })),
-      )
-      .onConflictDoNothing();
+      .update(schema.products)
+      .set({ isActive: false })
+      .where(sql`${schema.products.code} like 'DEV-%' and ${schema.products.barcode} in (${sql.join(LEGACY_DEV_BARCODES.map((b) => sql`${b}`), sql`, `)})`);
+    await db
+      .update(schema.productGroups)
+      .set({ isActive: false })
+      .where(
+        sql`${schema.productGroups.nameKey} in (${sql.join(LEGACY_DEV_GROUPS.map((g) => sql`${companyTitleKey(g)}`), sql`, `)})
+          and not exists (select 1 from products p where p.group_id = ${schema.productGroups.id} and p.is_active)`,
+      );
 
     console.log('Geliştirme hesapları hazır:');
     console.log(

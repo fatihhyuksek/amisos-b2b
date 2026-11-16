@@ -1,6 +1,6 @@
 // Sunucu taraflı oturumlar (GR-BAYI-006, GR-BAYI-007). Çerezde rastgele token, veritabanında özeti.
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, lt, ne } from 'drizzle-orm';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
 import { adminUsers, dealers, sessions } from '../database/schema.js';
@@ -115,6 +115,24 @@ export class SessionsService {
         and(
           eq(sessions.subjectType, subjectType),
           eq(sessions.subjectId, subjectId),
+        ),
+      );
+  }
+
+  /** K-67: bu oturum (çerezdeki token) dışındaki tüm oturumları kapatır. */
+  async destroyOthers(
+    subjectType: SubjectType,
+    subjectId: string,
+    currentToken: string,
+    executor: DbExecutor = this.db,
+  ): Promise<void> {
+    await executor
+      .delete(sessions)
+      .where(
+        and(
+          eq(sessions.subjectType, subjectType),
+          eq(sessions.subjectId, subjectId),
+          ne(sessions.tokenHash, hashToken(currentToken)),
         ),
       );
   }

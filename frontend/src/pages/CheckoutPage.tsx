@@ -1,12 +1,17 @@
-// GR-SIP-005, GR-SIP-007, K-22, K-27, K-33, K-36, K-37, K-38: Ön sipariş onayı (/sepet/onay).
+// GR-SIP-005, GR-SIP-007, K-22, K-27, K-33, K-36, K-37, K-38, K-69: Ön sipariş onayı (/sepet/onay).
 // expectedTotal ekrandaki genel toplamdır; fark çıkarsa sunucu 409 PRICE_CHANGED döner.
 import { useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
+  createAddress,
+  fetchAccount,
+  fetchAddresses,
   fetchCheckoutDefaults,
   PriceChangedError,
   submitOrder,
+  type Account,
   type CheckoutDefaults,
+  type DealerAddress,
   type DeliveryMethod,
 } from '../api'
 import { useLoad } from '../admin/useLoad'
@@ -16,7 +21,7 @@ import { useCart } from '../shop/cart'
 import { CartNotices } from '../shop/CartNotices'
 import { DELIVERY_LABEL } from '../shop/delivery'
 import { OrderTotals } from '../shop/OrderTotals'
-import { Alert, Button, EmptyState, Field } from '../ui/components'
+import { Alert, Button, Checkbox, EmptyState, Field } from '../ui/components'
 import { ErrorAlert, LoadingCard } from '../ui/catalog'
 import { formatTRY } from '../ui/format'
 import { networkMessage } from '../ui/networkMessage'
@@ -36,6 +41,17 @@ export function CheckoutPage() {
   const { status, cart, reload, applyCart } = useCart()
   const defaults = useLoad<CheckoutDefaults>((s) => fetchCheckoutDefaults(s), 'checkout-defaults')
   const def = defaults.state.status === 'ready' ? defaults.state.data : null
+  // Kayıtlı adresler (K-69): yüklenemezse sessizce atlanır, adres elle girilir.
+  const addressesLoad = useLoad<DealerAddress[]>((s) => fetchAddresses(s), 'checkout-addresses')
+  const accountLoad = useLoad<Account>((s) => fetchAccount(s), 'checkout-account')
+  const saved = addressesLoad.state.status === 'ready' ? addressesLoad.state.data : []
+  const account = accountLoad.state.status === 'ready' ? accountLoad.state.data : null
+  // undefined: seçici hiç değiştirilmedi (varsayılan adres önerilir); '': "başka adres"
+  const [pickedId, setPickedId] = useState<string | undefined>(undefined)
+  const [saveNew, setSaveNew] = useState(false)
+  const [saveLabel, setSaveLabel] = useState('')
+  const preset =
+    pickedId === undefined ? saved.find((a) => a.isDefault) : saved.find((a) => a.id === pickedId)
 
   const [method, setMethod] = useState<DeliveryMethod>('carrier')
   // null: bayi henüz dokunmadı, sunucunun önerdiği değer gösterilir.
@@ -49,9 +65,32 @@ export function CheckoutPage() {
   const [changed, setChanged] = useState(false)
   const lock = useRef(false)
 
-  const addressValue = address ?? def?.address ?? ''
-  const nameValue = carrierName ?? def?.lastCarrier?.name ?? ''
-  const branchValue = carrierBranch ?? def?.lastCarrier?.branch ?? ''
+  const addressValue = address ?? preset?.address ?? def?.address ?? ''
+  const nameValue = carrierName ?? preset?.carrierName ?? def?.lastCarrier?.name ?? ''
+  const branchValue = carrierBranch ?? preset?.carrierBranch ?? def?.lastCarrier?.branch ?? ''
+  const matchesSaved = saved.some(
+    (a) =>
+      a.address.trim() === addressValue.trim() &&
+      a.carrierName.trim() === nameValue.trim() &&
+      a.carrierBranch.trim() === branchValue.trim(),
+  )
+  const canSaveAddress =
+    method === 'carrier' && !!account && saved.length < 20 && !matchesSaved && !!addressValue.trim()
+
+  function pickAddress(id: string) {
+    setPickedId(id)
+    // Seçilen adres alanları doldurur; elle yazılmış değerler sıfırlanır.
+    if (id === '') {
+      setAddress('')
+      setCarrierName('')
+      setCarrierBranch('')
+    } else {
+      setAddress(null)
+      setCarrierName(null)
+      setCarrierBranch(null)
+    }
+    setErrors({})
+  }
 
   const clearError = (k: FieldName) => setErrors((cur) => (cur[k] ? { ...cur, [k]: undefined } : cur))
 
@@ -87,6 +126,25 @@ export function CheckoutPage() {
         expectedTotal: cart.summary.grandTotal,
         expectedVersion: cart.version,
       })
+      if (saveNew && canSaveAddress && account) {
+        // "Bu adresi kaydet": siparişi etkilemez, hata sessizce yutulur.
+        try {
+          await createAddress({
+            label:
+              saveLabel.trim() ||
+              `${nameValue.trim()} ${branchValue.trim()}`.trim().slice(0, 60) ||
+              'Teslimat adresi',
+            carrierName: nameValue.trim(),
+            carrierBranch: branchValue.trim(),
+            address: addressValue.trim(),
+            city: account.city,
+            district: account.district,
+            isDefault: saved.length === 0,
+          })
+        } catch {
+          /* adres kaydedilemedi; sipariş zaten gönderildi */
+        }
+      }
       void reload()
       navigate(`/siparislerim/${encodeURIComponent(result.id)}?yeni=1`)
     } catch (err) {
@@ -185,13 +243,35 @@ export function CheckoutPage() {
             {method === 'carrier' ? (
               <section className="ui-card ui-card__body ui-stack" aria-labelledby="carrier-h">
                 <h2 id="carrier-h">Teslimat bilgileri</h2>
-                {defaults.state.status === 'error' && (
+                {defaults.state.status === 'error' && addressesLoad.state.status === 'error' && (
                   <Alert tone="info">Kayıtlı adresiniz getirilemedi; adresi elle girebilirsiniz.</Alert>
+                )}
+                {saved.length > 0 && (
+                  <Field
+                    label="Kayıtlı adreslerim"
+                    htmlFor="co-saved"
+                    help="Seçtiğiniz adres aşağıdaki alanları doldurur; yine de değiştirebilirsiniz."
+                  >
+                    <select
+                      id="co-saved"
+                      className="ui-select"
+                      value={pickedId ?? preset?.id ?? ''}
+                      onChange={(e) => pickAddress(e.target.value)}
+                    >
+                      <option value="">Başka adres (elle gir)</option>
+                      {saved.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.label}
+                          {a.isDefault ? ' (varsayılan)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
                 )}
                 <Field
                   label="Teslimat adresi"
                   htmlFor="co-address"
-                  help="Başvurudaki adresiniz getirildi, değiştirebilirsiniz."
+                  help={preset ? undefined : 'Başvurudaki adresiniz getirildi, değiştirebilirsiniz.'}
                   error={errors.deliveryAddress}
                 >
                   <textarea
@@ -234,6 +314,29 @@ export function CheckoutPage() {
                     />
                   </Field>
                 </div>
+                {canSaveAddress && (
+                  <>
+                    <Checkbox id="co-save" checked={saveNew} onChange={setSaveNew}>
+                      Bu adresi kayıtlı adreslerime ekle
+                    </Checkbox>
+                    {saveNew && (
+                      <Field
+                        label="Adres adı"
+                        htmlFor="co-save-label"
+                        help="Örn. Depo, Mağaza (isteğe bağlı)"
+                      >
+                        <input
+                          id="co-save-label"
+                          className="ui-input"
+                          maxLength={60}
+                          autoComplete="off"
+                          value={saveLabel}
+                          onChange={(e) => setSaveLabel(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </>
+                )}
               </section>
             ) : (
               <Alert tone="info">

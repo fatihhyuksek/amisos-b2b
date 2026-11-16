@@ -25,7 +25,7 @@ export function useAddToCart() {
           tone: 'success',
           text: mode === 'update' ? 'Sepet güncellendi' : 'Sepete eklendi',
           detail: `${p.name} · ${line?.quantity ?? target} adet`,
-          note: p.stock !== 'in_stock' ? OUT_OF_STOCK_NOTE : undefined,
+          note: p.stock === 'out_of_stock' ? OUT_OF_STOCK_NOTE : undefined,
           cartLink: true,
         })
         return true

@@ -34,6 +34,9 @@ const toCatalog = (i: number): CatalogProduct => {
     discountPercent: m.discountPercent ? `${m.discountPercent}.00` : null,
     vatRate: '20.00',
     images: [],
+    isFavorite: false,
+    isFeatured: false,
+    isNew: false,
   }
 }
 

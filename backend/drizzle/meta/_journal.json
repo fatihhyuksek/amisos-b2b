@@ -71,6 +71,13 @@
       "when": 1794753531648,
       "tag": "0009_report_partial_index",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794845692473,
+      "tag": "0010_vitrin_hesap",
+      "breakpoints": true
     }
   ]
 }

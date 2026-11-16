@@ -5,7 +5,8 @@ import { ApiError, login, type UserType } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { validateEmail, validateRequired } from '../auth/validation'
 import { Link } from '../Link'
-import { replace } from '../router'
+import { replace, useRoute } from '../router'
+import { safeReturnPath } from '../shop/returnTo'
 import { Alert, AuthCard, Button, Field, PasswordInput } from '../ui/components'
 
 const SERVER_UNREACHABLE = 'Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.'
@@ -25,6 +26,7 @@ function loginErrorMessage(err: unknown): string {
 
 export function LoginPage({ type }: { type: UserType }) {
   const { refresh } = useAuth()
+  const back = safeReturnPath(useRoute().query.get('donus'))
   const isAdmin = type === 'admin'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -42,7 +44,16 @@ export function LoginPage({ type }: { type: UserType }) {
     try {
       await login(type, email.trim(), password)
       const user = await refresh()
-      if (user) replace(user.type === 'admin' ? '/yonetim' : '/')
+      if (user)
+        replace(
+          user.type === 'admin'
+            ? back?.startsWith('/yonetim')
+              ? back
+              : '/yonetim'
+            : back && !back.startsWith('/yonetim')
+              ? back
+              : '/',
+        )
       // Giriş kabul edildi ama oturum çerezi geri gelmedi (tarayıcı çerezi engellemiş olabilir).
       else
         setFormError(
@@ -58,11 +69,21 @@ export function LoginPage({ type }: { type: UserType }) {
   return (
     <AuthCard
       title={isAdmin ? 'Yönetim girişi' : 'Bayi girişi'}
+      intro={
+        !isAdmin && back
+          ? 'Devam etmek için giriş yapın. Girişten sonra kaldığınız sayfaya döneceksiniz.'
+          : undefined
+      }
       footer={
         isAdmin ? undefined : (
-          <p className="muted">
-            Bayi değil misiniz? <Link to="/basvuru">Başvuru yapın</Link>
-          </p>
+          <>
+            <p className="muted">
+              Bayi değil misiniz? <Link to="/basvuru">Bayi olun</Link>
+            </p>
+            <p className="muted">
+              <Link to="/katalog">Fiyatsız vitrine göz atın</Link>
+            </p>
+          </>
         )
       }
     >

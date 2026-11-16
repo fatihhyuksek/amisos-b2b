@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm';
 import { Cron } from '@nestjs/schedule';
 import { CONSENT_DOCUMENT_VERSION } from '../common/consents.js';
+import { currentConsentVersions } from '../site/consent-versions.js';
 import {
   runExclusive,
   LOCK_STALE_APPLICATIONS,
@@ -40,7 +41,7 @@ import { SessionsService } from '../auth/sessions.service.js';
 import { isBusinessDaysOverdue } from '../common/business-days.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { escapeLike } from '../common/like.js';
-import { isUniqueViolation } from '../common/pg-errors.js';
+import { isUniqueViolation, violatedConstraint } from '../common/pg-errors.js';
 import { DB, type Database } from '../database/database.module.js';
 import {
   adminUsers,
@@ -48,6 +49,7 @@ import {
   authTokens,
   consents,
   dealerGroupDiscounts,
+  dealerNotes,
   dealers,
   productGroups,
 } from '../database/schema.js';
@@ -55,6 +57,7 @@ import type {
   ApplicationInput,
   DealerFieldsInput,
   ListQuery,
+  UpdateDealerInput,
 } from './dealers.schemas.js';
 
 type DealerRow = typeof dealers.$inferSelect;
@@ -141,15 +144,19 @@ export class DealersService {
             city: input.city,
             district: input.district,
             address: input.address,
+            taxOffice: input.taxOffice ?? null,
+            taxNumber: input.taxNumber ?? null,
             status: 'pending_email',
             source: 'application',
           })
           .returning({ id: dealers.id });
+        const versions = await currentConsentVersions(tx);
         await tx.insert(consents).values(
           (['kvkk', 'terms', 'marketing'] as const).map((type) => ({
             dealerId: dealer.id,
             type,
-            documentVersion: CONSENT_DOCUMENT_VERSION,
+            // KVKK/koşul: onay anındaki sayfa sürümü; pazarlama metni için sabit sürüm.
+            documentVersion: type === 'marketing' ? CONSENT_DOCUMENT_VERSION : versions[type],
             granted: input.consents[type] ?? false,
           })),
         );
@@ -211,6 +218,142 @@ export class DealersService {
     }
     this.notifications.dispatchSoon([created.outboxId]);
     return this.toSummary(created.row);
+  }
+
+  // --- Admin: bilgi düzenleme ve iç notlar (K-75) ---------------------------
+
+  /** K-75: yalnızca değişen alanlar yazılır; tekillik ihlali DUPLICATE_EMAIL / DUPLICATE_COMPANY (409). */
+  async update(id: string, input: UpdateDealerInput, adminId: string) {
+    let outboxId: string | null = null;
+    let reverify = false;
+    try {
+      await this.db.transaction(async (tx) => {
+        const [current] = await tx.select().from(dealers).where(eq(dealers.id, id)).for('update');
+        if (!current) throw new NotFoundException('Bayi bulunamadı.');
+        const set: Partial<typeof dealers.$inferInsert> = {};
+        const changes: Record<string, { previous: unknown; next: unknown }> = {};
+        for (const key of [
+          'companyTitle',
+          'contactName',
+          'email',
+          'phone',
+          'city',
+          'district',
+          'address',
+          'taxOffice',
+          'taxNumber',
+        ] as const) {
+          const next = input[key];
+          if (next === undefined || next === current[key]) continue;
+          (set as Record<string, unknown>)[key] = next;
+          changes[key] = { previous: current[key], next };
+        }
+        if (Object.keys(changes).length === 0) return;
+        if (set.companyTitle) set.companyTitleKey = companyTitleKey(set.companyTitle);
+        await tx.update(dealers).set(set).where(eq(dealers.id, id));
+        if (changes.email) {
+          // Eski adrese gitmiş bağlantılar (davet, şifre sıfırlama, e-posta doğrulama) geçersiz olur.
+          // emailVerifiedAt bilinçli korunur: e-postayı değiştiren Admin güvenilir kaynaktır.
+          await this.auth.invalidateDealerTokens(id, tx);
+          if (current.passwordHash === null && current.status === 'active') {
+            // Davet bekleyen bayi: yeni adrese davet otomatik yeniden gönderilir.
+            const link = await this.auth.issueInvitationLink(id, tx);
+            outboxId = await this.auth.enqueueInvitation(input.email as string, link, tx);
+          } else if (current.status === 'pending_email') {
+            reverify = true;
+          }
+        }
+        await this.audit.record(
+          {
+            actorType: 'admin',
+            actorId: adminId,
+            action: 'dealer.updated',
+            entityType: 'dealers',
+            entityId: id,
+            data: { changes },
+          },
+          tx,
+        );
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        const duplicateEmail = violatedConstraint(error) === 'dealers_email_uq';
+        throw new ConflictException({
+          statusCode: 409,
+          code: duplicateEmail ? 'DUPLICATE_EMAIL' : 'DUPLICATE_COMPANY',
+          message: duplicateEmail
+            ? 'Bu e-posta başka bir bayide kullanılıyor.'
+            : 'Bu firma unvanı başka bir bayide kullanılıyor.',
+        });
+      }
+      throw error;
+    }
+    if (outboxId) this.notifications.dispatchSoon([outboxId]);
+    if (reverify) this.auth.queueEmailVerification(id);
+    return this.detail(id);
+  }
+
+  async listNotes(dealerId: string) {
+    await this.getOrThrow(dealerId);
+    const rows = await this.db
+      .select({
+        id: dealerNotes.id,
+        body: dealerNotes.body,
+        createdAt: dealerNotes.createdAt,
+        adminId: dealerNotes.createdBy,
+        adminName: adminUsers.fullName,
+      })
+      .from(dealerNotes)
+      .innerJoin(adminUsers, eq(adminUsers.id, dealerNotes.createdBy))
+      .where(eq(dealerNotes.dealerId, dealerId))
+      .orderBy(desc(dealerNotes.createdAt), desc(dealerNotes.id));
+    return rows.map((r) => ({
+      id: r.id,
+      body: r.body,
+      createdAt: r.createdAt.toISOString(),
+      createdBy: { id: r.adminId, fullName: r.adminName },
+    }));
+  }
+
+  async addNote(dealerId: string, body: string, adminId: string) {
+    await this.getOrThrow(dealerId);
+    const noteId = await this.db.transaction(async (tx) => {
+      const [row] = await tx.insert(dealerNotes).values({ dealerId, body, createdBy: adminId }).returning();
+      await this.audit.record(
+        {
+          actorType: 'admin',
+          actorId: adminId,
+          action: 'dealer.note_added',
+          entityType: 'dealers',
+          entityId: dealerId,
+          data: { noteId: row.id },
+        },
+        tx,
+      );
+      return row.id;
+    });
+    return (await this.listNotes(dealerId)).find((n) => n.id === noteId);
+  }
+
+  async deleteNote(dealerId: string, noteId: string, adminId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .delete(dealerNotes)
+        .where(and(eq(dealerNotes.id, noteId), eq(dealerNotes.dealerId, dealerId)))
+        .returning({ id: dealerNotes.id });
+      if (!row) throw new NotFoundException('Not bulunamadı.');
+      await this.audit.record(
+        {
+          actorType: 'admin',
+          actorId: adminId,
+          action: 'dealer.note_deleted',
+          entityType: 'dealers',
+          entityId: dealerId,
+          data: { noteId },
+        },
+        tx,
+      );
+    });
   }
 
   // --- Admin: listeleme -----------------------------------------------------
@@ -307,6 +450,8 @@ export class DealersService {
     return {
       ...this.toSummary(dealer),
       address: dealer.address,
+      taxOffice: dealer.taxOffice,
+      taxNumber: dealer.taxNumber,
       emailVerifiedAt: iso(dealer.emailVerifiedAt),
       rejectionReason: dealer.rejectionReason,
       consents: consentRows.map((c) => ({

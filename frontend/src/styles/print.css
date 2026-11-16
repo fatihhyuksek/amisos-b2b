@@ -1,0 +1,94 @@
+/* Yazdırma (K-72): sipariş ayrıntısı temiz çıktı; gezinti, alt bilgi ve düğmeler gizlenir. */
+.ui-printhead {
+  display: none;
+}
+
+@media print {
+  /* Özgüllük artırılır: sistem koyu teması ve elle seçilen koyu tema bloklarını geçersiz kılar. */
+  :root:root:root {
+    --color-bg: var(--color-print-bg);
+    --color-surface: var(--color-print-bg);
+    --color-surface-sunken: var(--color-print-bg);
+    --color-text: var(--color-print-text);
+    --color-text-muted: var(--color-print-muted);
+    --color-border: var(--color-print-border);
+    --color-bronze: var(--color-print-text);
+    --color-accent: var(--color-print-text);
+    --color-accent-strong: var(--color-print-text);
+    --color-success: var(--color-print-text);
+    --color-warning: var(--color-print-text);
+    --color-danger: var(--color-print-text);
+    --color-info: var(--color-print-text);
+    --color-success-soft: var(--color-print-bg);
+    --color-warning-soft: var(--color-print-bg);
+    --color-danger-soft: var(--color-print-bg);
+    --color-info-soft: var(--color-print-bg);
+    --shadow-sm: none;
+    --shadow-md: none;
+  }
+
+  .ui-strip,
+  .ui-adminbar,
+  .ui-shophead,
+  .ui-footer,
+  .ui-wafab,
+  .ui-skip,
+  .ui-crumbs,
+  .ui-noprint,
+  .ui-toastzone,
+  .ui-drawer {
+    display: none !important;
+  }
+
+  .ui-shop__main {
+    padding: 0;
+  }
+
+  .ui-shop__container {
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  .ui-printhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-print-border);
+  }
+
+  .ui-cartlayout {
+    display: block;
+  }
+
+  .ui-summary {
+    position: static;
+    margin-top: var(--space-4);
+    break-inside: avoid;
+  }
+
+  .ui-table-wrap--cards {
+    display: block !important;
+  }
+
+  .ui-cards {
+    display: none !important;
+  }
+
+  .ui-card {
+    box-shadow: none;
+    border-color: var(--color-print-border);
+  }
+
+  tr,
+  .ui-timeline li {
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

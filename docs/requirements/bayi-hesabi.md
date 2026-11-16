@@ -81,6 +81,17 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-63 | Marka adı | Arayüzde "AMİSOS B2B" kullanılır (logo dosyası gelene kadar yazı logo). |
 | K-64 | İletişim bilgileri | Telefon / WhatsApp: 0552 492 50 58 · E-posta: info@amisosb2b.com · Adres: İSTOÇ Z Blok No: 91. |
 | K-65 | Kampanya görselleri | Ana sayfadaki kampanya görselleri (banner) Admin panelinden yönetilir. |
+| K-66 | Herkese açık vitrin | Ana sayfa, katalog, ürün detayı ve bilgi sayfaları giriş yapmadan görülür. Fiyat, iskonto ve stok yalnızca giriş yapmış bayiye gösterilir; sepet ve sipariş giriş ister (iş sahibi, 2026-11-16). |
+| K-67 | Bayi hesap bilgileri | Bayi yetkili adı, telefon, il/ilçe/adres, vergi dairesi ve vergi numarasını kendisi günceller; firma unvanı ve e-posta yalnızca Admin tarafından değiştirilir. Her değişiklik işlem kaydına yazılır. |
+| K-68 | Vergi bilgileri | Vergi dairesi ve vergi numarası (VKN 10 / TCKN 11 hane) başvuruda isteğe bağlı, hesapta ve Admin'de düzenlenebilir. |
+| K-69 | Kayıtlı adresler | Bayi en fazla 20 teslimat adresi (ambar adı, şube, adres) kaydeder; sipariş onayında seçilince alanlar dolar. |
+| K-70 | Favoriler | Bayi ürünleri favorilerine ekler; "Favorilerim" sayfasından sepete ekler. |
+| K-71 | Hızlı sipariş | Bayi barkod veya ürün koduyla, ya da Excel'den kopyala-yapıştır ile çok satırlı ürünü tek seferde sepete ekler; adet koli katına yukarı yuvarlanır ve bildirilir. |
+| K-72 | Fiyat listesi | Bayi kendine özel net fiyatlı güncel fiyat listesini Excel olarak indirir. Bayi kendi siparişini Excel olarak indirir ve yazdırır. |
+| K-73 | Site ayarları | Duyuru şeridi, iletişim bilgileri ve bilgi sayfaları (Hakkımızda, SSS, Teslimat, KVKK, Kullanım koşulları) Admin panelinden düzenlenir. |
+| K-74 | Öne çıkan ve yeni ürünler | Admin ürünü "öne çıkan" işaretler; son 30 günde eklenen ürünler "Yeni" rozetiyle gösterilir. Ana sayfada iki ayrı bölüm. |
+| K-75 | Admin araçları | Admin bayi bilgilerini düzenler, bayiye yalnızca Admin'in gördüğü notlar ekler, ürünlerde toplu işlem yapar, işlem geçmişini görüntüler, kendi şifresini değiştirir. |
+| K-76 | Asgari sipariş tutarı | Bu aşamada yok (iş sahibi isterse eklenecek). |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 

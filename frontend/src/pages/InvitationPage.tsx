@@ -4,8 +4,9 @@ import { useState, type FormEvent } from 'react'
 import { ApiError, acceptInvitation } from '../api'
 import { PASSWORD_RULE_TEXT, validateNewPassword } from '../auth/validation'
 import { Link } from '../Link'
+import { PageTextModal } from '../shop/PageTextModal'
 import { useRoute } from '../router'
-import { Alert, AuthCard, Button, Checkbox, Field, Modal, PasswordInput } from '../ui/components'
+import { Alert, AuthCard, Button, Checkbox, Field, PasswordInput } from '../ui/components'
 
 const MAX_PASSWORD_LENGTH = 200
 const INVALID_LINK =
@@ -136,12 +137,11 @@ export function InvitationPage() {
         </form>
       )}
       {textModal && (
-        <Modal title={textModal} onClose={() => setTextModal(null)}>
-          <p>Metin hazırlanıyor. Yayınlandığında burada okuyabileceksiniz.</p>
-          <div className="ui-modal__actions">
-            <Button onClick={() => setTextModal(null)}>Kapat</Button>
-          </div>
-        </Modal>
+        <PageTextModal
+          slug={textModal === 'KVKK aydınlatma metni' ? 'kvkk' : 'kullanim-kosullari'}
+          title={textModal}
+          onClose={() => setTextModal(null)}
+        />
       )}
     </AuthCard>
   )

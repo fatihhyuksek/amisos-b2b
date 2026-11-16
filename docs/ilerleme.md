@@ -1,6 +1,6 @@
 # Proje İlerlemesi
 
-Son güncelleme: 2026-11-14
+Son güncelleme: 2026-11-16
 
 ## Tamamlananlar
 
@@ -71,6 +71,24 @@ Son güncelleme: 2026-11-14
    - Genel bakış (KPI, 12 ay trend, grup dağılımı), siparişler, bayiler, ürünler, ürün grupları, durumlar
      (ortalama bekleme), stokta yokken sipariş, 60 gündür sipariş vermeyen bayiler; her biri Excel.
    - Admin ana sayfa "Bugün / Bu ay" kartları; `npm run db:demo` örnek veri.
+
+15. Açık vitrin, bayi hesabı ve admin araçları — backend (K-66 – K-76, sözleşme `docs/api/vitrin-hesap-api.md`):
+   - Katalog/banner/grup uçları oturumsuz açık (OptionalAuthGuard); oturumsuz ve Admin oturumunda fiyat, iskonto,
+     stok, KDV null (`priceVisible`); `isFavorite/isFeatured/isNew`, `featured`/`new` süzgeçleri, fiyat sıralaması.
+   - `site_settings`, `GET /api/site`, `/api/site/pages/:slug`, admin `GET/PUT /api/admin/site`; varsayılan Türkçe içerikler.
+   - `/api/account` (bilgi, PATCH, şifre, diğer oturumlar, pazarlama onayı, kayıtlı adresler), favoriler,
+     `POST /api/cart/quick-add`, fiyat listesi ve bayi sipariş Excel'i.
+   - Admin: bayi PATCH, iç notlar, ürün `isFeatured` + toplu işlem, `GET /api/admin/audit`, admin hesabı/şifre.
+   - Migration `0010_vitrin_hesap`; e2e `test/vitrin-hesap.e2e-spec.ts` (fiyat sızmaması dahil).
+   - Frontend:
+     - Açık vitrin (`/`, `/katalog`, `/urun/:id`, bilgi sayfaları) oturumsuz açılır; fiyat/stok yalnızca bayide. Girişten sonra `?donus=` ile dönüş.
+     - Yeni: ana sayfa vitrini, bilgi sayfaları (`/hakkimizda /sss /teslimat /kvkk /kullanim-kosullari /iletisim`), Hesabım sekmeleri,
+       `/favorilerim`, `/hizli-siparis`, sipariş onayında kayıtlı adres, sipariş yazdır/Excel, fiyat listesi indir.
+     - Admin: `/yonetim/site-ayarlari`, `/yonetim/islem-gecmisi`, `/yonetim/hesabim`, bayi düzenleme + iç notlar, ürün toplu işlem + öne çıkan.
+   - Demo: 31 ürün (6 grup, Dekorasyon dahil) çizim görselleriyle, 3 kampanya görseli, öne çıkan/yeni ürünler
+     (`backend/demo-assets/`, `npm run db:demo`; `baslat.cmd` boş veritabanında otomatik yükler).
+   - Kod incelemesi (backend + frontend) yapıldı, bulgular düzeltildi: e-posta değişiminde token iptali, KVKK sürümü,
+     şifre deneme sınırı, hızlı sipariş eşleşmesi, WhatsApp gizleme, işlem geçmişi süzgeci vb. (branch `claude/dreamy-albattani-rnp2v3`)
 
 ## Sıradaki adım
 

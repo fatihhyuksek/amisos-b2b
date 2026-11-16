@@ -1,7 +1,11 @@
-// GR-URN-003, GR-URN-002, GR-FIY-001, GR-FIY-003, K-40, K-18, K-10, K-11: Ürün detayı.
+// GR-URN-003, GR-URN-002, GR-FIY-001, GR-FIY-003, K-40, K-18, K-10, K-11, K-66, K-70: Ürün detayı.
 // Sepete ekleme alanı: koli adımlı miktar, sepette varsa mevcut miktar (GR-SIP-003, GR-SIP-004, K-20, K-21).
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { useCart } from '../shop/cart'
+import { FavoriteButton } from '../shop/FavoriteButton'
+import { useShopMode } from '../shop/mode'
+import { PriceLock } from '../shop/PriceLock'
+import { loginHref } from '../shop/returnTo'
 import { useAddToCart } from '../shop/useAddToCart'
 import { fetchCatalogProduct, fetchCatalogProducts, type CatalogProduct } from '../api'
 import { useLoad } from '../admin/useLoad'
@@ -175,6 +179,35 @@ function AddToCartBox({ product }: { product: CatalogProduct }) {
   )
 }
 
+/** Oturumsuz veya Admin görünümü: fiyat yerine giriş / başvuru eylemleri (K-66). */
+function LockedBuyBox() {
+  const mode = useShopMode()
+  if (mode === 'admin')
+    return (
+      <div className="ui-lockbox">
+        <PriceLock size="lg" />
+        <p className="muted">
+          Yönetici oturumunda fiyat ve stok gösterilmez; bayi görünümü için bayi hesabıyla girin.
+        </p>
+      </div>
+    )
+  return (
+    <div className="ui-lockbox">
+      <PriceLock size="lg" />
+      <p className="muted">Fiyat, iskonto ve stok durumu yalnızca onaylı bayilere gösterilir.</p>
+      <div className="ui-lockbox__actions">
+        <Link to={loginHref()} className="ui-button ui-button--primary">
+          <Icon name="user" />
+          Giriş yap
+        </Link>
+        <Link to="/basvuru" className="ui-button ui-button--secondary">
+          Bayi ol
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 const PERKS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'percent', title: 'Net fiyat', text: 'KDV hariç, iskontolu' },
   { icon: 'boxes', title: 'Koli bazlı', text: 'Koli katlarıyla sipariş' },
@@ -233,6 +266,7 @@ export function ProductDetailPage({ id }: { id: string }) {
   const { state, reload } = useLoad<CatalogProduct>((s) => fetchCatalogProduct(id, s), id)
   const [specsOpen, setSpecsOpen] = useState(true)
   const p = state.status === 'ready' ? state.data : null
+  const dealer = useShopMode() === 'dealer'
 
   function showSpecs() {
     setSpecsOpen(true)
@@ -298,6 +332,17 @@ export function ProductDetailPage({ id }: { id: string }) {
                   {p.code && <span>Ürün kodu: {p.code}</span>}
                 </p>
                 <h1 id="pdp-title">{p.name}</h1>
+                <div className="ui-detail__tags">
+                  {p.isNew && <span className="ui-pill ui-pill--soft">Yeni</span>}
+                  {p.isFeatured && <span className="ui-pill ui-pill--soft">Öne çıkan</span>}
+                  <FavoriteButton
+                    key={p.id}
+                    productId={p.id}
+                    name={p.name}
+                    initial={p.isFavorite}
+                    variant="inline"
+                  />
+                </div>
                 <div className="ui-detail__links">
                   <button type="button" className="ui-linkbtn" onClick={showSpecs}>
                     Ürün özellikleri
@@ -310,17 +355,23 @@ export function ProductDetailPage({ id }: { id: string }) {
                   </span>
                 </div>
               </div>
-              <div className="ui-detail__pricerow">
-                <Price
-                  size="lg"
-                  value={p.price}
-                  listValue={p.discountPercent ? p.listPrice : undefined}
-                  discountPercent={p.discountPercent ?? undefined}
-                  hideDiscount
-                />
-                <StockBadge inStock={p.stock === 'in_stock'} />
-              </div>
-              <AddToCartBox key={p.id} product={p} />
+              {dealer && p.price !== null ? (
+                <>
+                  <div className="ui-detail__pricerow">
+                    <Price
+                      size="lg"
+                      value={p.price}
+                      listValue={p.discountPercent && p.listPrice ? p.listPrice : undefined}
+                      discountPercent={p.discountPercent ?? undefined}
+                      hideDiscount
+                    />
+                    {p.stock && <StockBadge inStock={p.stock === 'in_stock'} />}
+                  </div>
+                  <AddToCartBox key={p.id} product={p} />
+                </>
+              ) : (
+                <LockedBuyBox />
+              )}
               <div className="ui-infobox">
                 <Icon name="boxes" />
                 <div>
@@ -328,13 +379,13 @@ export function ProductDetailPage({ id }: { id: string }) {
                     <strong className="num">Koli içi: {p.caseQuantity} adet.</strong> Miktar {p.caseQuantity}{' '}
                     adedin katları halinde seçilir.
                   </p>
-                  {p.discountPercent && (
+                  {dealer && p.discountPercent && (
                     <p>
                       Size özel <strong>{formatPercent(p.discountPercent)} iskonto</strong> uygulanmış
                       fiyattır.
                     </p>
                   )}
-                  {p.stock !== 'in_stock' && <p>Stokta yok: tedarik süresi görüşülecek.</p>}
+                  {dealer && p.stock === 'out_of_stock' && <p>Stokta yok: tedarik süresi görüşülecek.</p>}
                 </div>
               </div>
               <section aria-labelledby="perks-title">
@@ -385,10 +436,12 @@ export function ProductDetailPage({ id }: { id: string }) {
                       <th scope="row">Koli içi adet</th>
                       <td className="num">{p.caseQuantity}</td>
                     </tr>
-                    <tr>
-                      <th scope="row">KDV oranı</th>
-                      <td className="num">{formatPercent(p.vatRate)}</td>
-                    </tr>
+                    {p.vatRate !== null && (
+                      <tr>
+                        <th scope="row">KDV oranı</th>
+                        <td className="num">{formatPercent(p.vatRate)}</td>
+                      </tr>
+                    )}
                     <tr>
                       <th scope="row">Grup</th>
                       <td>

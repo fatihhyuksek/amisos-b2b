@@ -47,6 +47,12 @@
 
   --color-focus: #1c1a17;
 
+  /* --- Yazdırma: her temada aynı (kâğıt beyaz, mürekkep koyu); koyu bloklarda yeniden tanımlanmaz --- */
+  --color-print-bg: #ffffff;
+  --color-print-text: #000000;
+  --color-print-muted: #444444;
+  --color-print-border: #999999;
+
   /* --- Mağaza kabuğu: üst duyuru şeridi --- */
   --color-strip-bg: #000000;
   --color-strip-text: #f7f3eb;

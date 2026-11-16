@@ -2,7 +2,7 @@
 // Token'ın kendisi saklanmaz, yalnızca SHA-256 özeti.
 import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
 import { authTokens } from '../database/schema.js';
@@ -60,6 +60,26 @@ export class AuthTokensService {
       createdAt: now,
     });
     return token;
+  }
+
+  /** Konunun kullanılmamış token'larını (verilen amaçlar için) geçersiz kılar. */
+  async invalidateAll(
+    subjectType: SubjectType,
+    subjectId: string,
+    purposes: TokenPurpose[],
+    executor: DbExecutor = this.db,
+  ): Promise<void> {
+    await executor
+      .update(authTokens)
+      .set({ usedAt: this.clock.now() })
+      .where(
+        and(
+          eq(authTokens.subjectType, subjectType),
+          eq(authTokens.subjectId, subjectId),
+          inArray(authTokens.purpose, purposes),
+          isNull(authTokens.usedAt),
+        ),
+      );
   }
 
   /** Daha önce kullanılmış (tüketilmiş) token'ın sahibi; e-posta doğrulamanın idempotent olması için. */

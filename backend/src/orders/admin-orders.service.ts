@@ -22,7 +22,6 @@ import {
 import ExcelJS from 'exceljs';
 import { AuditService } from '../audit/audit.service.js';
 import { CLOCK, type Clock } from '../common/clock.js';
-import { Money } from '../common/money.js';
 import { escapeLike, foldSql, foldTr } from '../common/like.js';
 import type { Env } from '../config/env.js';
 import { DB, type Database } from '../database/database.module.js';
@@ -38,6 +37,7 @@ import {
   canTransition,
   ORDER_STATUS_LABELS,
 } from './order-status.js';
+import { buildOrderExport } from './order-export.js';
 import { OrdersService, type OrderRow } from './orders.service.js';
 import type {
   AdminOrderListQuery,
@@ -424,116 +424,7 @@ export class AdminOrdersService {
 
   /** Tek sipariş: üstte başlık bilgisi, satır tablosu, altta toplamlar. Barkod/kod metin hücresidir. */
   async exportOrder(id: string): Promise<{ filename: string; data: Buffer }> {
-    const order = await this.get(id);
-    const wb = new ExcelJS.Workbook();
-    const sheet = wb.addWorksheet('Sipariş');
-    const delivery =
-      order.deliveryMethod === 'carrier'
-        ? `${DELIVERY_LABELS.carrier}: ${order.deliveryAddress ?? ''} (${order.carrierName ?? ''} / ${order.carrierBranch ?? ''})`
-        : `${DELIVERY_LABELS[order.deliveryMethod]}: adres görüşmede belirlenecek`;
-    const info: [string, string | number | Date][] = [
-      ['Sipariş no', order.orderNo],
-      ['Tarih', this.excelDate(order.submittedAt)],
-      ['Durum', ORDER_STATUS_LABELS[order.status]],
-      ['Bayi', order.dealer.companyTitle],
-      ['Yetkili', order.dealer.contactName],
-      ['Telefon', order.dealer.phone],
-      ['Teslimat', delivery],
-      ...(order.note
-        ? ([['Bayi notu', order.note]] as [string, string][])
-        : []),
-    ];
-    for (const [label, value] of info) {
-      const row = sheet.addRow([label, value]);
-      row.getCell(1).font = { bold: true };
-      row.getCell(2).alignment = { horizontal: 'left' };
-      if (label === 'Telefon') row.getCell(2).numFmt = '@';
-      if (label === 'Tarih') row.getCell(2).numFmt = DATE_FORMAT;
-    }
-    sheet.addRow([]);
-    const headers = [
-      'Barkod',
-      'Ürün kodu',
-      'Ürün adı',
-      'Adet',
-      'Koli içi',
-      'Liste fiyatı',
-      'İskonto %',
-      'Birim fiyat (KDV hariç)',
-      'Net tutar',
-      'KDV %',
-      'KDV',
-      'Toplam',
-      'Stokta yoktu',
-    ];
-    const headerRow = sheet.addRow(headers);
-    headerRow.font = { bold: true };
-    const money = '#,##0.00';
-    for (const l of order.lines) {
-      // Toplam = net + KDV (Decimal ile); hücreye yazarken sayıya çevrilir.
-      const total = new Money(l.lineNet).plus(l.lineVat).toNumber();
-      const row = sheet.addRow([
-        l.barcode,
-        l.code ?? '',
-        l.name,
-        l.quantity,
-        l.caseQuantity,
-        Number(l.listPrice),
-        l.discountPercent === null ? 0 : Number(l.discountPercent),
-        Number(l.unitPrice),
-        Number(l.lineNet),
-        Number(l.vatRate),
-        Number(l.lineVat),
-        total,
-        l.outOfStock ? 'Evet' : '',
-      ]);
-      row.getCell(1).numFmt = '@';
-      row.getCell(2).numFmt = '@';
-      for (const c of [6, 8, 9, 11, 12]) row.getCell(c).numFmt = money;
-      for (const c of [7, 10]) row.getCell(c).numFmt = '0.00';
-    }
-    sheet.addRow([]);
-    const s = order.summary;
-    for (const [label, value] of [
-      ['Brüt toplam', s.grossTotal],
-      ['İskonto', s.discountTotal],
-      ['KDV hariç toplam', s.netTotal],
-      ['KDV', s.vatTotal],
-      ['Genel toplam', s.grandTotal],
-    ] as const) {
-      const row = sheet.addRow([
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        label,
-        Number(value),
-      ]);
-      row.getCell(8).font = { bold: true };
-      row.getCell(9).numFmt = money;
-    }
-    sheet.columns = [
-      { width: 18 },
-      { width: 14 },
-      { width: 36 },
-      { width: 8 },
-      { width: 9 },
-      { width: 13 },
-      { width: 10 },
-      { width: 22 },
-      { width: 14 },
-      { width: 8 },
-      { width: 12 },
-      { width: 14 },
-      { width: 13 },
-    ];
-    return {
-      filename: `siparis-${order.orderNo}.xlsx`,
-      data: Buffer.from(await wb.xlsx.writeBuffer()),
-    };
+    return buildOrderExport(await this.get(id));
   }
 
   /** Liste: filtrelere uyan siparişler, sipariş başına bir satır (en fazla 5000, aşarsa 400). */

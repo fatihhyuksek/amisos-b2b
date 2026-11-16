@@ -126,6 +126,9 @@ export const dealers = pgTable(
     city: text().notNull(),
     district: text().notNull(),
     address: text().notNull(),
+    /** K-68: isteğe bağlı vergi bilgileri (VKN 10 / TCKN 11 hane). */
+    taxOffice: text(),
+    taxNumber: text(),
 
     status: dealerStatus().notNull().default('pending_email'),
     source: dealerSource().notNull(),
@@ -293,6 +296,8 @@ export const products = pgTable(
     stockSource: stockSource().notNull().default('manual'),
     stockUpdatedAt: timestamp({ withTimezone: true }),
     isActive: boolean().notNull().default(true),
+    /** K-74: Admin "öne çıkan" işareti (ana sayfa bölümü). */
+    isFeatured: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -303,6 +308,9 @@ export const products = pgTable(
       .where(sql`${t.code} IS NOT NULL`),
     index('products_group_idx').on(t.groupId),
     index('products_name_idx').on(sql`lower(${t.name})`),
+    index('products_featured_idx')
+      .on(t.id)
+      .where(sql`${t.isFeatured}`),
     check('products_barcode_not_blank', sql`length(trim(${t.barcode})) > 0`),
     check('products_case_quantity_positive', sql`${t.caseQuantity} > 0`),
     check('products_list_price_non_negative', sql`${t.listPrice} >= 0`),
@@ -594,5 +602,83 @@ export const auditLog = pgTable(
   (t) => [
     index('audit_log_entity_idx').on(t.entityType, t.entityId, t.createdAt),
     index('audit_log_created_at_idx').on(t.createdAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Vitrin, hesap ve admin araçları (K-66 – K-75). API: docs/api/vitrin-hesap-api.md
+// ---------------------------------------------------------------------------
+
+/** K-73: duyuru şeridi, iletişim bilgileri ve bilgi sayfaları (anahtar başına bir JSON değer). */
+export const siteSettings = pgTable('site_settings', {
+  key: text().primaryKey(),
+  value: jsonb().notNull(),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid().references(() => adminUsers.id, { onDelete: 'set null' }),
+});
+
+/** K-69: bayinin kayıtlı teslimat adresleri (en fazla 20). Bayide en fazla bir varsayılan. */
+export const dealerAddresses = pgTable(
+  'dealer_addresses',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    dealerId: uuid()
+      .notNull()
+      .references(() => dealers.id, { onDelete: 'cascade' }),
+    label: text().notNull(),
+    carrierName: text().notNull().default(''),
+    carrierBranch: text().notNull().default(''),
+    address: text().notNull(),
+    city: text().notNull().default(''),
+    district: text().notNull().default(''),
+    isDefault: boolean().notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('dealer_addresses_dealer_idx').on(t.dealerId, t.createdAt),
+    uniqueIndex('dealer_addresses_default_uq')
+      .on(t.dealerId)
+      .where(sql`${t.isDefault}`),
+    check('dealer_addresses_label_not_blank', sql`length(trim(${t.label})) > 0`),
+    check('dealer_addresses_address_not_blank', sql`length(trim(${t.address})) > 0`),
+  ],
+);
+
+/** K-70: bayinin favori ürünleri. */
+export const dealerFavorites = pgTable(
+  'dealer_favorites',
+  {
+    dealerId: uuid()
+      .notNull()
+      .references(() => dealers.id, { onDelete: 'cascade' }),
+    productId: uuid()
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.dealerId, t.productId] }),
+    index('dealer_favorites_dealer_idx').on(t.dealerId, t.createdAt),
+  ],
+);
+
+/** K-75: bayiye bağlı iç notlar; yalnızca Admin görür. */
+export const dealerNotes = pgTable(
+  'dealer_notes',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    dealerId: uuid()
+      .notNull()
+      .references(() => dealers.id, { onDelete: 'cascade' }),
+    body: text().notNull(),
+    createdBy: uuid()
+      .notNull()
+      .references(() => adminUsers.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('dealer_notes_dealer_idx').on(t.dealerId, t.createdAt),
+    check('dealer_notes_body_not_blank', sql`length(trim(${t.body})) > 0`),
   ],
 );

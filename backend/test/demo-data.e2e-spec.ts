@@ -63,16 +63,16 @@ describe('db:demo güvenliği (e2e)', () => {
     expect(before.demoDealers).toBe(0);
   });
 
-  it('çakışma yokken üretir (8 bayi, 25 ürün, 210 sipariş); tekrar çalıştırılabilir; --clear yalnızca demo kayıtlarını siler', async () => {
+  it('çakışma yokken üretir (8 bayi, 31 ürün, 210 sipariş); tekrar çalıştırılabilir; --clear yalnızca demo kayıtlarını siler', async () => {
     await db.delete(schema.products).where(like(schema.products.code, `REAL-${suffix}`));
     const first = await runDemo(db);
-    expect(first).toMatch(/8 bayi, 25 ürün, 210 sipariş/);
+    expect(first).toMatch(/8 bayi, 31 ürün, 210 sipariş/);
     const once = await counts();
-    expect(once).toMatchObject({ demoDealers: 8, demoProducts: 25 });
+    expect(once).toMatchObject({ demoDealers: 8, demoProducts: 31 });
     await runDemo(db);
     const twice = await counts();
     expect(twice.demoDealers).toBe(8);
-    expect(twice.demoProducts).toBe(25);
+    expect(twice.demoProducts).toBe(31);
     expect(twice.orders).toBe(once.orders);
 
     await runDemo(db, { clearOnly: true });

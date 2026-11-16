@@ -55,6 +55,11 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+call npm run db:demo -- --if-empty
+if errorlevel 1 (
+  echo.
+  echo UYARI: Ornek urunler yuklenemedi. Portal yine de acilacak.
+)
 cd ..
 start "Amisos Backend" cmd /k "cd /d %~dp0backend && npm run start:dev"
 start "Amisos Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"

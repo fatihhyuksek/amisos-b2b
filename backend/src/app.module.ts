@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AdminAuditModule } from './audit/admin-audit.js';
 import { AuditModule } from './audit/audit.service.js';
+import { AccountModule } from './account/account.module.js';
+import { SiteModule } from './site/site.module.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module.js';
 import { ClockModule } from './common/clock.js';
@@ -31,6 +34,9 @@ import { HealthController } from './health/health.controller.js';
     OrdersModule,
     BannersModule,
     ReportsModule,
+    AccountModule,
+    SiteModule,
+    AdminAuditModule,
     // K-04 hatırlatma zamanlayıcısı; test ortamında çalışmaz (mantık servis metoduyla test edilir).
     ...(process.env.NODE_ENV === 'test' ? [] : [ScheduleModule.forRoot()]),
   ],

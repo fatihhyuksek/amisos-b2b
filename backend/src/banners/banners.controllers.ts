@@ -1,6 +1,6 @@
-// Banner uçları. Yetki sunucuda: Admin yönetir (AdminGuard), bayi yalnızca yayındakileri okur (DealerGuard).
+// Banner uçları. Yetki sunucuda: Admin yönetir (AdminGuard); yayındakileri herkes okur (K-66).
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Put, UseGuards, UsePipes } from '@nestjs/common';
-import { AdminGuard, CurrentUser, DealerGuard } from '../auth/auth.guards.js';
+import { AdminGuard, CurrentUser } from '../auth/auth.guards.js';
 import { JsonOnlyGuard } from '../auth/json-only.guard.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
 import { createValidationPipe } from '../common/validation.js';
@@ -51,8 +51,8 @@ export class AdminBannersController {
   }
 }
 
+// K-66: kampanya görselleri oturumsuz da görünür (fiyat/bayi bilgisi içermez), guard yok.
 @Controller('catalog/banners')
-@UseGuards(DealerGuard)
 export class CatalogBannersController {
   constructor(@Inject(BannersService) private readonly banners: BannersService) {}
 

@@ -20,11 +20,13 @@ import type { AuthIdentity } from '../auth/sessions.service.js';
 import { createValidationPipe } from '../common/validation.js';
 import {
   adminProductListSchema,
+  bulkProductsSchema,
   createGroupSchema,
   createProductSchema,
   updateGroupSchema,
   updateProductSchema,
   type AdminProductListQuery,
+  type BulkProductsInput,
   type CreateGroupInput,
   type CreateProductInput,
   type UpdateGroupInput,
@@ -75,6 +77,13 @@ export class AdminProductsController {
   @Get()
   list(@Query({ schema: adminProductListSchema }) query: AdminProductListQuery) {
     return this.products.list(query);
+  }
+
+  // K-75: `bulk`, `:id` rotalarından önce/ayrı bir POST yoludur.
+  @Post('bulk')
+  @HttpCode(200)
+  bulk(@Body({ schema: bulkProductsSchema }) body: BulkProductsInput, @CurrentUser() admin: AuthIdentity) {
+    return this.products.bulk(body, admin.id);
   }
 
   @Get(':id')

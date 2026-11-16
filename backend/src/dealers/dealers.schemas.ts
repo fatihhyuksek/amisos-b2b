@@ -9,7 +9,7 @@ const email = z.string().max(254).transform(normalizeEmail).pipe(z.email());
 const text = (max: number) => z.string().trim().min(1).max(max);
 
 /** K-35: `0XXXXXXXXXX` biçimine normalize edilir (bkz. normalizePhone). */
-const phone = z
+export const phoneField = z
   .string()
   .max(40)
   .transform((v, ctx) => {
@@ -24,6 +24,22 @@ const phone = z
     return normalized;
   });
 
+/** K-68: vergi dairesi (≤100) ve numarası (VKN 10 / TCKN 11 hane); boş metin null sayılır. */
+export const taxOfficeField = z
+  .string()
+  .trim()
+  .max(100)
+  .nullable()
+  .transform((v) => (v === null || v === '' ? null : v));
+export const taxNumberField = z
+  .string()
+  .trim()
+  .nullable()
+  .transform((v) => (v === '' ? null : v))
+  .refine((v) => v === null || /^(\d{10}|\d{11})$/.test(v), {
+    message: 'Vergi numarası 10 (VKN) veya 11 (TCKN) haneli olmalı.',
+  });
+
 const dealerFields = {
   companyTitle: z
     .string()
@@ -32,7 +48,7 @@ const dealerFields = {
     .pipe(z.string().min(1)),
   contactName: text(200),
   email,
-  phone,
+  phone: phoneField,
   city: text(100),
   district: text(100),
   address: text(500),
@@ -40,6 +56,9 @@ const dealerFields = {
 
 export const applicationSchema = z.object({
   ...dealerFields,
+  // K-68: başvuruda isteğe bağlı vergi bilgileri.
+  taxOffice: taxOfficeField.optional(),
+  taxNumber: taxNumberField.optional(),
   // GR-KVK-001: KVKK ve kullanım koşulları onayı zorunlu.
   consents: z.object({
     kvkk: z.literal(true, { error: 'KVKK onayı zorunludur.' }),
@@ -90,3 +109,20 @@ export const termsSchema = z.object({
     )
     .transform((v) => (v === null ? null : new Money(v).toFixed(2))),
 });
+
+/** K-75: Admin bayi bilgilerini düzenler (hepsi isteğe bağlı). */
+export const updateDealerSchema = z.object({
+  companyTitle: dealerFields.companyTitle.optional(),
+  contactName: dealerFields.contactName.optional(),
+  email: dealerFields.email.optional(),
+  phone: phoneField.optional(),
+  city: dealerFields.city.optional(),
+  district: dealerFields.district.optional(),
+  address: dealerFields.address.optional(),
+  taxOffice: taxOfficeField.optional(),
+  taxNumber: taxNumberField.optional(),
+});
+export type UpdateDealerInput = z.infer<typeof updateDealerSchema>;
+
+export const createNoteSchema = z.object({ body: z.string().trim().min(1).max(2000) });
+export type CreateNoteInput = z.infer<typeof createNoteSchema>;

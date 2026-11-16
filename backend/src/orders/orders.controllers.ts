@@ -27,6 +27,8 @@ import { OrdersService } from './orders.service.js';
 import {
   adminOrderListSchema,
   cartItemSchema,
+  quickAddSchema,
+  type QuickAddInput,
   changeStatusSchema,
   markTransferredSchema,
   type ChangeStatusInput,
@@ -53,6 +55,13 @@ export class CartController {
   @Get('checkout-defaults')
   checkoutDefaults(@CurrentUser() dealer: AuthIdentity) {
     return this.cart.checkoutDefaults(dealer.id);
+  }
+
+  /** K-71: hızlı sipariş (barkod/kod listesi). */
+  @Post('quick-add')
+  @HttpCode(200)
+  quickAdd(@Body({ schema: quickAddSchema }) body: QuickAddInput, @CurrentUser() dealer: AuthIdentity) {
+    return this.cart.quickAdd(dealer.id, body);
   }
 
   @Put('items/:productId')
@@ -90,6 +99,16 @@ export class OrdersController {
   @Get()
   list(@Query({ schema: orderListSchema }) query: OrderListQuery, @CurrentUser() dealer: AuthIdentity) {
     return this.orders.listForDealer(dealer.id, query);
+  }
+
+  // K-72: `:id/export.xlsx`, `:id` ile çakışmaz (ek segment).
+  @Get(':id/export.xlsx')
+  async exportOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() dealer: AuthIdentity,
+    @Res() res: Response,
+  ) {
+    send(res, await this.orders.exportForDealer(dealer.id, id));
   }
 
   @Get(':id')

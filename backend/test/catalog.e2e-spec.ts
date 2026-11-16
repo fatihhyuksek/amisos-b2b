@@ -212,11 +212,14 @@ describe('Katalog (e2e)', () => {
         await anon.get(p).expect(401);
         await dealer.get(p).expect(403);
       }
-      const catalogPaths = ['/api/catalog/groups', '/api/catalog/products', `/api/catalog/products/${randomUUID()}`];
-      for (const p of catalogPaths) {
-        await anon.get(p).expect(401);
-        await admin.agent.get(p).expect(403);
+      // K-66: katalog oturumsuz ve Admin oturumunda da açık (fiyatsız); fiyat listesi yalnızca bayiye.
+      for (const p of ['/api/catalog/groups', '/api/catalog/products']) {
+        await anon.get(p).expect(200);
+        await admin.agent.get(p).expect(200);
       }
+      await anon.get(`/api/catalog/products/${randomUUID()}`).expect(404);
+      await anon.get('/api/catalog/price-list.xlsx').expect(401);
+      await admin.agent.get('/api/catalog/price-list.xlsx').expect(403);
       await anon.post('/api/admin/media').expect(401);
       await dealer.post('/api/admin/products/import').expect(403);
     });
@@ -832,7 +835,7 @@ describe('Katalog (e2e)', () => {
       expect(m).toMatchObject({ listPrice: '48.90', price: '41.57', discountPercent: '15.00', vatRate: '20.00', groupId: mutfak, groupName: gname('Katalog Mutfak') });
       expect(t).toMatchObject({ listPrice: '48.90', price: '44.01', discountPercent: '10.00' });
       const detail = (await d.agent.get(`/api/catalog/products/${pMutfak}`).expect(200)).body;
-      expect(detail).toEqual(m);
+      expect(detail).toEqual({ ...m, priceVisible: true });
     });
 
     it('K-13: grup oranı genelden düşükse genel oran uygulanır', async () => {
@@ -869,6 +872,7 @@ describe('Katalog (e2e)', () => {
         [
           'id', 'name', 'barcode', 'code', 'description', 'groupId', 'groupName', 'caseQuantity',
           'stock', 'listPrice', 'price', 'discountPercent', 'vatRate', 'images',
+          'isFeatured', 'isNew', 'isFavorite', 'priceVisible',
         ].sort(),
       );
     });
@@ -1004,7 +1008,10 @@ describe('Katalog (e2e)', () => {
       const d = await dealerAgent('kat-pasifbayi');
       await d.agent.get('/api/catalog/groups').expect(200);
       await admin.agent.post(`/api/admin/dealers/${d.dealer.id}/deactivate`).send({ reason: 'test nedeni' }).expect(204);
-      await d.agent.get('/api/catalog/groups').expect(401);
+      // Oturum geçersiz: korumalı uç 401; açık vitrin ise fiyatsız (anonim) döner (K-66).
+      await d.agent.get('/api/cart').expect(401);
+      const after = (await d.agent.get('/api/catalog/products').expect(200)).body;
+      expect(after.priceVisible).toBe(false);
     });
   });
 

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { Fragment, useEffect, type ReactNode } from 'react'
 import { BrandLogo } from './shop/brand'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
@@ -19,7 +19,14 @@ import { ProductImportPage } from './admin/ProductImportPage'
 import { ProductListPage } from './admin/ProductListPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { HomePage } from './pages/HomePage'
-import { AccountPage } from './pages/ShopPlaceholderPages'
+import { AccountPage } from './pages/AccountPage'
+import { ContactPage } from './pages/ContactPage'
+import { FavoritesPage } from './pages/FavoritesPage'
+import { InfoPage } from './pages/InfoPage'
+import { QuickOrderPage } from './pages/QuickOrderPage'
+import { AdminAccountPage } from './admin/AdminAccountPage'
+import { AuditPage } from './admin/AuditPage'
+import { SiteSettingsPage } from './admin/SiteSettingsPage'
 import { CartPage } from './pages/CartPage'
 import { CheckoutPage } from './pages/CheckoutPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
@@ -33,6 +40,7 @@ import { InvitationPage } from './pages/InvitationPage'
 import { LoginPage } from './pages/LoginPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
+import { safeReturnPath, currentPath } from './shop/returnTo'
 import { matchPath, replace, useRoute } from './router'
 import { Alert, AuthCard, Button } from './ui/components'
 
@@ -61,24 +69,43 @@ function Redirect({ to }: { to: string }) {
   return <LoadingScreen />
 }
 
-/** Korumalı alan: GR-YON-001 (bayi Admin sayfalarına giremez), GR-BAYI-007. */
+/**
+ * Korumalı alan: GR-YON-001 (bayi Admin sayfalarına giremez), GR-BAYI-007.
+ * Oturumsuz kullanıcı girişe yönlenir ve girişten sonra geldiği sayfaya döner (K-66).
+ */
 function Protected({ area, children }: { area: 'dealer' | 'admin'; children: ReactNode }) {
   const { state } = useAuth()
   if (state.status === 'loading') return <LoadingScreen />
   if (state.status === 'error') return <ServerError />
-  if (state.status === 'anonymous') return <Redirect to={area === 'admin' ? '/yonetim/giris' : '/giris'} />
+  if (state.status === 'anonymous') {
+    const back = safeReturnPath(currentPath())
+    const base = area === 'admin' ? '/yonetim/giris' : '/giris'
+    return <Redirect to={back && back !== '/' ? `${base}?donus=${encodeURIComponent(back)}` : base} />
+  }
   const isAdmin = state.user.type === 'admin'
   if (area === 'admin' && !isAdmin) return <Forbidden />
   if (area === 'dealer' && isAdmin) return <Redirect to="/yonetim" />
   return children
 }
 
-/** Giriş sayfaları: oturum varsa ilgili ana sayfaya yönlendirir. */
-function GuestOnly({ children }: { children: ReactNode }) {
+/** Açık vitrin (K-66): oturum durumu belli olunca çizilir; oturum türü değişince sayfa yeniden kurulur. */
+function Public({ children }: { children: ReactNode }) {
   const { state } = useAuth()
   if (state.status === 'loading') return <LoadingScreen />
-  if (state.status === 'authenticated')
-    return <Redirect to={state.user.type === 'admin' ? '/yonetim' : '/'} />
+  const kind = state.status === 'authenticated' ? state.user.type : 'guest'
+  return <Fragment key={kind}>{children}</Fragment>
+}
+
+/** Giriş sayfaları: oturum varsa ilgili ana sayfaya (veya geldiği sayfaya) yönlendirir. */
+function GuestOnly({ children }: { children: ReactNode }) {
+  const { state } = useAuth()
+  const { query } = useRoute()
+  if (state.status === 'loading') return <LoadingScreen />
+  if (state.status === 'authenticated') {
+    const back = safeReturnPath(query.get('donus'))
+    if (state.user.type === 'admin') return <Redirect to={back?.startsWith('/yonetim') ? back : '/yonetim'} />
+    return <Redirect to={back && !back.startsWith('/yonetim') ? back : '/'} />
+  }
   return children
 }
 
@@ -141,14 +168,42 @@ function Routes() {
       return <InvitationPage />
     case '/':
       return (
-        <Protected area="dealer">
+        <Public>
           <HomePage />
-        </Protected>
+        </Public>
       )
     case '/katalog':
       return (
-        <Protected area="dealer">
+        <Public>
           <CatalogPage />
+        </Public>
+      )
+    case '/hakkimizda':
+    case '/sss':
+    case '/teslimat':
+    case '/kvkk':
+    case '/kullanim-kosullari':
+      return (
+        <Public>
+          <InfoPage key={path} slug={path.slice(1)} />
+        </Public>
+      )
+    case '/iletisim':
+      return (
+        <Public>
+          <ContactPage />
+        </Public>
+      )
+    case '/favorilerim':
+      return (
+        <Protected area="dealer">
+          <FavoritesPage />
+        </Protected>
+      )
+    case '/hizli-siparis':
+      return (
+        <Protected area="dealer">
+          <QuickOrderPage />
         </Protected>
       )
     case '/sepet':
@@ -241,6 +296,24 @@ function Routes() {
           <NotificationsPage />
         </Protected>
       )
+    case '/yonetim/site-ayarlari':
+      return (
+        <Protected area="admin">
+          <SiteSettingsPage />
+        </Protected>
+      )
+    case '/yonetim/islem-gecmisi':
+      return (
+        <Protected area="admin">
+          <AuditPage />
+        </Protected>
+      )
+    case '/yonetim/hesabim':
+      return (
+        <Protected area="admin">
+          <AdminAccountPage />
+        </Protected>
+      )
     case '/yonetim/bannerlar':
       return (
         <Protected area="admin">
@@ -272,9 +345,9 @@ function Routes() {
       const shopProduct = matchPath(path, '/urun/:id')
       if (shopProduct)
         return (
-          <Protected area="dealer">
+          <Public>
             <ProductDetailPage id={shopProduct.id} />
-          </Protected>
+          </Public>
         )
       const detail = matchPath(path, '/yonetim/bayiler/:id')
       if (detail)

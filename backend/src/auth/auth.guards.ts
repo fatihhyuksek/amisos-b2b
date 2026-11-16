@@ -69,6 +69,35 @@ abstract class SessionGuard implements CanActivate {
   }
 }
 
+/**
+ * K-66: açık vitrin. Geçerli oturum varsa `req.auth` doldurulur; yoksa (veya oturum geçersizse)
+ * istek anonim olarak geçer, hata atılmaz. Fiyat görünürlüğüne servis katmanı karar verir.
+ */
+@Injectable()
+export class OptionalAuthGuard implements CanActivate {
+  constructor(
+    @Inject(SessionsService) private readonly sessions: SessionsService,
+    @Inject(ConfigService) private readonly config: ConfigService<Env, true>,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const token = readSessionToken(req);
+    const resolved = token ? await this.sessions.resolve(token) : null;
+    if (token && resolved) {
+      req.auth = resolved.identity;
+      const secure = isProductionLike(this.config.get('NODE_ENV', { infer: true }));
+      context
+        .switchToHttp()
+        .getResponse<Response>()
+        .cookie(SESSION_COOKIE, token, cookieOptions(secure, resolved.expiresAt));
+    }
+    // Yanıt oturuma göre değişir: ortak önbellekler kullanıcılar arasında paylaşmasın.
+    context.switchToHttp().getResponse<Response>().vary('Cookie');
+    return true;
+  }
+}
+
 /** Giriş yapmış herhangi bir kullanıcı (bayi veya Admin). */
 @Injectable()
 export class AuthenticatedGuard extends SessionGuard {
