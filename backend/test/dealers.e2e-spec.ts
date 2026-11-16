@@ -211,9 +211,9 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
           .map((r) => [r.type, r.granted, r.documentVersion])
           .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       ).toEqual([
-        ['kvkk', true, 'taslak-1'],
+        ['kvkk', true, 'v1'],
         ['marketing', false, 'taslak-1'],
-        ['terms', true, 'taslak-1'],
+        ['terms', true, 'v1'],
       ]);
       expect(mailCount('verify', email('basvuru'))).toBe(1);
     });
@@ -866,7 +866,7 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
       expect(marketing).toHaveLength(2);
     });
 
-    it('K-57: davetle oluşturulan bayide onaylar kabulde yazılır (sürüm taslak-1)', async () => {
+    it('K-57: davetle oluşturulan bayide onaylar kabulde yazılır (KVKK/koşul sürümü v1)', async () => {
       const { agent } = await adminAgent();
       const { consents: _c, ...fields } = body('k57davet');
       const created = await agent
@@ -891,9 +891,9 @@ describe('Bayi başvurusu ve Admin yönetimi (e2e)', () => {
           .map((r) => [r.type, r.granted, r.documentVersion])
           .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       ).toEqual([
-        ['kvkk', true, 'taslak-1'],
+        ['kvkk', true, 'v1'],
         ['marketing', false, 'taslak-1'],
-        ['terms', true, 'taslak-1'],
+        ['terms', true, 'v1'],
       ]);
     });
 
