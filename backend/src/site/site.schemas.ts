@@ -1,6 +1,6 @@
 // Site ayarları girdileri (K-73). Sayfa gövdesi düz metindir (HTML yok): kısıtlar burada.
 import { z } from 'zod';
-import { PAGE_SLUGS } from './site-defaults.js';
+import { PAGE_SLUGS, SOCIAL_DOMAINS, type SocialKey } from './site-defaults.js';
 
 const nullableText = (max: number) =>
   z
@@ -36,9 +36,41 @@ export const contactSchema = z.object({
   ),
 });
 
+/** K-77: null/boş = kaldır; aksi halde `https://` ile başlayan ve ilgili alan adına ait URL. */
+const socialUrl = (key: SocialKey) =>
+  z
+    .string()
+    .trim()
+    .max(300)
+    .nullable()
+    .transform((v) => (v === null || v === '' ? null : v))
+    .refine(
+      (v) => {
+        if (v === null) return true;
+        try {
+          const url = new URL(v);
+          const domain = SOCIAL_DOMAINS[key];
+          return url.protocol === 'https:' && (url.hostname === domain || url.hostname.endsWith(`.${domain}`));
+        } catch {
+          return false;
+        }
+      },
+      { message: `https:// ile başlayan geçerli bir ${SOCIAL_DOMAINS[key]} adresi girin.` },
+    );
+
+/** Kısmi: verilmeyen alan mevcut değerini korur; null alanı kaldırır. */
+export const socialSchema = z.object({
+  instagram: socialUrl('instagram').optional(),
+  facebook: socialUrl('facebook').optional(),
+  youtube: socialUrl('youtube').optional(),
+  tiktok: socialUrl('tiktok').optional(),
+  linkedin: socialUrl('linkedin').optional(),
+});
+
 export const updateSiteSchema = z.object({
   announcement: nullableText(160),
   contact: contactSchema,
+  social: socialSchema.optional(),
   pages: z
     .array(
       z.object({

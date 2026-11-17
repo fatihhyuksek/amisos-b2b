@@ -19,11 +19,15 @@ import type {
   AdminProductListQuery,
   BulkProductsInput,
   CreateProductInput,
+  DuplicateProductInput,
   UpdateProductInput,
 } from './catalog.schemas.js';
 import { adminImageDto, loadImages } from './product-images.js';
 
 type ProductRow = typeof products.$inferSelect;
+
+/** Excel dışa aktarma üst sınırı (bellek). */
+export const MAX_PRODUCT_EXPORT = 20_000;
 
 export const validationError = (fields: Record<string, string>) =>
   new BadRequestException({
@@ -80,14 +84,19 @@ export class ProductsService {
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
-  async list(query: AdminProductListQuery) {
+  /** Liste ve Excel dışa aktarma aynı filtreyi kullanır (K-78). */
+  private listFilter(query: AdminProductListQuery): SQL | undefined {
     const filters: (SQL | undefined)[] = [];
     if (query.q) filters.push(productSearch(query.q));
     if (query.groupId) filters.push(eq(products.groupId, query.groupId));
     if (query.stock) filters.push(eq(products.stockStatus, query.stock));
     if (query.active !== undefined) filters.push(eq(products.isActive, query.active));
     if (query.featured) filters.push(eq(products.isFeatured, true));
-    const where = and(...filters);
+    return and(...filters);
+  }
+
+  async list(query: AdminProductListQuery) {
+    const where = this.listFilter(query);
 
     const [{ total }] = await this.db
       .select({ total: sql<number>`count(*)::int` })
@@ -124,6 +133,84 @@ export class ProductsService {
     if (!row) throw new NotFoundException('Ürün bulunamadı.');
     const images = await loadImages(executor, [id]);
     return this.toDto(row.product, row.groupName, images.get(id) ?? []);
+  }
+
+  /** K-78: filtreye uyan tüm ürünler (sayfalamasız) Excel için; sıra listeyle aynı. */
+  async rowsForExport(query: AdminProductListQuery) {
+    const where = this.listFilter(query);
+    const [{ total }] = await this.db.select({ total: sql<number>`count(*)::int` }).from(products).where(where);
+    if (total > MAX_PRODUCT_EXPORT) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'EXPORT_TOO_LARGE',
+        message: `En fazla ${MAX_PRODUCT_EXPORT} ürün dışa aktarılabilir; filtreleri daraltın.`,
+      });
+    }
+    return this.db
+      .select({
+        product: products,
+        groupName: productGroups.name,
+        imageCount: sql<number>`(select count(*)::int from product_images where product_images.product_id = "products"."id")`,
+      })
+      .from(products)
+      .innerJoin(productGroups, eq(productGroups.id, products.groupId))
+      .where(where)
+      .orderBy(asc(sql`lower(${products.name})`), asc(products.id));
+  }
+
+  /**
+   * K-78: ürünü kopyalar. Barkod zorunlu ve tekil olduğundan gövdede verilir; kopya pasif, öne çıkan değil ve
+   * stoksuz başlar (yanlışlıkla satışa çıkmasın). Görseller aynı medya kayıtlarına bağlanır.
+   */
+  async duplicate(id: string, input: DuplicateProductInput, adminId: string) {
+    try {
+      const newId = await this.db.transaction(async (tx) => {
+        const [source] = await tx.select().from(products).where(eq(products.id, id)).for('share');
+        if (!source) throw new NotFoundException('Ürün bulunamadı.');
+        const images = (await loadImages(tx, [id])).get(id) ?? [];
+        const suffix = ' (kopya)';
+        const name = `${source.name.slice(0, 300 - suffix.length)}${suffix}`;
+        const now = this.clock.now();
+        const [row] = await tx
+          .insert(products)
+          .values({
+            groupId: source.groupId,
+            barcode: input.barcode,
+            code: input.code ?? null,
+            name,
+            description: source.description,
+            caseQuantity: source.caseQuantity,
+            listPrice: source.listPrice,
+            vatRate: source.vatRate,
+            stockStatus: 'out_of_stock',
+            stockSource: 'manual',
+            stockUpdatedAt: now,
+            isActive: false,
+            isFeatured: false,
+          })
+          .returning({ id: products.id });
+        await this.setImages(
+          tx,
+          row.id,
+          images.map((i) => i.mediaId),
+        );
+        await this.audit.record(
+          {
+            actorType: 'admin',
+            actorId: adminId,
+            action: 'product.duplicated',
+            entityType: 'products',
+            entityId: row.id,
+            data: { sourceId: id, barcode: input.barcode, name },
+          },
+          tx,
+        );
+        return row.id;
+      });
+      return await this.get(newId);
+    } catch (error) {
+      return mapProductConflict(error);
+    }
   }
 
   async create(input: CreateProductInput, adminId: string) {

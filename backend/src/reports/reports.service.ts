@@ -29,18 +29,21 @@ import type {
   TrendQuery,
 } from './reports.schemas.js';
 
-const TZ = 'Europe/Istanbul';
+export const TZ = 'Europe/Istanbul';
 const DAY_MS = 86_400_000;
 
-const startOf = (d: string): SQL => sql`((${d}::date)::timestamp at time zone ${TZ})`;
-const endOf = (d: string): SQL => sql`(((${d}::date + 1))::timestamp at time zone ${TZ})`;
+export const startOf = (d: string): SQL => sql`((${d}::date)::timestamp at time zone ${TZ})`;
+export const endOf = (d: string): SQL => sql`(((${d}::date + 1))::timestamp at time zone ${TZ})`;
 /** `col` bu dönemde mi (Istanbul günleri, iki uç dahil). */
-const inPeriod = (col: SQL, p: DayPeriod): SQL => sql`(${col} >= ${startOf(p.from)} and ${col} < ${endOf(p.to)})`;
+export const inPeriod = (col: SQL, p: DayPeriod): SQL => sql`(${col} >= ${startOf(p.from)} and ${col} < ${endOf(p.to)})`;
 
 /** timestamptz -> ISO-8601 metni (sürücü ham sorgularda tarihi metin döndürür). */
-const isoSql = (col: SQL): SQL => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+export const isoSql = (col: SQL): SQL => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
-const money = (v: string | null | undefined): string => new Money(v ?? 0).toFixed(2);
+export const money = (v: string | null | undefined): string => new Money(v ?? 0).toFixed(2);
+
+/** Satış metriklerinde iptal edilen siparişler sayılmaz (K-46); `orders o` takma adıyla. */
+export const SOLD_ORDERS: SQL = sql`o.status <> 'cancelled'`;
 
 export interface Change {
   amount: string | number;
@@ -54,7 +57,7 @@ export interface Comparative<T extends string | number> {
   changeYear: Change;
 }
 
-function change(current: MoneyValue, base: MoneyValue, asMoney: boolean): Change {
+export function change(current: MoneyValue, base: MoneyValue, asMoney: boolean): Change {
   const diff = current.minus(base);
   return {
     amount: asMoney ? diff.toFixed(2) : diff.toNumber(),
@@ -119,7 +122,7 @@ export class ReportsService {
   }
 
   /** Sipariş metrikleri için ortak koşul: iptal edilmeyenler. */
-  private readonly sold = sql`o.status <> 'cancelled'`;
+  private readonly sold = SOLD_ORDERS;
 
   // --- Genel bakış ----------------------------------------------------------
 

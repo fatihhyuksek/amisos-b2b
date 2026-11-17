@@ -12,10 +12,13 @@ import {
   DEFAULT_ANNOUNCEMENT,
   DEFAULT_CONTACT,
   DEFAULT_PAGES,
+  DEFAULT_SOCIAL,
+  SOCIAL_KEYS,
   DEFAULTS_UPDATED_AT,
   PAGE_SLUGS,
   type PageSlug,
   type SiteContact,
+  type SiteSocial,
   type SitePage,
 } from './site-defaults.js';
 import type { UpdateSiteInput } from './site.schemas.js';
@@ -23,10 +26,11 @@ import type { UpdateSiteInput } from './site.schemas.js';
 interface Loaded {
   announcement: string | null;
   contact: SiteContact;
+  social: SiteSocial;
   pages: (SitePage & { updatedAt: string; version: number })[];
 }
 
-const ALL_KEYS = ['announcement', 'contact', ...PAGE_SLUGS.map((s) => `page:${s}`)];
+const ALL_KEYS = ['announcement', 'contact', 'social', ...PAGE_SLUGS.map((s) => `page:${s}`)];
 
 /** JSON null değeri SQL NULL'a dönüşmesin diye açıkça jsonb metni olarak yazılır. */
 const json = (v: unknown) => sql`${JSON.stringify(v)}::jsonb`;
@@ -53,6 +57,9 @@ export class SiteService {
     const contact = byKey.has('contact')
       ? ({ ...DEFAULT_CONTACT, ...(byKey.get('contact')?.value as Partial<SiteContact>) } as SiteContact)
       : DEFAULT_CONTACT;
+    const social = byKey.has('social')
+      ? ({ ...DEFAULT_SOCIAL, ...(byKey.get('social')?.value as Partial<SiteSocial>) } as SiteSocial)
+      : DEFAULT_SOCIAL;
     const pages = PAGE_SLUGS.map((slug) => {
       const row = byKey.get(`page:${slug}`);
       if (!row) return { ...DEFAULT_PAGES[slug], updatedAt: DEFAULTS_UPDATED_AT, version: 1 };
@@ -66,7 +73,7 @@ export class SiteService {
         version: pageVersionOf(row.value),
       };
     });
-    return { announcement, contact, pages };
+    return { announcement, contact, social, pages };
   }
 
   /** Herkese açık: yalnızca yayımlanmış sayfaların slug ve başlığı. */
@@ -75,6 +82,7 @@ export class SiteService {
     return {
       announcement: s.announcement,
       contact: s.contact,
+      social: s.social,
       pages: s.pages.filter((p) => p.published).map((p) => ({ slug: p.slug, title: p.title })),
     };
   }
@@ -90,6 +98,7 @@ export class SiteService {
     return {
       announcement: s.announcement,
       contact: s.contact,
+      social: s.social,
       pages: s.pages.map(({ slug, title, body, published, updatedAt, version }) => ({
         slug,
         title,
@@ -127,6 +136,15 @@ export class SiteService {
     }
     if (!isDeepStrictEqual(before.contact, contact)) {
       changed.push({ key: 'contact', previous: before.contact, next: contact, value: contact });
+    }
+    // K-77: kısmi güncelleme; verilmeyen ağ mevcut değerini korur, null kaldırır.
+    const social = { ...before.social } as SiteSocial;
+    for (const key of SOCIAL_KEYS) {
+      const next = input.social?.[key];
+      if (next !== undefined) social[key] = next;
+    }
+    if (!isDeepStrictEqual(before.social, social)) {
+      changed.push({ key: 'social', previous: before.social, next: social, value: social });
     }
     for (const p of input.pages) {
       const prev = before.pages.find((x) => x.slug === p.slug);

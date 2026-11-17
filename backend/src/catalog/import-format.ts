@@ -31,15 +31,15 @@ interface ColumnDef {
 
 export const COLUMNS: ColumnDef[] = [
   { key: 'barcode', header: 'Barkod', required: true },
-  { key: 'code', header: 'Ürün kodu', required: false },
-  { key: 'name', header: 'Ürün adı', required: true },
-  { key: 'group', header: 'Ürün grubu', required: true },
-  { key: 'caseQuantity', header: 'Koli içi adet', required: true },
+  { key: 'code', header: 'Ürün kodu', required: false, aliases: ['Kod'] },
+  { key: 'name', header: 'Ürün adı', required: true, aliases: ['Ad'] },
+  { key: 'group', header: 'Ürün grubu', required: true, aliases: ['Grup'] },
+  { key: 'caseQuantity', header: 'Koli içi adet', required: true, aliases: ['Koli içi'] },
   { key: 'listPrice', header: 'Liste fiyatı (KDV hariç)', required: true, aliases: ['Liste fiyatı'] },
-  { key: 'vatRate', header: 'KDV oranı', required: false },
+  { key: 'vatRate', header: 'KDV oranı', required: false, aliases: ['KDV', 'KDV %'] },
   { key: 'description', header: 'Açıklama', required: false },
   { key: 'stock', header: 'Stok', required: false },
-  { key: 'active', header: 'Aktif', required: false },
+  { key: 'active', header: 'Aktif', required: false, aliases: ['Durum'] },
 ];
 
 /** Başlık eşleştirme anahtarı: Türkçe harf, büyük/küçük harf, boşluk ve noktalama duyarsız. */
@@ -243,7 +243,8 @@ export function parseSheet(sheet: ExcelJS.Worksheet): ParsedSheet {
     let active: boolean | null = null;
     const activeRaw = raw('active');
     if (activeRaw) {
-      const v = yesNo(activeRaw, 'evet', 'hayir');
+      // Dışa aktarılan dosyada "Durum" sütunu Aktif/Pasif yazar (K-78: düzenlenip yeniden içe aktarılabilir).
+      const v = yesNo(activeRaw, 'evet', 'hayir') ?? yesNo(activeRaw, 'aktif', 'pasif');
       if (v === undefined) fail('active', 'Aktif "Evet" veya "Hayır" olmalı.');
       else active = v;
     }

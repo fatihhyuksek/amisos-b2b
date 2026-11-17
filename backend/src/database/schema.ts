@@ -99,6 +99,8 @@ export const adminUsers = pgTable(
     passwordHash: text().notNull(),
     isActive: boolean().notNull().default(true),
     lastLoginAt: timestamp({ withTimezone: true }),
+    /** K-78: bildirim merkezinde bu andan sonraki olaylar "okunmamış" sayılır (Admin başına). */
+    notificationsReadAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -680,5 +682,25 @@ export const dealerNotes = pgTable(
   (t) => [
     index('dealer_notes_dealer_idx').on(t.dealerId, t.createdAt),
     check('dealer_notes_body_not_blank', sql`length(trim(${t.body})) > 0`),
+  ],
+);
+
+/** K-78: siparişe bağlı iç notlar; yalnızca Admin görür, bayiye hiçbir uçta dönmez. */
+export const orderNotes = pgTable(
+  'order_notes',
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    orderId: uuid()
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    body: text().notNull(),
+    createdBy: uuid()
+      .notNull()
+      .references(() => adminUsers.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('order_notes_order_idx').on(t.orderId, t.createdAt),
+    check('order_notes_body_not_blank', sql`length(trim(${t.body})) > 0`),
   ],
 );

@@ -1,6 +1,6 @@
 // İşlem geçmişi (K-75): GET /api/admin/audit. Yetki sunucuda (AdminGuard).
 import { Controller, Get, Inject, Injectable, Module, Query, UseGuards, UsePipes } from '@nestjs/common';
-import { and, desc, eq, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { AdminGuard } from '../auth/auth.guards.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -47,8 +47,10 @@ const istanbulDayStart = (v: string): Date => new Date(new Date(`${v}T00:00:00Z`
 export class AuditQueryService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
-  async list(query: AuditListQuery) {
+  /** `excludeActions`: panel ana sayfası gibi özetlerde gürültü olan eylemleri (ör. girişler) dışarıda bırakır. */
+  async list(query: AuditListQuery, opts: { excludeActions?: string[] } = {}) {
     const filters: (SQL | undefined)[] = [];
+    if (opts.excludeActions?.length) filters.push(notInArray(auditLog.action, opts.excludeActions));
     if (query.entityType) filters.push(eq(auditLog.entityType, query.entityType));
     if (query.actorType) filters.push(eq(auditLog.actorType, query.actorType));
     if (query.q) {
@@ -184,5 +186,5 @@ export class AdminAuditController {
 }
 
 // AuditModule (global) ile AuthModule arasında dosya döngüsü olmasın diye ayrı modül.
-@Module({ imports: [AuthModule], controllers: [AdminAuditController], providers: [AuditQueryService] })
+@Module({ imports: [AuthModule], controllers: [AdminAuditController], providers: [AuditQueryService], exports: [AuditQueryService] })
 export class AdminAuditModule {}

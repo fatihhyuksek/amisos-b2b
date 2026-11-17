@@ -28,6 +28,7 @@ import { DB, type Database } from '../database/database.module.js';
 import {
   adminUsers,
   dealers,
+  orderNotes,
   orders,
   orderStatusHistory,
 } from '../database/schema.js';
@@ -241,8 +242,14 @@ export class AdminOrdersService {
     }
     const who = (id: string | null) =>
       id ? { id, fullName: names.get(id) ?? '' } : null;
+    const [{ internalNoteCount }] = await this.db
+      .select({ internalNoteCount: sql<number>`count(*)::int` })
+      .from(orderNotes)
+      .where(eq(orderNotes.orderId, order.id));
     return {
       ...detail,
+      // K-78: yalnızca Admin detayında; notların kendisi bayiye hiçbir uçta dönmez.
+      internalNoteCount,
       allowedNextStatuses: allowedNextStatuses(order.status),
       history: detail.history.map((h) => ({
         ...h,
@@ -258,6 +265,76 @@ export class AdminOrdersService {
       transferError: order.transferError,
       bizimhesapGuid: order.bizimhesapGuid,
     };
+  }
+
+  // --- İç notlar (K-78): yalnızca Admin ---------------------------------------
+
+  private async assertOrder(id: string): Promise<void> {
+    const [row] = await this.db.select({ id: orders.id }).from(orders).where(eq(orders.id, id));
+    if (!row) throw new NotFoundException('Sipariş bulunamadı.');
+  }
+
+  async listNotes(orderId: string) {
+    await this.assertOrder(orderId);
+    const rows = await this.db
+      .select({
+        id: orderNotes.id,
+        body: orderNotes.body,
+        createdAt: orderNotes.createdAt,
+        adminId: orderNotes.createdBy,
+        adminName: adminUsers.fullName,
+      })
+      .from(orderNotes)
+      .innerJoin(adminUsers, eq(adminUsers.id, orderNotes.createdBy))
+      .where(eq(orderNotes.orderId, orderId))
+      .orderBy(desc(orderNotes.createdAt), desc(orderNotes.id));
+    return rows.map((r) => ({
+      id: r.id,
+      body: r.body,
+      createdAt: r.createdAt.toISOString(),
+      createdBy: { id: r.adminId, fullName: r.adminName },
+    }));
+  }
+
+  async addNote(orderId: string, body: string, adminId: string) {
+    await this.assertOrder(orderId);
+    const noteId = await this.db.transaction(async (tx) => {
+      const [row] = await tx.insert(orderNotes).values({ orderId, body, createdBy: adminId }).returning();
+      await this.audit.record(
+        {
+          actorType: 'admin',
+          actorId: adminId,
+          action: 'order.note_added',
+          entityType: 'orders',
+          entityId: orderId,
+          data: { noteId: row.id },
+        },
+        tx,
+      );
+      return row.id;
+    });
+    return (await this.listNotes(orderId)).find((n) => n.id === noteId);
+  }
+
+  async deleteNote(orderId: string, noteId: string, adminId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .delete(orderNotes)
+        .where(and(eq(orderNotes.id, noteId), eq(orderNotes.orderId, orderId)))
+        .returning({ id: orderNotes.id });
+      if (!row) throw new NotFoundException('Not bulunamadı.');
+      await this.audit.record(
+        {
+          actorType: 'admin',
+          actorId: adminId,
+          action: 'order.note_deleted',
+          entityType: 'orders',
+          entityId: orderId,
+          data: { noteId },
+        },
+        tx,
+      );
+    });
   }
 
   // --- Durum (K-25, K-26) ---------------------------------------------------
