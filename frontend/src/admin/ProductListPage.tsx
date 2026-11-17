@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   ApiError,
   bulkProducts,
+  downloadProductsExcel,
   fetchAdminProducts,
   fetchProductGroups,
   updateProduct,
@@ -15,16 +16,18 @@ import {
 } from '../api'
 import { Link } from '../Link'
 import { replace, useRoute } from '../router'
-import { Alert, Badge, Button, EmptyState, Modal, Pagination, StockBadge } from '../ui/components'
-import { ErrorAlert, LoadingCard, ProductImage } from '../ui/catalog'
+import { Alert, Badge, Button, EmptyState, Modal, StockBadge } from '../ui/components'
+import { ErrorAlert, ProductImage } from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
-import { formatInt, formatTRY } from '../ui/format'
+import { formatTRY } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { useDebounced } from '../ui/useDebounced'
 import { AdminLayout } from './AdminLayout'
+import { DuplicateProductDialog } from './DuplicateProductDialog'
+import { saveBlob } from './download'
+import { ListFooter, SkeletonRows } from './kit'
+import { parsePageSize } from './kitUtils'
 import { useLoad } from './useLoad'
-
-const PAGE_SIZE = 20
 
 interface Filters {
   q: string
@@ -34,13 +37,14 @@ interface Filters {
   oneCikan: string
 }
 
-function listPath(f: Filters, page: number): string {
+function listPath(f: Filters, page: number, size = 20): string {
   const qs = new URLSearchParams()
   if (f.q) qs.set('q', f.q)
   if (f.grup) qs.set('grup', f.grup)
   if (f.stok) qs.set('stok', f.stok)
   if (f.aktif) qs.set('aktif', f.aktif)
   if (f.oneCikan) qs.set('oneCikan', f.oneCikan)
+  if (size !== 20) qs.set('adet', String(size))
   if (page > 1) qs.set('sayfa', String(page))
   const s = qs.toString()
   return `/yonetim/urunler${s ? `?${s}` : ''}`
@@ -64,18 +68,21 @@ export function ProductListPage() {
     oneCikan: query.get('oneCikan') ?? '',
   }
   const page = Math.max(1, Number(query.get('sayfa')) || 1)
+  const size = parsePageSize(query.get('adet'))
+  const [dup, setDup] = useState<AdminProduct | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState(f.q)
   const debounced = useDebounced(search.trim())
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (debounced !== f.q) replace(listPath({ ...f, q: debounced }, 1))
+    if (debounced !== f.q) replace(listPath({ ...f, q: debounced }, 1, size))
     // yalnızca arama metni değişince adrese yazılır
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced])
 
-  const listKey = `${f.q}|${f.grup}|${f.stok}|${f.aktif}|${f.oneCikan}|${page}`
+  const listKey = `${f.q}|${f.grup}|${f.stok}|${f.aktif}|${f.oneCikan}|${page}|${size}`
   // Seçim yalnızca görüntülenen liste içindir: süzgeç veya sayfa değişince sıfırlanır.
   const [sel, setSel] = useState<{ key: string; ids: string[] }>({ key: listKey, ids: [] })
   const selected = sel.key === listKey ? sel.ids : []
@@ -100,14 +107,14 @@ export function ProductListPage() {
           active: f.aktif,
           featured: f.oneCikan,
           page,
-          pageSize: PAGE_SIZE,
+          pageSize: size,
         },
         signal,
       ),
     listKey,
   )
 
-  const go = (patch: Partial<Filters>) => replace(listPath({ ...f, ...patch }, 1))
+  const go = (patch: Partial<Filters>) => replace(listPath({ ...f, ...patch }, 1, size))
   const hasFilter = !!(f.q || f.grup || f.stok || f.aktif || f.oneCikan)
 
   async function runBulk(action: BulkAction, label: string, groupId?: string) {
@@ -128,6 +135,31 @@ export function ProductListPage() {
       })
     } finally {
       setBulkBusy(false)
+    }
+  }
+
+  async function exportExcel() {
+    setExporting(true)
+    setNotice(null)
+    try {
+      const { blob, filename } = await downloadProductsExcel({
+        q: f.q,
+        groupId: f.grup,
+        stock: f.stok,
+        active: f.aktif,
+        featured: f.oneCikan,
+      })
+      saveBlob(blob, filename ?? `urunler-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch (err) {
+      setNotice({
+        tone: 'danger',
+        text:
+          err instanceof ApiError && err.status === 404
+            ? 'Excel dışa aktarma bu sunucuda henüz yok.'
+            : 'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+      })
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -180,23 +212,40 @@ export function ProductListPage() {
     </Button>
   )
 
+  const copyButton = (p: AdminProduct) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon="copyPlus"
+      title="Kopyala"
+      aria-label={`${p.name}: ürünü kopyala`}
+      onClick={() => setDup(p)}
+    >
+      <span className="adm-copylabel">Kopyala</span>
+    </Button>
+  )
+
   return (
     <AdminLayout
       title="Ürünler"
       actions={
-        <div className="ui-actions">
+        <>
+          <Button variant="secondary" icon="download" disabled={exporting} onClick={exportExcel}>
+            {exporting ? 'Hazırlanıyor…' : "Excel'e aktar"}
+          </Button>
           <Link to="/yonetim/urunler/ice-aktar" className="ui-button ui-button--secondary">
+            <Icon name="file" />
             Excel'den yükle
           </Link>
           <Link to="/yonetim/urunler/yeni" className="ui-button ui-button--primary">
             <Icon name="plus" />
             Ürün ekle
           </Link>
-        </div>
+        </>
       }
     >
-      <div className="ui-toolbar__row">
-        <div className="ui-search">
+      <div className="adm-filters">
+        <div className="ui-search adm-filters__search">
           <Icon name="search" />
           <input
             className="ui-input"
@@ -253,10 +302,10 @@ export function ProductListPage() {
       </div>
 
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
-      {state.status === 'loading' && <LoadingCard rows={5} />}
+      {state.status === 'loading' && <SkeletonRows rows={8} />}
       {state.status === 'error' && <ErrorAlert onRetry={reload}>Ürünler alınamadı.</ErrorAlert>}
       {state.status === 'ready' && state.data.items.length === 0 && (
-        <div className="ui-card">
+        <div className="adm-card">
           <EmptyState
             title="Ürün bulunamadı"
             action={
@@ -279,9 +328,6 @@ export function ProductListPage() {
       )}
       {state.status === 'ready' && state.data.items.length > 0 && (
         <>
-          <p className="muted" aria-live="polite">
-            {formatInt(state.data.total)} ürün · Fiyatlar KDV hariçtir
-          </p>
           <div className="ui-table-wrap ui-table-wrap--cards">
             <table className="ui-table">
               <thead>
@@ -309,6 +355,9 @@ export function ProductListPage() {
                   </th>
                   <th scope="col">Stok</th>
                   <th scope="col">Durum</th>
+                  <th scope="col">
+                    <span className="visually-hidden">İşlemler</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -319,14 +368,16 @@ export function ProductListPage() {
                       <div className="ui-cell-product">
                         <Thumb p={p} />
                         <span>
-                          <Link to={`/yonetim/urunler/${encodeURIComponent(p.id)}`}>{p.name}</Link>
+                          <Link className="ui-rowlink" to={`/yonetim/urunler/${encodeURIComponent(p.id)}`}>
+                            {p.name}
+                          </Link>
                           {p.isFeatured && (
                             <span className="ui-pill ui-pill--soft ui-pill--inline">Öne çıkan</span>
                           )}
                         </span>
                       </div>
                     </td>
-                    <td className="num">{p.barcode}</td>
+                    <td className="num ui-left">{p.barcode}</td>
                     <td>{p.groupName}</td>
                     <td className="num">{p.caseQuantity}</td>
                     <td className="num">{formatTRY(p.listPrice)}</td>
@@ -341,6 +392,7 @@ export function ProductListPage() {
                         {p.isActive ? 'Aktif' : 'Pasif'}
                       </Badge>
                     </td>
+                    <td>{copyButton(p)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -371,7 +423,10 @@ export function ProductListPage() {
                     <StockBadge inStock={p.stockStatus === 'in_stock'} />
                     <Badge tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Aktif' : 'Pasif'}</Badge>
                   </div>
-                  {stockButton(p)}
+                  <span className="ui-actions">
+                    {stockButton(p)}
+                    {copyButton(p)}
+                  </span>
                 </div>
               </li>
             ))}
@@ -497,13 +552,18 @@ export function ProductListPage() {
               </div>
             </Modal>
           )}
-          <Pagination
+          <ListFooter
+            total={state.data.total}
+            unit="ürün · fiyatlar KDV hariç"
             page={state.data.page}
             pageSize={state.data.pageSize}
-            total={state.data.total}
-            onChange={(p) => replace(listPath(f, p))}
+            onPage={(p) => replace(listPath(f, p, size))}
+            onPageSize={(n) => replace(listPath(f, 1, n))}
           />
         </>
+      )}
+      {dup && (
+        <DuplicateProductDialog productId={dup.id} productName={dup.name} onClose={() => setDup(null)} />
       )}
     </AdminLayout>
   )

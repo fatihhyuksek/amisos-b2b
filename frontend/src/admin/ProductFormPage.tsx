@@ -18,6 +18,7 @@ import { Alert, Button, Checkbox, Field } from '../ui/components'
 import { ErrorAlert, LoadingCard, ProductImage } from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
 import { AdminLayout } from './AdminLayout'
+import { DuplicateProductDialog } from './DuplicateProductDialog'
 import { MediaPicker } from './MediaPicker'
 import { useLoad } from './useLoad'
 
@@ -106,6 +107,7 @@ export function ProductFormPage({ id }: { id?: string }) {
     },
     id ?? 'new',
   )
+  const [dup, setDup] = useState(false)
 
   return (
     <AdminLayout
@@ -113,9 +115,16 @@ export function ProductFormPage({ id }: { id?: string }) {
         id ? (state.status === 'ready' && state.data.product ? state.data.product.name : 'Ürün') : 'Ürün ekle'
       }
       actions={
-        <Link to="/yonetim/urunler" className="ui-button ui-button--secondary">
-          Ürün listesine dön
-        </Link>
+        <>
+          {id && state.status === 'ready' && state.data.product && (
+            <Button variant="secondary" icon="copyPlus" onClick={() => setDup(true)}>
+              Kopyala
+            </Button>
+          )}
+          <Link to="/yonetim/urunler" className="ui-button ui-button--secondary">
+            Ürün listesine dön
+          </Link>
+        </>
       }
     >
       {state.status === 'loading' && <LoadingCard />}
@@ -129,6 +138,13 @@ export function ProductFormPage({ id }: { id?: string }) {
           key={state.data.product?.updatedAt ?? 'new'}
           product={state.data.product}
           groups={state.data.groups}
+        />
+      )}
+      {dup && state.status === 'ready' && state.data.product && (
+        <DuplicateProductDialog
+          productId={state.data.product.id}
+          productName={state.data.product.name}
+          onClose={() => setDup(false)}
         />
       )}
     </AdminLayout>

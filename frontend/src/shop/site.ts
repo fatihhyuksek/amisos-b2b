@@ -2,13 +2,18 @@
 // Tüm vitrin sayfaları aynı veriyi kullanır; kısa süreli bellek önbelleği. Hata olursa sabitler (contact.ts).
 import { useEffect, useState } from 'react'
 import { fetchSite, type SiteInfo } from '../api'
-import { DEFAULT_CONTACT, DEFAULT_PAGES } from './contact'
+import { DEFAULT_CONTACT, DEFAULT_PAGES, DEFAULT_SOCIAL } from './contact'
 
 const TTL_MS = 2 * 60 * 1000
 let cache: { at: number; data: SiteInfo } | null = null
 let inflight: Promise<SiteInfo | null> | null = null
 
-const FALLBACK: SiteInfo = { announcement: null, contact: DEFAULT_CONTACT, pages: DEFAULT_PAGES }
+const FALLBACK: SiteInfo = {
+  announcement: null,
+  contact: DEFAULT_CONTACT,
+  pages: DEFAULT_PAGES,
+  social: DEFAULT_SOCIAL,
+}
 
 function load(): Promise<SiteInfo | null> {
   if (cache && Date.now() - cache.at < TTL_MS) return Promise.resolve(cache.data)
@@ -18,6 +23,8 @@ function load(): Promise<SiteInfo | null> {
         announcement: data.announcement ?? null,
         contact: { ...DEFAULT_CONTACT, ...data.contact },
         pages: Array.isArray(data.pages) ? data.pages : DEFAULT_PAGES,
+        // Eski sunucu yanıtında social yoksa varsayılan hesap gösterilir (K-77).
+        social: data.social ?? DEFAULT_SOCIAL,
       }
       cache = { at: Date.now(), data: merged }
       return merged

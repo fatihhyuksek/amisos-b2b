@@ -75,6 +75,27 @@ const STROKES = {
   key: 'M14.5 9.5a4 4 0 1 1-1.2-2.9M9 12l-6 6v3h3l1-1v-2h2v-2l1-1',
   clipboard: 'M8 5H6.5v15.5h11V5H16M9 3.5h6v3H9v-3ZM9.5 11h5M9.5 14.5h5',
   barcode: 'M3.5 7V4.5H6M18 4.5h2.5V7M20.5 17v2.5H18M6 19.5H3.5V17M7.5 8v8M10.5 8v8M13.5 8v8M16.5 8v8',
+  image: 'M4 5h16v14H4V5Zm0 11 4.5-4.5 3.5 3.5 3-3 5 5M9 10h.01',
+  megaphone: 'M4 10v4h3l8 4V6L7 10H4Zm14-1.5a4.5 4.5 0 0 1 0 7M7.5 14l1 5H11l-1-4.5',
+  bell: 'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Zm4 4a2 2 0 0 0 4 0',
+  panel: 'M4 5h16v14H4V5Zm5.5 0v14',
+  trendUp: 'm4 16 5-5 4 4 7-7m0 0h-5m5 0v5',
+  trendDown: 'm4 8 5 5 4-4 7 7m0 0h-5m5 0v-5',
+  calendar: 'M5 6h14v14H5V6Zm0 4.5h14M9 4v4m6-4v4',
+  note: 'M5 4h14v11l-5 5H5V4Zm9 16v-5h5M8.5 9h7M8.5 12.5h4',
+  external: 'M14 5h5v5m0-5-8 8M17 14v5H5V7h5',
+  dots: 'M5 12h.01M12 12h.01M19 12h.01',
+  instagram:
+    'M7.5 3.5h9a4 4 0 0 1 4 4v9a4 4 0 0 1-4 4h-9a4 4 0 0 1-4-4v-9a4 4 0 0 1 4-4Zm4.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm5-9.5h.01',
+  facebook:
+    'M14.5 21v-8h2.7l.5-3.2h-3.2V7.9c0-.9.4-1.5 1.6-1.5h1.7V3.6c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1v2.2H8.3V13h2.6v8',
+  youtube:
+    'M3.5 8.5a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3v-7Zm6.5 1.5 4.5 2-4.5 2v-4Z',
+  tiktok: 'M14 4v10.5a3.5 3.5 0 1 1-3.5-3.5M14 4c.3 2.3 1.8 3.8 4.5 4',
+  linkedin: 'M4.5 9.5v10M4.5 5.5v.01M9 19.5v-10m0 4a3.5 3.5 0 0 1 7 0v5.5',
+  copyPlus: 'M8 8h11v12H8V8Zm-3 8V4h11M13.5 11v6M10.5 14h6',
+  inbox: 'M4 13.5 6.5 5h11l2.5 8.5V19H4v-5.5Zm0 0h4.5a3.5 3.5 0 0 0 7 0H20',
+  slash: 'M16 4 8 20',
 } as const
 
 export type IconName = keyof typeof PATHS | keyof typeof STROKES

@@ -1,16 +1,17 @@
 // GR-BAYI-002, K-04: Admin bayi listesi. Durum filtresi, arama, sayfalama; masaüstünde tablo, mobilde kart.
 import { useEffect, useState } from 'react'
-import { fetchDealers, type DealerList, type DealerStatus } from '../api'
+import { ApiError, downloadDealersExcel, fetchDealers, type DealerList, type DealerStatus } from '../api'
 import { Link } from '../Link'
 import { replace, useRoute } from '../router'
-import { Alert, Badge, Button, DealerStatusBadge, EmptyState, Pagination } from '../ui/components'
+import { Alert, Badge, Button, DealerStatusBadge, EmptyState } from '../ui/components'
 import { DEALER_STATUS } from '../ui/dealerStatus'
 import { Icon } from '../ui/Icon'
-import { formatDate, formatInt } from '../ui/format'
+import { formatDate } from '../ui/format'
 import { AdminLayout } from './AdminLayout'
+import { saveBlob } from './download'
+import { ListFooter, SkeletonRows } from './kit'
+import { parsePageSize } from './kitUtils'
 import { useLoad } from './useLoad'
-
-const PAGE_SIZE = 20
 
 const FILTERS: { value: DealerStatus | ''; label: string }[] = [
   { value: '', label: 'Tümü' },
@@ -25,10 +26,11 @@ function parseStatus(v: string | null): DealerStatus | '' {
   return v && v in DEALER_STATUS ? (v as DealerStatus) : ''
 }
 
-function listPath(status: string, q: string, page: number): string {
+function listPath(status: string, q: string, page: number, size = 20): string {
   const qs = new URLSearchParams()
   if (status) qs.set('durum', status)
   if (q) qs.set('q', q)
+  if (size !== 20) qs.set('adet', String(size))
   if (page > 1) qs.set('sayfa', String(page))
   const s = qs.toString()
   return `/yonetim/bayiler${s ? `?${s}` : ''}`
@@ -43,36 +45,58 @@ export function DealerListPage() {
   const status = parseStatus(query.get('durum'))
   const q = query.get('q') ?? ''
   const page = Math.max(1, Number(query.get('sayfa')) || 1)
+  const size = parsePageSize(query.get('adet'))
   const [search, setSearch] = useState(q)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
 
   // Arama kutusu yazıldıkça 300 ms bekleyip adrese yazılır; sayfa 1'e döner.
   useEffect(() => {
     if (search.trim() === q) return
-    const t = setTimeout(() => replace(listPath(status, search.trim(), 1)), 300)
+    const t = setTimeout(() => replace(listPath(status, search.trim(), 1, size)), 300)
     return () => clearTimeout(t)
-  }, [search, q, status])
+  }, [search, q, status, size])
 
   const { state, reload } = useLoad<DealerList>(
-    (signal) => fetchDealers({ status, q, page, pageSize: PAGE_SIZE }, signal),
-    `${status}|${q}|${page}`,
+    (signal) => fetchDealers({ status, q, page, pageSize: size }, signal),
+    `${status}|${q}|${page}|${size}`,
   )
+
+  async function exportExcel() {
+    setExporting(true)
+    setExportError('')
+    try {
+      const { blob, filename } = await downloadDealersExcel({ status, q })
+      saveBlob(blob, filename ?? `bayiler-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch (err) {
+      setExportError(
+        err instanceof ApiError && err.status === 404
+          ? 'Excel dışa aktarma bu sunucuda henüz yok.'
+          : 'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <AdminLayout
       title="Bayiler"
       actions={
-        <a
-          className="ui-button ui-button--primary"
-          href="#/yonetim/bayiler/yeni"
-          style={{ textDecoration: 'none' }}
-        >
-          <Icon name="plus" />
-          Bayi davet et
-        </a>
+        <>
+          <Button variant="secondary" icon="download" disabled={exporting} onClick={exportExcel}>
+            {exporting ? 'Hazırlanıyor…' : "Excel'e aktar"}
+          </Button>
+          <Link className="ui-button ui-button--primary" to="/yonetim/bayiler/yeni">
+            <Icon name="plus" />
+            Bayi davet et
+          </Link>
+        </>
       }
     >
-      <div className="ui-toolbar">
-        <div className="ui-search">
+      {exportError && <Alert tone="danger">{exportError}</Alert>}
+      <div className="adm-filters">
+        <div className="ui-search adm-filters__search">
           <Icon name="search" />
           <input
             className="ui-input"
@@ -83,14 +107,14 @@ export function DealerListPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="ui-chips ui-chips--wrap" role="group" aria-label="Durum filtresi">
+        <div className="ui-chips" role="group" aria-label="Durum filtresi">
           {FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               className="ui-chip"
               aria-pressed={status === f.value}
-              onClick={() => replace(listPath(f.value, q, 1))}
+              onClick={() => replace(listPath(f.value, q, 1, size))}
             >
               {f.label}
             </button>
@@ -98,20 +122,7 @@ export function DealerListPage() {
         </div>
       </div>
 
-      {state.status === 'loading' && (
-        <div
-          className="ui-card ui-card__body"
-          aria-busy="true"
-          style={{ display: 'grid', gap: 'var(--space-3)' }}
-        >
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="ui-skeleton" style={{ height: '2.5rem' }} />
-          ))}
-          <span className="visually-hidden" role="status">
-            Yükleniyor…
-          </span>
-        </div>
-      )}
+      {state.status === 'loading' && <SkeletonRows rows={8} />}
       {state.status === 'error' && (
         <Alert tone="danger">
           Bayiler alınamadı.{' '}
@@ -121,7 +132,7 @@ export function DealerListPage() {
         </Alert>
       )}
       {state.status === 'ready' && state.data.items.length === 0 && (
-        <div className="ui-card">
+        <div className="adm-card">
           <EmptyState
             title="Bayi bulunamadı"
             action={
@@ -144,9 +155,6 @@ export function DealerListPage() {
       )}
       {state.status === 'ready' && state.data.items.length > 0 && (
         <>
-          <p className="muted" aria-live="polite">
-            {formatInt(state.data.total)} bayi
-          </p>
           <div className="ui-table-wrap ui-table-wrap--cards">
             <table className="ui-table">
               <thead>
@@ -162,7 +170,9 @@ export function DealerListPage() {
                 {state.data.items.map((d) => (
                   <tr key={d.id}>
                     <td>
-                      <Link to={`/yonetim/bayiler/${encodeURIComponent(d.id)}`}>{d.companyTitle}</Link>
+                      <Link className="ui-rowlink" to={`/yonetim/bayiler/${encodeURIComponent(d.id)}`}>
+                        {d.companyTitle}
+                      </Link>
                     </td>
                     <td>{d.contactName}</td>
                     <td>{d.city}</td>
@@ -193,11 +203,13 @@ export function DealerListPage() {
               </li>
             ))}
           </ul>
-          <Pagination
+          <ListFooter
+            total={state.data.total}
+            unit="bayi"
             page={state.data.page}
             pageSize={state.data.pageSize}
-            total={state.data.total}
-            onChange={(p) => replace(listPath(status, q, p))}
+            onPage={(p) => replace(listPath(status, q, p, size))}
+            onPageSize={(n) => replace(listPath(status, q, 1, n))}
           />
         </>
       )}

@@ -7,6 +7,7 @@ import { validateEmail, validateRequired } from '../auth/validation'
 import { Link } from '../Link'
 import { replace, useRoute } from '../router'
 import { safeReturnPath } from '../shop/returnTo'
+import { BrandLogo } from '../shop/brand'
 import { Alert, AuthCard, Button, Field, PasswordInput } from '../ui/components'
 
 const SERVER_UNREACHABLE = 'Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.'
@@ -66,6 +67,67 @@ export function LoginPage({ type }: { type: UserType }) {
     }
   }
 
+  const form = (
+    <form className={isAdmin ? 'adm-login__form' : 'ui-auth__form'} onSubmit={onSubmit} noValidate>
+      {formError && <Alert tone="danger">{formError}</Alert>}
+      <Field label="E-posta" htmlFor="email" error={errors.email}>
+        <input
+          id="email"
+          className="ui-input"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          aria-invalid={errors.email ? true : undefined}
+        />
+      </Field>
+      <Field label="Şifre" htmlFor="password" error={errors.password}>
+        <PasswordInput
+          id="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          invalid={!!errors.password}
+        />
+      </Field>
+      <Button type="submit" block disabled={busy}>
+        {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
+      </Button>
+      <div className="ui-auth__links">
+        <Link to={`/sifremi-unuttum?tur=${type === 'admin' ? 'admin' : 'bayi'}`}>Şifremi unuttum</Link>
+      </div>
+    </form>
+  )
+
+  if (isAdmin)
+    return (
+      <main className="ui-admin adm-login">
+        <section className="adm-login__brand" aria-label="Amisos B2B">
+          <BrandLogo size="md" />
+          <div>
+            <div className="adm-login__rule" aria-hidden="true" />
+            <h2 className="adm-login__title">Yönetim paneli</h2>
+            <p>Siparişleri, bayileri ve kataloğu tek yerden yönetin.</p>
+          </div>
+          <small>Amisos Züccaciye · Bayi ön sipariş portalı</small>
+        </section>
+        <div className="adm-login__panel">
+          <div className="adm-login__mobilebrand">
+            <BrandLogo size="md" />
+          </div>
+          <section className="adm-login__card" aria-labelledby="auth-title">
+            <h1 id="auth-title">Yönetim girişi</h1>
+            <p className="adm-login__lead">Devam etmek için yönetici hesabınızla giriş yapın.</p>
+            {form}
+            <p className="adm-login__back">
+              <Link to="/">Vitrine dön</Link>
+            </p>
+          </section>
+        </div>
+      </main>
+    )
+
   return (
     <AuthCard
       title={isAdmin ? 'Yönetim girişi' : 'Bayi girişi'}
@@ -87,36 +149,7 @@ export function LoginPage({ type }: { type: UserType }) {
         )
       }
     >
-      <form className="ui-auth__form" onSubmit={onSubmit} noValidate>
-        {formError && <Alert tone="danger">{formError}</Alert>}
-        <Field label="E-posta" htmlFor="email" error={errors.email}>
-          <input
-            id="email"
-            className="ui-input"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            aria-invalid={errors.email ? true : undefined}
-          />
-        </Field>
-        <Field label="Şifre" htmlFor="password" error={errors.password}>
-          <PasswordInput
-            id="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            invalid={!!errors.password}
-          />
-        </Field>
-        <Button type="submit" block disabled={busy}>
-          {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
-        </Button>
-        <div className="ui-auth__links">
-          <Link to={`/sifremi-unuttum?tur=${type === 'admin' ? 'admin' : 'bayi'}`}>Şifremi unuttum</Link>
-        </div>
-      </form>
+      {form}
     </AuthCard>
   )
 }

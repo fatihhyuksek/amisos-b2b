@@ -1,6 +1,7 @@
 // İletişim bilgileri (K-64). Asıl kaynak GET /api/site (K-73); bu sabitler yalnızca sunucuya ulaşılamazsa
 // kullanılır. Değişirse Admin "Site ayarları"ndan güncellenir.
-import type { SiteContact } from '../api'
+import type { SiteContact, SocialLinks } from '../api'
+import type { IconName } from '../ui/Icon'
 
 export const CONTACT = {
   /** Görünen telefon (aynı numara WhatsApp hattı). */
@@ -43,4 +44,32 @@ export function whatsappLink(c: SiteContact): string | null {
   if (c.whatsappE164 === null) return null
   const digits = (c.whatsappE164 || c.phoneE164 || CONTACT.phoneE164).replace(/\D/g, '')
   return digits ? `https://wa.me/${digits}` : null
+}
+
+/** Sunucuya ulaşılamazsa varsayılan hesap (K-77). Asıl kaynak GET /api/site `social`. */
+export const DEFAULT_SOCIAL: SocialLinks = {
+  instagram: 'https://www.instagram.com/amisoszuccaciye/',
+  facebook: null,
+  youtube: null,
+  tiktok: null,
+  linkedin: null,
+}
+
+const SOCIAL_META: { key: keyof SocialLinks; label: string; icon: IconName }[] = [
+  { key: 'instagram', label: 'Instagram', icon: 'instagram' },
+  { key: 'facebook', label: 'Facebook', icon: 'facebook' },
+  { key: 'youtube', label: 'YouTube', icon: 'youtube' },
+  { key: 'tiktok', label: 'TikTok', icon: 'tiktok' },
+  { key: 'linkedin', label: 'LinkedIn', icon: 'linkedin' },
+]
+
+/** Yalnızca dolu ve https:// ile başlayan bağlantılar (K-77); null olanlar gizlenir. */
+export function socialLinks(
+  social: SocialLinks | undefined,
+): { key: string; label: string; icon: IconName; href: string }[] {
+  if (!social) return []
+  return SOCIAL_META.flatMap((m) => {
+    const href = social[m.key]
+    return href && href.startsWith('https://') ? [{ key: m.key, label: m.label, icon: m.icon, href }] : []
+  })
 }

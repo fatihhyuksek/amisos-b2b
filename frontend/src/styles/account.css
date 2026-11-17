@@ -276,12 +276,6 @@
 }
 
 /* Admin: site ayarları, işlem geçmişi, toplu işlem, notlar */
-.ui-admin__sitelink {
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  overflow-wrap: anywhere;
-}
-
 .ui-savebar {
   position: sticky;
   bottom: 0;

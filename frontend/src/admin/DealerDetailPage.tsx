@@ -1,5 +1,4 @@
-import { historyLabel } from '../ui/dealerStatus'
-// GR-BAYI-002, GR-BAYI-006, GR-KVK-001, K-04, K-08, K-12, K-51: Admin bayi ayrıntısı ve durum işlemleri.
+// GR-BAYI-002, GR-BAYI-006, GR-KVK-001, K-04, K-08, K-12, K-51, K-75, K-78: Admin bayi ayrıntısı (sekmeli).
 import { useState, type FormEvent } from 'react'
 import {
   ApiError,
@@ -8,20 +7,28 @@ import {
   deactivateDealer,
   fetchAdminOrders,
   fetchDealer,
+  fetchReportList,
   rejectDealer,
   resendInvitation,
   updateDealerTerms,
   type AdminOrderListItem,
   type DealerDetail,
   type Paged,
+  type ReportDealerRow,
 } from '../api'
 import { Link } from '../Link'
+import { replace, useRoute } from '../router'
 import { Alert, Badge, Button, DealerStatusBadge, Field, Modal, OrderStatusBadge } from '../ui/components'
-import { formatDateTime, formatPercent, formatTRY } from '../ui/format'
+import { historyLabel } from '../ui/dealerStatus'
+import { formatDateTime, formatInt, formatPercent, formatTRY } from '../ui/format'
+import { Icon } from '../ui/Icon'
 import { AdminLayout } from './AdminLayout'
 import { DealerEditDialog } from './DealerEditDialog'
 import { DealerNotes } from './DealerNotes'
 import { GroupDiscounts } from './GroupDiscounts'
+import { Panel, SkeletonRows, TabPanel, Tabs } from './kit'
+import { whatsappHref } from './phone'
+import { todayIstanbul } from './reports/periods'
 import { useLoad } from './useLoad'
 
 const INVALID_STATE = 'Bu işlem bayinin şu anki durumunda yapılamaz, sayfayı yenileyin.'
@@ -174,9 +181,12 @@ function DiscountForm({
   )
 }
 
+type TabId = 'genel' | 'siparisler' | 'iskonto' | 'notlar' | 'gecmis'
+const TAB_IDS: TabId[] = ['genel', 'siparisler', 'iskonto', 'notlar', 'gecmis']
+
 function Dl({ items }: { items: [string, React.ReactNode][] }) {
   return (
-    <dl className="ui-dl">
+    <dl className="adm-kv">
       {items.map(([k, v]) => (
         <div key={k}>
           <dt>{k}</dt>
@@ -192,6 +202,7 @@ export function DealerDetailPage({ id }: { id: string }) {
   const [dialog, setDialog] = useState<'approve' | 'reject' | 'deactivate' | 'edit' | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null)
+  const d = state.status === 'ready' ? state.data : null
 
   /** İşlemi çalıştırır, sonucu bildirir ve veriyi yeniler. Başarıda true döner. */
   async function run(fn: () => Promise<void>, success: string): Promise<boolean> {
@@ -232,34 +243,79 @@ export function DealerDetailPage({ id }: { id: string }) {
     return null
   }
 
+  const wa = d ? whatsappHref(d.phone) : null
+  const canResend = !!d && d.status === 'active' && !d.hasPassword
+
   return (
     <AdminLayout
-      title={state.status === 'ready' ? state.data.companyTitle : 'Bayi'}
+      title={d ? d.companyTitle : 'Bayi'}
+      meta={
+        d && (
+          <span className="adm-hero">
+            <DealerStatusBadge status={d.status} />
+            {d.approvalOverdue && <Badge tone="danger">Gecikmiş</Badge>}
+          </span>
+        )
+      }
       actions={
-        <Link
-          to="/yonetim/bayiler"
-          className="ui-button ui-button--secondary"
-          style={{ textDecoration: 'none' }}
-        >
-          Bayi listesine dön
-        </Link>
+        d && (
+          <>
+            {d.status === 'pending_approval' && (
+              <Button disabled={busy} onClick={() => setDialog('approve')}>
+                Onayla
+              </Button>
+            )}
+            {(d.status === 'pending_approval' || d.status === 'pending_email') && (
+              <Button variant="danger" disabled={busy} onClick={() => setDialog('reject')}>
+                Reddet
+              </Button>
+            )}
+            {d.status === 'passive' && (
+              <Button
+                disabled={busy}
+                onClick={() => run(() => activateDealer(d.id), 'Bayi yeniden aktif edildi.')}
+              >
+                Aktif et
+              </Button>
+            )}
+            {canResend && (
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={() => run(() => resendInvitation(d.id), 'Davet e-postası yeniden gönderiliyor.')}
+              >
+                Daveti yeniden gönder
+              </Button>
+            )}
+            <Button variant="secondary" icon="edit" disabled={busy} onClick={() => setDialog('edit')}>
+              Düzenle
+            </Button>
+            {d.status === 'active' && (
+              <Button variant="secondary" disabled={busy} onClick={() => setDialog('deactivate')}>
+                Pasife al
+              </Button>
+            )}
+            <a className="ui-button ui-button--secondary" href={`tel:${d.phone.replace(/[^\d+]/g, '')}`}>
+              <Icon name="phone" />
+              Ara
+            </a>
+            {wa && (
+              <a
+                className="ui-button ui-button--secondary"
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Icon name="whatsapp" />
+                WhatsApp<span className="visually-hidden"> (yeni sekmede açılır)</span>
+              </a>
+            )}
+          </>
+        )
       }
     >
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
-      {state.status === 'loading' && (
-        <div
-          className="ui-card ui-card__body"
-          aria-busy="true"
-          style={{ display: 'grid', gap: 'var(--space-3)' }}
-        >
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="ui-skeleton" style={{ height: '2.5rem' }} />
-          ))}
-          <span className="visually-hidden" role="status">
-            Yükleniyor…
-          </span>
-        </div>
-      )}
+      {state.status === 'loading' && <SkeletonRows rows={5} />}
       {state.status === 'error' && (
         <Alert tone="danger">
           {state.notFound ? 'Bayi bulunamadı.' : 'Bayi bilgileri alınamadı.'}{' '}
@@ -270,12 +326,10 @@ export function DealerDetailPage({ id }: { id: string }) {
           )}
         </Alert>
       )}
-      {state.status === 'ready' && (
-        <Detail dealer={state.data} busy={busy} run={run} openDialog={setDialog} />
-      )}
-      {dialog === 'edit' && state.status === 'ready' && (
+      {d && <Detail dealer={d} busy={busy} run={run} />}
+      {dialog === 'edit' && d && (
         <DealerEditDialog
-          dealer={state.data}
+          dealer={d}
           onClose={() => setDialog(null)}
           onSaved={() => {
             setDialog(null)
@@ -325,218 +379,265 @@ function Detail({
   dealer: d,
   busy,
   run,
-  openDialog,
 }: {
   dealer: DealerDetail
   busy: boolean
   run: (fn: () => Promise<void>, success: string) => Promise<boolean>
-  openDialog: (d: 'approve' | 'reject' | 'deactivate' | 'edit') => void
 }) {
-  const canResend = d.status === 'active' && !d.hasPassword
+  const { query } = useRoute()
+  const raw = query.get('sekme')
+  const tab: TabId = TAB_IDS.includes(raw as TabId) ? (raw as TabId) : 'genel'
+  const setTab = (t: TabId) =>
+    replace(`/yonetim/bayiler/${encodeURIComponent(d.id)}${t === 'genel' ? '' : `?sekme=${t}`}`)
+  const terms = d.status === 'pending_approval' || d.status === 'active' || d.status === 'passive'
+
+  // Mini göstergeler: toplam sipariş ve son sipariş sipariş listesinden, bu yıl net rapordan (hesap sunucuda).
+  const orders = useLoad<Paged<AdminOrderListItem>>(
+    (s) => fetchAdminOrders({ dealerId: d.id, page: 1, pageSize: 10 }, s),
+    `orders-${d.id}`,
+  )
+  const year = todayIstanbul().slice(0, 4)
+  const yearNet = useLoad<ReportDealerRow | null>(async (s) => {
+    const rows = await fetchReportList<ReportDealerRow>(
+      'dealers',
+      { from: `${year}-01-01`, to: todayIstanbul() },
+      s,
+    )
+    return rows.find((r) => r.dealerId === d.id) ?? null
+  }, `year-${d.id}`)
+
+  const total = orders.state.status === 'ready' ? orders.state.data.total : null
+  const last = orders.state.status === 'ready' ? orders.state.data.items[0]?.submittedAt : undefined
+
   return (
     <>
-      <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-info">
-        <div className="ui-badges">
-          <DealerStatusBadge status={d.status} />
-          {d.approvalOverdue && <Badge tone="danger">Gecikmiş</Badge>}
+      <dl className="adm-mini">
+        <div>
+          <dt>Toplam sipariş</dt>
+          <dd>{total === null ? '—' : formatInt(total)}</dd>
         </div>
-        <div className="ui-pagehead">
-          <h2 id="sec-info">Bilgiler</h2>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon="edit"
-            disabled={busy}
-            onClick={() => openDialog('edit')}
-          >
-            Bilgileri düzenle
-          </Button>
+        <div>
+          <dt>Bu yıl net (KDV hariç)</dt>
+          <dd>
+            {yearNet.state.status !== 'ready'
+              ? '—'
+              : yearNet.state.data
+                ? formatTRY(yearNet.state.data.netTotal.current)
+                : formatTRY('0')}
+          </dd>
         </div>
-        <Dl
-          items={[
-            ['Yetkili', d.contactName],
-            ['E-posta', d.email],
-            ['Telefon', d.phone],
-            ['İl / ilçe', `${d.city} / ${d.district}`],
-            ['Adres', d.address],
-            ['Vergi dairesi', d.taxOffice || '—'],
-            ['Vergi no / TC kimlik no', d.taxNumber || '—'],
-            ['Kaynak', d.source === 'application' ? 'Başvuru' : 'Davet'],
-            ['Şifre', d.hasPassword ? 'Belirlendi' : 'Henüz belirlenmedi'],
-            ['Kayıt tarihi', formatDateTime(d.createdAt)],
-            ['E-posta doğrulama', d.emailVerifiedAt ? formatDateTime(d.emailVerifiedAt) : 'Doğrulanmadı'],
-            ['Son inceleme', d.reviewedAt ? formatDateTime(d.reviewedAt) : '—'],
-            ['Son giriş', d.lastLoginAt ? formatDateTime(d.lastLoginAt) : '—'],
-            [
-              'Genel iskonto',
-              d.generalDiscountPercent
-                ? formatPercent(d.generalDiscountPercent)
-                : 'Yok (standart liste fiyatı)',
-            ],
-          ]}
-        />
-        {d.rejectionReason && (
-          <Alert tone="warning">
-            <strong>Ret gerekçesi:</strong> {d.rejectionReason}
-          </Alert>
-        )}
-      </section>
+        <div>
+          <dt>Son sipariş</dt>
+          <dd>{total === null ? '—' : last ? formatDateTime(last) : 'Henüz yok'}</dd>
+        </div>
+        <div>
+          <dt>Genel iskonto</dt>
+          <dd>{d.generalDiscountPercent ? formatPercent(d.generalDiscountPercent) : 'Yok'}</dd>
+        </div>
+      </dl>
 
-      {(d.status === 'pending_approval' ||
-        d.status === 'pending_email' ||
-        d.status === 'active' ||
-        d.status === 'passive') && (
-        <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-actions">
-          <h2 id="sec-actions">İşlemler</h2>
-          <div className="ui-actions">
-            {d.status === 'pending_approval' && (
-              <Button disabled={busy} onClick={() => openDialog('approve')}>
-                Onayla
-              </Button>
-            )}
-            {(d.status === 'pending_approval' || d.status === 'pending_email') && (
-              <Button variant="danger" disabled={busy} onClick={() => openDialog('reject')}>
-                Reddet
-              </Button>
-            )}
-            {d.status === 'active' && (
-              <Button variant="secondary" disabled={busy} onClick={() => openDialog('deactivate')}>
-                Pasife al
-              </Button>
-            )}
-            {d.status === 'passive' && (
-              <Button
-                disabled={busy}
-                onClick={() => run(() => activateDealer(d.id), 'Bayi yeniden aktif edildi.')}
-              >
-                Aktif et
-              </Button>
-            )}
-            {canResend && (
-              <Button
-                variant="secondary"
-                disabled={busy}
-                onClick={() => run(() => resendInvitation(d.id), 'Davet e-postası yeniden gönderiliyor.')}
-              >
-                Daveti yeniden gönder
-              </Button>
-            )}
-          </div>
-        </section>
+      <Tabs
+        idBase="dealer"
+        label="Bayi bölümleri"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: 'genel', label: 'Genel bilgiler' },
+          { value: 'siparisler', label: 'Siparişler', count: total ?? undefined },
+          { value: 'iskonto', label: 'İskontolar' },
+          { value: 'notlar', label: 'İç notlar' },
+          { value: 'gecmis', label: 'Onaylar ve geçmiş' },
+        ]}
+      />
+
+      {tab === 'genel' && (
+        <TabPanel idBase="dealer" value="genel">
+          {d.rejectionReason && (
+            <Alert tone="warning">
+              <strong>Ret gerekçesi:</strong> {d.rejectionReason}
+            </Alert>
+          )}
+          <Panel title="Bilgiler">
+            <Dl
+              items={[
+                ['Yetkili', d.contactName],
+                ['E-posta', d.email],
+                ['Telefon', d.phone],
+                ['İl / ilçe', `${d.city} / ${d.district}`],
+                ['Adres', d.address],
+                ['Vergi dairesi', d.taxOffice || '—'],
+                ['Vergi no / TC kimlik no', d.taxNumber || '—'],
+                ['Kaynak', d.source === 'application' ? 'Başvuru' : 'Davet'],
+                ['Şifre', d.hasPassword ? 'Belirlendi' : 'Henüz belirlenmedi'],
+                ['Kayıt tarihi', formatDateTime(d.createdAt)],
+                ['E-posta doğrulama', d.emailVerifiedAt ? formatDateTime(d.emailVerifiedAt) : 'Doğrulanmadı'],
+                ['Son inceleme', d.reviewedAt ? formatDateTime(d.reviewedAt) : '—'],
+                ['Son giriş', d.lastLoginAt ? formatDateTime(d.lastLoginAt) : '—'],
+              ]}
+            />
+          </Panel>
+        </TabPanel>
       )}
 
-      {(d.status === 'pending_approval' || d.status === 'active' || d.status === 'passive') && (
-        <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-terms">
-          <h2 id="sec-terms">İskonto</h2>
-          {/* Kayıttan sonra veri yenilenir; anahtar formu yeni değerle sıfırlar. */}
-          <DiscountForm
-            key={d.generalDiscountPercent ?? 'none'}
-            dealer={d}
-            onSaved={async (v) => {
-              await run(
-                () => updateDealerTerms(d.id, v),
-                v ? 'İskonto oranı kaydedildi.' : 'İskonto kaldırıldı.',
-              )
-            }}
-          />
-        </section>
+      {tab === 'siparisler' && (
+        <TabPanel idBase="dealer" value="siparisler">
+          <DealerOrders dealerId={d.id} orders={orders} />
+        </TabPanel>
       )}
 
-      {(d.status === 'pending_approval' || d.status === 'active' || d.status === 'passive') && (
-        <GroupDiscounts dealerId={d.id} />
+      {tab === 'iskonto' && (
+        <TabPanel idBase="dealer" value="iskonto">
+          {terms ? (
+            <>
+              <Panel title="Genel iskonto">
+                {/* Kayıttan sonra veri yenilenir; anahtar formu yeni değerle sıfırlar. */}
+                <DiscountForm
+                  key={d.generalDiscountPercent ?? 'none'}
+                  dealer={d}
+                  onSaved={async (v) => {
+                    await run(
+                      () => updateDealerTerms(d.id, v),
+                      v ? 'İskonto oranı kaydedildi.' : 'İskonto kaldırıldı.',
+                    )
+                  }}
+                />
+              </Panel>
+              <GroupDiscounts dealerId={d.id} />
+            </>
+          ) : (
+            <p className="adm-empty adm-card">Bu durumdaki bayiye iskonto tanımlanamaz.</p>
+          )}
+        </TabPanel>
       )}
 
-      <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-consents">
-        <h2 id="sec-consents">Onaylar</h2>
-        {d.consents.length === 0 ? (
-          <p className="muted">Kayıtlı onay yok (davetle açılan bayi).</p>
-        ) : (
-          <ul className="ui-timeline">
-            {d.consents.map((c, i) => (
-              <li key={`${c.type}-${i}`}>
-                <span>
-                  <strong>{CONSENT_LABELS[c.type] ?? c.type}</strong> —{' '}
-                  {c.granted ? 'Onaylandı' : 'Onaylanmadı'}
-                </span>
-                <span className="muted">
-                  Metin sürümü {c.documentVersion} · {formatDateTime(c.createdAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {tab === 'notlar' && (
+        <TabPanel idBase="dealer" value="notlar">
+          <DealerNotes dealerId={d.id} />
+        </TabPanel>
+      )}
 
-      <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-history">
-        <h2 id="sec-history">Geçmiş</h2>
-        {d.history.length === 0 ? (
-          <p className="muted">Kayıt yok.</p>
-        ) : (
-          <ol className="ui-timeline">
-            {d.history.map((h, i) => (
-              <li key={`${h.createdAt}-${i}`}>
-                <span>
-                  <strong>{historyLabel(h.action)}</strong>
-                  {h.actor ? ` · ${h.actor}` : ''}
-                </span>
-                {h.reason && <span>Gerekçe: {h.reason}</span>}
-                <span className="muted">{formatDateTime(h.createdAt)}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <DealerNotes dealerId={d.id} />
-
-      <DealerOrders dealerId={d.id} />
+      {tab === 'gecmis' && (
+        <TabPanel idBase="dealer" value="gecmis">
+          <Panel title="Onaylar">
+            {d.consents.length === 0 ? (
+              <p className="muted">Kayıtlı onay yok (davetle açılan bayi).</p>
+            ) : (
+              <ul className="ui-timeline">
+                {d.consents.map((c, i) => (
+                  <li key={`${c.type}-${i}`}>
+                    <span>
+                      <strong>{CONSENT_LABELS[c.type] ?? c.type}</strong> —{' '}
+                      {c.granted ? 'Onaylandı' : 'Onaylanmadı'}
+                    </span>
+                    <span className="muted">
+                      Metin sürümü {c.documentVersion} · {formatDateTime(c.createdAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+          <Panel title="Geçmiş">
+            {d.history.length === 0 ? (
+              <p className="muted">Kayıt yok.</p>
+            ) : (
+              <ol className="ui-timeline">
+                {d.history.map((h, i) => (
+                  <li key={`${h.createdAt}-${i}`}>
+                    <span>
+                      <strong>{historyLabel(h.action)}</strong>
+                      {h.actor ? ` · ${h.actor}` : ''}
+                    </span>
+                    {h.reason && <span>Gerekçe: {h.reason}</span>}
+                    <span className="muted">{formatDateTime(h.createdAt)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Panel>
+        </TabPanel>
+      )}
+      {busy && (
+        <span className="visually-hidden" role="status">
+          İşlem sürüyor…
+        </span>
+      )}
     </>
   )
 }
 
 /** Bayinin son 10 siparişi; tümü sipariş listesinde bayi süzgeciyle açılır. */
-function DealerOrders({ dealerId }: { dealerId: string }) {
-  const { state, reload } = useLoad<Paged<AdminOrderListItem>>(
-    (s) => fetchAdminOrders({ dealerId, page: 1, pageSize: 10 }, s),
-    `orders-${dealerId}`,
-  )
+function DealerOrders({
+  dealerId,
+  orders,
+}: {
+  dealerId: string
+  orders: ReturnType<typeof useLoad<Paged<AdminOrderListItem>>>
+}) {
+  const { state, reload } = orders
   return (
-    <section className="ui-card ui-card__body ui-section" aria-labelledby="sec-orders">
-      <h2 id="sec-orders">Siparişleri</h2>
-      {state.status === 'loading' && <div className="ui-skeleton" style={{ height: '2.5rem' }} />}
+    <Panel
+      title="Son siparişler"
+      flush
+      action={
+        <Link to={`/yonetim/siparisler?bayi=${encodeURIComponent(dealerId)}`}>
+          Tüm siparişleri gör{state.status === 'ready' ? ` (${formatInt(state.data.total)})` : ''}
+        </Link>
+      }
+    >
+      {state.status === 'loading' && (
+        <div className="adm-skel" aria-busy="true">
+          <div className="ui-skeleton" style={{ height: '1.5rem' }} />
+        </div>
+      )}
       {state.status === 'error' && (
-        <Alert tone="danger">
+        <p className="adm-empty">
           Siparişler alınamadı.{' '}
-          <button type="button" className="ui-linklike ui-linklike--touch" onClick={reload}>
+          <button type="button" className="ui-linklike" onClick={reload}>
             Tekrar dene
           </button>
-        </Alert>
+        </p>
       )}
       {state.status === 'ready' && state.data.items.length === 0 && (
-        <p className="muted">Henüz sipariş yok.</p>
+        <p className="adm-empty">Henüz sipariş yok.</p>
       )}
       {state.status === 'ready' && state.data.items.length > 0 && (
-        <>
-          <ul className="ui-minilist">
-            {state.data.items.map((o) => (
-              <li key={o.id}>
-                <Link to={`/yonetim/siparisler/${encodeURIComponent(o.id)}`} className="ui-linkbtn">
-                  #{o.orderNo}
-                </Link>
-                <span className="muted">{formatDateTime(o.submittedAt)}</span>
-                <OrderStatusBadge status={o.status} />
-                <span className="num">{formatTRY(o.grandTotal)}</span>
-              </li>
-            ))}
-          </ul>
-          <Link
-            to={`/yonetim/siparisler?bayi=${encodeURIComponent(dealerId)}`}
-            className="ui-button ui-button--secondary"
-          >
-            Tüm siparişleri gör ({state.data.total})
-          </Link>
-        </>
+        <div className="ui-table-wrap ui-table-wrap--scroll" style={{ border: 0, borderRadius: 0 }}>
+          <table className="ui-table">
+            <caption className="visually-hidden">Bayinin son siparişleri</caption>
+            <thead>
+              <tr>
+                <th scope="col">Sipariş</th>
+                <th scope="col">Tarih</th>
+                <th scope="col">Durum</th>
+                <th scope="col" className="num">
+                  Net (KDV hariç)
+                </th>
+                <th scope="col" className="num">
+                  Toplam
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.data.items.map((o) => (
+                <tr key={o.id}>
+                  <td>
+                    <Link className="ui-rowlink num" to={`/yonetim/siparisler/${encodeURIComponent(o.id)}`}>
+                      #{o.orderNo}
+                    </Link>
+                  </td>
+                  <td className="num muted">{formatDateTime(o.submittedAt)}</td>
+                  <td>
+                    <OrderStatusBadge status={o.status} />
+                  </td>
+                  <td className="num">{formatTRY(o.netTotal)}</td>
+                  <td className="num">{formatTRY(o.grandTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </section>
+    </Panel>
   )
 }
