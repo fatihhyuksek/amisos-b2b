@@ -23,6 +23,7 @@ import { createValidationPipe } from '../common/validation.js';
 import { CartService } from './cart.service.js';
 import type { Response } from 'express';
 import { AdminOrdersService } from './admin-orders.service.js';
+import { createNoteSchema, type CreateNoteInput } from '../dealers/dealers.schemas.js';
 import { OrdersService } from './orders.service.js';
 import {
   adminOrderListSchema,
@@ -153,6 +154,31 @@ export class AdminOrdersController {
   @Get(':id/export.xlsx')
   async exportOne(@Param('id', new ParseUUIDPipe()) id: string, @Res() res: Response) {
     send(res, await this.orders.exportOrder(id));
+  }
+
+  // K-78: iç notlar (yalnızca Admin; bayi uçlarında hiçbir yerde dönmez).
+  @Get(':id/notes')
+  notes(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.orders.listNotes(id);
+  }
+
+  @Post(':id/notes')
+  addNote(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: createNoteSchema }) body: CreateNoteInput,
+    @CurrentUser() admin: AuthIdentity,
+  ) {
+    return this.orders.addNote(id, body.body, admin.id);
+  }
+
+  @Delete(':id/notes/:noteId')
+  @HttpCode(204)
+  async deleteNote(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('noteId', new ParseUUIDPipe()) noteId: string,
+    @CurrentUser() admin: AuthIdentity,
+  ): Promise<void> {
+    await this.orders.deleteNote(id, noteId, admin.id);
   }
 
   @Post(':id/status')

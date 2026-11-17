@@ -75,6 +75,13 @@ export const createProductSchema = z.object({
 });
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 
+/** K-78: kopyada barkod zorunlu (boş olamaz ve tekil), kod isteğe bağlı. */
+export const duplicateProductSchema = z.object({
+  barcode: trimmed(64),
+  code: optionalText(64).optional(),
+});
+export type DuplicateProductInput = z.infer<typeof duplicateProductSchema>;
+
 export const updateProductSchema = z.object({
   groupId: z.uuid().optional(),
   barcode: trimmed(64).optional(),

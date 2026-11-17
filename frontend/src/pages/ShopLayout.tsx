@@ -7,7 +7,7 @@ import { Link } from '../Link'
 import { navigate, replace, useRoute } from '../router'
 import { BrandLogo } from '../shop/brand'
 import { catalogHref } from '../shop/catalogHref'
-import { phoneHref, whatsappLink } from '../shop/contact'
+import { phoneHref, socialLinks, whatsappLink } from '../shop/contact'
 import { useCartCount } from '../shop/cartCount'
 import { CartToast } from '../shop/CartToast'
 import { useShopMode, type ShopMode } from '../shop/mode'
@@ -34,6 +34,7 @@ function TopStrip({ mode }: { mode: ShopMode }) {
   const site = useSite()
   const c = site.contact
   const wa = whatsappLink(c)
+  const social = socialLinks(site.social)
   const messages = [site.announcement, 'Fiyatlar KDV hariçtir', `Sipariş ve destek: ${c.phone}`].filter(
     (m): m is string => Boolean(m),
   )
@@ -77,6 +78,19 @@ function TopStrip({ mode }: { mode: ShopMode }) {
               <Icon name="mail" />
             </a>
           </li>
+          {social.map((x) => (
+            <li key={x.key}>
+              <a
+                href={x.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${x.label} (yeni sekmede açılır)`}
+                title={x.label}
+              >
+                <Icon name={x.icon} />
+              </a>
+            </li>
+          ))}
         </ul>
         <div
           className="ui-strip__rotator"
@@ -645,6 +659,7 @@ function Footer({ mode }: { mode: ShopMode }) {
   const groups = useCatalogGroups()
   const c = site.contact
   const wa = whatsappLink(c)
+  const social = socialLinks(site.social)
   const popular =
     groups.state.status === 'ready'
       ? [...groups.state.data].sort((x, y) => y.productCount - x.productCount).slice(0, 6)
@@ -758,6 +773,24 @@ function Footer({ mode }: { mode: ShopMode }) {
               </li>
             )}
           </ul>
+          {social.length > 0 && (
+            <ul className="ui-footer__social" aria-label="Sosyal medya">
+              {social.map((x) => (
+                <li key={x.key}>
+                  <a
+                    href={x.href}
+                    className="ui-footer__socialLink"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${x.label} (yeni sekmede açılır)`}
+                    title={x.label}
+                  >
+                    <Icon name={x.icon} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         {c.workingHours && (
           <p className="ui-footer__hours">

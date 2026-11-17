@@ -2,15 +2,15 @@
 import { useEffect, useState } from 'react'
 import { fetchAudit, type AuditEntry, type Paged } from '../api'
 import { replace, useRoute } from '../router'
-import { Badge, Button, EmptyState, Pagination } from '../ui/components'
-import { ErrorAlert, LoadingCard } from '../ui/catalog'
-import { formatDateTime, formatInt } from '../ui/format'
+import { Badge, Button, EmptyState } from '../ui/components'
+import { ErrorAlert } from '../ui/catalog'
+import { formatDateTime } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { useDebounced } from '../ui/useDebounced'
 import { AdminLayout } from './AdminLayout'
+import { ListFooter, SkeletonRows } from './kit'
+import { parsePageSize } from './kitUtils'
 import { useLoad } from './useLoad'
-
-const PAGE_SIZE = 25
 
 interface Filters {
   q: string
@@ -20,9 +20,10 @@ interface Filters {
   to: string
 }
 
-function listPath(f: Filters, page: number): string {
+function listPath(f: Filters, page: number, size = 20): string {
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(f)) if (v) qs.set(k, v)
+  if (size !== 20) qs.set('adet', String(size))
   if (page > 1) qs.set('sayfa', String(page))
   const s = qs.toString()
   return `/yonetim/islem-gecmisi${s ? `?${s}` : ''}`
@@ -114,10 +115,11 @@ export function AuditPage() {
     to: query.get('to') ?? '',
   }
   const page = Math.max(1, Number(query.get('sayfa')) || 1)
+  const size = parsePageSize(query.get('adet'))
   const [search, setSearch] = useState(f.q)
   const debounced = useDebounced(search.trim())
   useEffect(() => {
-    if (debounced !== f.q) replace(listPath({ ...f, q: debounced }, 1))
+    if (debounced !== f.q) replace(listPath({ ...f, q: debounced }, 1, size))
     // yalnızca arama metni değişince adrese yazılır
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced])
@@ -127,7 +129,7 @@ export function AuditPage() {
       fetchAudit(
         {
           page,
-          pageSize: PAGE_SIZE,
+          pageSize: size,
           q: f.q,
           actorType: f.tur,
           entityType: f.kayit,
@@ -136,9 +138,9 @@ export function AuditPage() {
         },
         signal,
       ),
-    `${f.q}|${f.tur}|${f.kayit}|${f.from}|${f.to}|${page}`,
+    `${f.q}|${f.tur}|${f.kayit}|${f.from}|${f.to}|${page}|${size}`,
   )
-  const go = (patch: Partial<Filters>) => replace(listPath({ ...f, ...patch }, 1))
+  const go = (patch: Partial<Filters>) => replace(listPath({ ...f, ...patch }, 1, size))
   const hasFilter = Object.values(f).some(Boolean)
 
   return (
@@ -146,8 +148,8 @@ export function AuditPage() {
       <p className="muted">
         Admin, bayi ve sistem tarafından yapılan değişikliklerin kaydı. Kayıtlar silinmez ve değiştirilemez.
       </p>
-      <div className="ui-toolbar__row">
-        <div className="ui-search">
+      <div className="adm-filters">
+        <div className="ui-search adm-filters__search">
           <Icon name="search" />
           <input
             className="ui-input"
@@ -182,45 +184,42 @@ export function AuditPage() {
             </option>
           ))}
         </select>
-        <label className="ui-field ui-datefield">
-          <span className="ui-help">Başlangıç</span>
+        <div className="adm-filters__dates">
           <input
             className="ui-input"
             type="date"
+            aria-label="Başlangıç tarihi"
             value={f.from}
             max={f.to || undefined}
             onChange={(e) => go({ from: e.target.value })}
           />
-        </label>
-        <label className="ui-field ui-datefield">
-          <span className="ui-help">Bitiş</span>
+          <span aria-hidden="true">–</span>
           <input
             className="ui-input"
             type="date"
+            aria-label="Bitiş tarihi"
             value={f.to}
             min={f.from || undefined}
             onChange={(e) => go({ to: e.target.value })}
           />
-        </label>
-      </div>
-      {hasFilter && (
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearch('')
-              replace('/yonetim/islem-gecmisi')
-            }}
-          >
-            Filtreleri temizle
-          </Button>
+          {hasFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch('')
+                replace('/yonetim/islem-gecmisi')
+              }}
+            >
+              Temizle
+            </Button>
+          )}
         </div>
-      )}
-      {state.status === 'loading' && <LoadingCard rows={6} />}
+      </div>
+      {state.status === 'loading' && <SkeletonRows rows={8} />}
       {state.status === 'error' && <ErrorAlert onRetry={reload}>İşlem geçmişi alınamadı.</ErrorAlert>}
       {state.status === 'ready' && state.data.items.length === 0 && (
-        <div className="ui-card">
+        <div className="adm-card">
           <EmptyState title="Kayıt bulunamadı">
             {hasFilter ? 'Bu filtreyle eşleşen işlem yok.' : 'Henüz kayıtlı işlem yok.'}
           </EmptyState>
@@ -228,19 +227,18 @@ export function AuditPage() {
       )}
       {state.status === 'ready' && state.data.items.length > 0 && (
         <>
-          <p className="muted" aria-live="polite">
-            {formatInt(state.data.total)} kayıt
-          </p>
           <ul className="ui-audit">
             {state.data.items.map((e) => (
               <Entry key={e.id} e={e} />
             ))}
           </ul>
-          <Pagination
+          <ListFooter
+            total={state.data.total}
+            unit="kayıt"
             page={state.data.page}
             pageSize={state.data.pageSize}
-            total={state.data.total}
-            onChange={(p) => replace(listPath(f, p))}
+            onPage={(p) => replace(listPath(f, p, size))}
+            onPageSize={(n) => replace(listPath(f, 1, n))}
           />
         </>
       )}

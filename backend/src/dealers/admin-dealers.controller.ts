@@ -12,9 +12,11 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AdminGuard, CurrentUser } from '../auth/auth.guards.js';
 import { JsonOnlyGuard } from '../auth/json-only.guard.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
@@ -22,7 +24,11 @@ import {
   groupDiscountsSchema,
   type GroupDiscountsInput,
 } from '../catalog/catalog.schemas.js';
+import { CLOCK, type Clock } from '../common/clock.js';
+import { sendXlsx } from '../common/xlsx-response.js';
 import { createValidationPipe } from '../common/validation.js';
+import { istanbulToday } from '../reports/periods.js';
+import { buildTable } from '../reports/reports.excel.js';
 import {
   createDealerSchema,
   createNoteSchema,
@@ -38,6 +44,14 @@ import {
 } from './dealers.schemas.js';
 import { DealersService } from './dealers.service.js';
 
+const DEALER_STATUS_LABELS = {
+  pending_email: 'E-posta bekleniyor',
+  pending_approval: 'Onay bekliyor',
+  active: 'Aktif',
+  rejected: 'Reddedildi',
+  passive: 'Pasif',
+} as const;
+
 // Yetki sunucuda: tüm uçlar AdminGuard arkasında (GR-YON-001).
 @Controller('admin/dealers')
 @UseGuards(JsonOnlyGuard, AdminGuard)
@@ -45,6 +59,7 @@ import { DealersService } from './dealers.service.js';
 export class AdminDealersController {
   constructor(
     @Inject(DealersService) private readonly dealers: DealersService,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   @Get()
@@ -56,6 +71,35 @@ export class AdminDealersController {
   @Get('summary')
   summary() {
     return this.dealers.summary();
+  }
+
+  /** K-78: bayi listesi Excel'i (aynı filtreler). `:id` rotasından önce tanımlı olmalı. */
+  @Get('export.xlsx')
+  async exportXlsx(@Query({ schema: listQuerySchema }) query: ListQuery, @Res() res: Response) {
+    const rows = await this.dealers.rowsForExport(query);
+    const file = await buildTable(
+      'Bayiler',
+      `bayiler-${istanbulToday(this.clock.now())}.xlsx`,
+      [
+        { header: 'Unvan', width: 36, value: (r) => r.dealer.companyTitle },
+        { header: 'Yetkili', width: 24, value: (r) => r.dealer.contactName },
+        { header: 'E-posta', width: 30, value: (r) => r.dealer.email },
+        { header: 'Telefon', width: 16, value: (r) => r.dealer.phone },
+        { header: 'İl', value: (r) => r.dealer.city },
+        { header: 'İlçe', value: (r) => r.dealer.district },
+        { header: 'Adres', width: 44, value: (r) => r.dealer.address },
+        { header: 'Vergi dairesi', width: 18, value: (r) => r.dealer.taxOffice },
+        { header: 'Vergi no', width: 14, value: (r) => r.dealer.taxNumber },
+        { header: 'Durum', width: 18, value: (r) => DEALER_STATUS_LABELS[r.dealer.status] },
+        { header: 'Genel iskonto', kind: 'percent', value: (r) => r.dealer.generalDiscountPercent },
+        { header: 'Kayıt tarihi', kind: 'date', width: 18, value: (r) => r.dealer.createdAt },
+        { header: 'Son giriş', kind: 'date', width: 18, value: (r) => r.dealer.lastLoginAt },
+        { header: 'Sipariş sayısı', kind: 'count', value: (r) => r.orderCount },
+        { header: 'Son sipariş', kind: 'date', width: 18, value: (r) => r.lastOrderAt },
+      ],
+      rows,
+    );
+    sendXlsx(res, file);
   }
 
   @Get(':id')

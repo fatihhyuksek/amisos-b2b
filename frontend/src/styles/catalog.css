@@ -288,12 +288,6 @@
   max-width: 100%;
 }
 
-@media (max-width: 47.99rem) {
-  .ui-admin__nav {
-    flex-wrap: wrap;
-  }
-}
-
 a.ui-button {
   text-decoration: none;
 }

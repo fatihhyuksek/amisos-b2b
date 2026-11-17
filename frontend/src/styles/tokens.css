@@ -113,6 +113,28 @@
   --content-max: 76rem; /* Admin */
   --shop-max: 86rem; /* Mağaza */
 
+  /* --- Yönetim paneli (K-78): sıcak nötr zemin, koyu kenar menü, ince kenarlar --- */
+  --adm-bg: #f6f5f3;
+  --adm-surface: #ffffff;
+  --adm-surface-2: #faf9f7; /* tablo başlığı, iç bölme */
+  --adm-border: #e7e4de;
+  --adm-border-strong: #948d80; /* form alanı kenarı */
+  --adm-hover: #f3f1ed; /* satır ve menü üstü */
+  --adm-muted: #6a645a; /* ikincil metin (zemin üstünde 5,2:1) */
+  --adm-nav-bg: #151311;
+  --adm-nav-border: #2a2622;
+  --adm-nav-text: #c9c2b5;
+  --adm-nav-strong: #f7f3eb;
+  --adm-nav-muted: #8d8678;
+  --adm-nav-hover: rgb(247 243 235 / 6%);
+  --adm-nav-active: rgb(247 243 235 / 10%);
+  --adm-nav-accent: #f2c78a; /* etkin öğenin sol çizgisi */
+  --adm-chart-line: #8a5a1c;
+  --adm-chart-fill: rgb(138 90 28 / 13%);
+  --adm-chart-grid: #ece9e3;
+  --adm-overlay: rgb(21 19 17 / 42%);
+  --adm-pop-shadow: 0 8px 28px rgb(21 19 17 / 14%), 0 1px 3px rgb(21 19 17 / 8%);
+
   --transition-fast: 120ms ease;
   --transition-base: 180ms ease;
 
@@ -160,6 +182,27 @@
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
     --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
+
+    --adm-bg: #0f0e0c;
+    --adm-surface: #1a1815;
+    --adm-surface-2: #1f1c18;
+    --adm-border: #2f2b25;
+    --adm-border-strong: #70685c;
+    --adm-hover: #25221d;
+    --adm-muted: #aaa294;
+    --adm-nav-bg: #0a0908;
+    --adm-nav-border: #24201c;
+    --adm-nav-text: #c2bbae;
+    --adm-nav-strong: #f4efe6;
+    --adm-nav-muted: #857e71;
+    --adm-nav-hover: rgb(247 243 235 / 6%);
+    --adm-nav-active: rgb(247 243 235 / 10%);
+    --adm-nav-accent: #f2c78a;
+    --adm-chart-line: #e7bd82;
+    --adm-chart-fill: rgb(231 189 130 / 15%);
+    --adm-chart-grid: #2a2621;
+    --adm-overlay: rgb(0 0 0 / 60%);
+    --adm-pop-shadow: 0 10px 30px rgb(0 0 0 / 55%), 0 1px 3px rgb(0 0 0 / 40%);
     color-scheme: dark;
   }
 }
@@ -204,5 +247,26 @@
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
   --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
+
+  --adm-bg: #0f0e0c;
+  --adm-surface: #1a1815;
+  --adm-surface-2: #1f1c18;
+  --adm-border: #2f2b25;
+  --adm-border-strong: #70685c;
+  --adm-hover: #25221d;
+  --adm-muted: #aaa294;
+  --adm-nav-bg: #0a0908;
+  --adm-nav-border: #24201c;
+  --adm-nav-text: #c2bbae;
+  --adm-nav-strong: #f4efe6;
+  --adm-nav-muted: #857e71;
+  --adm-nav-hover: rgb(247 243 235 / 6%);
+  --adm-nav-active: rgb(247 243 235 / 10%);
+  --adm-nav-accent: #f2c78a;
+  --adm-chart-line: #e7bd82;
+  --adm-chart-fill: rgb(231 189 130 / 15%);
+  --adm-chart-grid: #2a2621;
+  --adm-overlay: rgb(0 0 0 / 60%);
+  --adm-pop-shadow: 0 10px 30px rgb(0 0 0 / 55%), 0 1px 3px rgb(0 0 0 / 40%);
   color-scheme: dark;
 }

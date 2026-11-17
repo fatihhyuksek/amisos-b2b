@@ -10,15 +10,15 @@ import {
   type Paged,
 } from '../api'
 import { replace, useRoute } from '../router'
-import { Alert, Badge, Button, EmptyState, Pagination } from '../ui/components'
+import { Alert, Badge, Button, EmptyState } from '../ui/components'
+import { ListFooter } from './kit'
+import { parsePageSize } from './kitUtils'
 import { ErrorAlert, LoadingCard } from '../ui/catalog'
-import { formatDateTime, formatInt } from '../ui/format'
+import { formatDateTime } from '../ui/format'
 import { networkMessage } from '../ui/networkMessage'
 import { AdminLayout } from './AdminLayout'
 import { notifyNotificationsChanged } from './useFailedNotifications'
 import { useLoad } from './useLoad'
-
-const PAGE_SIZE = 20
 
 const KIND: Record<NotificationKind, string> = {
   order_confirmation: 'Sipariş bildirimi',
@@ -53,16 +53,18 @@ export function NotificationsPage() {
   const rawStatus = query.get('durum')
   const status: NotificationStatus = rawStatus === 'pending' || rawStatus === 'sent' ? rawStatus : 'failed'
   const page = Math.max(1, Number(query.get('sayfa')) || 1)
+  const size = parsePageSize(query.get('adet'))
   const { state, reload } = useLoad<Paged<AdminNotification>>(
-    (s) => fetchNotifications({ status, page, pageSize: PAGE_SIZE }, s),
-    `${status}|${page}`,
+    (s) => fetchNotifications({ status, page, pageSize: size }, s),
+    `${status}|${page}|${size}`,
   )
   const [busyId, setBusyId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null)
 
-  const path = (s: NotificationStatus, p: number) => {
+  const path = (s: NotificationStatus, p: number, n = size) => {
     const qs = new URLSearchParams()
     if (s !== 'failed') qs.set('durum', s)
+    if (n !== 20) qs.set('adet', String(n))
     if (p > 1) qs.set('sayfa', String(p))
     const t = qs.toString()
     return t ? `/yonetim/bildirimler?${t}` : '/yonetim/bildirimler'
@@ -120,7 +122,7 @@ export function NotificationsPage() {
         Sistemin gönderdiği e-postalar. Başarısız olanlar otomatik yeniden denenir; buradan elle de
         deneyebilirsiniz.
       </p>
-      <div className="ui-chips ui-chips--wrap" role="group" aria-label="Durum">
+      <div className="ui-chips" role="group" aria-label="Durum">
         {STATUS_TABS.map((t) => (
           <button
             key={t.value}
@@ -144,16 +146,13 @@ export function NotificationsPage() {
       {state.status === 'error' && <ErrorAlert onRetry={reload}>Bildirimler alınamadı.</ErrorAlert>}
       {state.status === 'ready' && state.data.items.length === 0 && (
         <div className="ui-card">
-          <EmptyState title={status === 'failed' ? 'Başarısız e-posta yok' : 'Kayıt yok'}>
+          <EmptyState icon="inbox" title={status === 'failed' ? 'Başarısız e-posta yok' : 'Kayıt yok'}>
             {status === 'failed' ? 'Tüm e-postalar gönderilmiş görünüyor.' : 'Bu durumda bildirim yok.'}
           </EmptyState>
         </div>
       )}
       {state.status === 'ready' && state.data.items.length > 0 && (
         <>
-          <p className="muted" aria-live="polite">
-            {formatInt(state.data.total)} bildirim
-          </p>
           <div className="ui-table-wrap ui-table-wrap--cards">
             <table className="ui-table">
               <thead>
@@ -206,11 +205,13 @@ export function NotificationsPage() {
               </li>
             ))}
           </ul>
-          <Pagination
+          <ListFooter
+            total={state.data.total}
+            unit="bildirim"
             page={state.data.page}
             pageSize={state.data.pageSize}
-            total={state.data.total}
-            onChange={(p) => replace(path(status, p))}
+            onPage={(p) => replace(path(status, p))}
+            onPageSize={(n) => replace(path(status, 1, n))}
           />
         </>
       )}

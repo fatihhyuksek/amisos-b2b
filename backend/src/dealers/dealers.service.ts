@@ -81,6 +81,9 @@ export interface DealerSummary {
   approvalOverdue: boolean;
 }
 
+/** Excel dışa aktarma üst sınırı (bellek). */
+export const MAX_DEALER_EXPORT = 20_000;
+
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
 export { escapeLike };
@@ -358,7 +361,8 @@ export class DealersService {
 
   // --- Admin: listeleme -----------------------------------------------------
 
-  async list(query: ListQuery) {
+  /** Liste ve Excel dışa aktarma aynı filtreyi kullanır (K-78). */
+  private listFilter(query: ListQuery): SQL | undefined {
     const filters: SQL[] = [];
     if (query.status) filters.push(eq(dealers.status, query.status));
     if (query.q) {
@@ -370,7 +374,39 @@ export class DealersService {
       );
       if (search) filters.push(search);
     }
-    const where = filters.length ? and(...filters) : undefined;
+    return filters.length ? and(...filters) : undefined;
+  }
+
+  /** K-78: filtreye uyan tüm bayiler (sayfalamasız) + sipariş sayısı/son sipariş (iptal hariç). */
+  async rowsForExport(query: ListQuery) {
+    const where = this.listFilter(query);
+    const [{ total }] = await this.db.select({ total: sql<number>`count(*)::int` }).from(dealers).where(where);
+    if (total > MAX_DEALER_EXPORT) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'EXPORT_TOO_LARGE',
+        message: `En fazla ${MAX_DEALER_EXPORT} bayi dışa aktarılabilir; filtreleri daraltın.`,
+      });
+    }
+    return this.db
+      .select({
+        dealer: dealers,
+        orderCount: sql<number>`(select count(*)::int from orders where orders.dealer_id = "dealers"."id" and orders.status <> 'cancelled')`,
+        lastOrderAt: sql<Date | null>`(select max(orders.submitted_at) from orders where orders.dealer_id = "dealers"."id" and orders.status <> 'cancelled')`.mapWith(
+          (v: string | null) => (v ? new Date(v) : null),
+        ),
+      })
+      .from(dealers)
+      .where(where)
+      .orderBy(
+        sql`case when ${dealers.status} = 'pending_approval' then 0 else 1 end`,
+        desc(dealers.createdAt),
+        desc(dealers.id),
+      );
+  }
+
+  async list(query: ListQuery) {
+    const where = this.listFilter(query);
 
     const [{ total }] = await this.db
       .select({ total: sql<number>`count(*)::int` })

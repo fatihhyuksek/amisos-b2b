@@ -216,14 +216,16 @@ export function EmptyState({
   title,
   children,
   action,
+  icon = 'box',
 }: {
+  icon?: IconName
   title: string
   children?: ReactNode
   action?: ReactNode
 }) {
   return (
     <div className="ui-empty">
-      <Icon name="box" />
+      <Icon name={icon} />
       <h3>{title}</h3>
       {children && <p>{children}</p>}
       {action}

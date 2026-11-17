@@ -893,6 +893,8 @@ export interface AdminOrderDetail extends Omit<OrderDetail, 'history'> {
     address: string
   }
   allowedNextStatuses: OrderStatusValue[]
+  /** Yalnızca Admin iç notlarının sayısı (K-78). */
+  internalNoteCount?: number
   history: {
     fromStatus: OrderStatusValue | null
     toStatus: OrderStatusValue
@@ -1157,10 +1159,21 @@ export interface SiteContact {
   mapUrl: string | null
 }
 
+/** Sosyal medya bağlantıları (K-77): tam https adresi ya da null (gizli). */
+export interface SocialLinks {
+  instagram: string | null
+  facebook: string | null
+  youtube: string | null
+  tiktok: string | null
+  linkedin: string | null
+}
+
 export interface SiteInfo {
   announcement: string | null
   contact: SiteContact
   pages: { slug: string; title: string }[]
+  /** Eski sunucu yanıtında olmayabilir. */
+  social?: SocialLinks
 }
 
 export function fetchSite(signal?: AbortSignal): Promise<SiteInfo> {
@@ -1185,6 +1198,7 @@ export interface AdminSite {
   announcement: string | null
   contact: SiteContact
   pages: { slug: string; title: string; body: string; published: boolean; updatedAt?: string }[]
+  social?: SocialLinks
 }
 
 /** Kayıt gövdesi: E.164 alanları verilmezse sunucu telefondan türetir, null verilirse gizler. */
@@ -1195,6 +1209,7 @@ export interface AdminSiteInput {
     whatsappE164?: string | null
   }
   pages: { slug: string; title: string; body: string; published: boolean }[]
+  social?: Partial<SocialLinks>
 }
 
 export function fetchAdminSite(signal?: AbortSignal): Promise<AdminSite> {
@@ -1430,4 +1445,148 @@ export async function patchAdminAccount(fullName: string): Promise<AdminAccount>
 
 export async function changeAdminPassword(currentPassword: string, newPassword: string): Promise<void> {
   await post('/admin/account/password', { currentPassword, newPassword })
+}
+
+// ---------- Yönetim paneli yenilemesi (docs/api/admin-panel-api.md; K-77, K-78) ----------
+
+export interface SearchResults {
+  orders: {
+    id: string
+    orderNo: number
+    dealerName: string
+    status: OrderStatusValue
+    grandTotal: string
+    submittedAt: string
+  }[]
+  dealers: { id: string; companyTitle: string; contactName: string; city: string; status: DealerStatus }[]
+  products: {
+    id: string
+    name: string
+    barcode: string
+    code: string | null
+    thumbUrl: string | null
+    isActive: boolean
+  }[]
+}
+
+export function fetchAdminSearch(q: string, signal?: AbortSignal): Promise<SearchResults> {
+  return getJson(`/admin/search${qsOf({ q })}`, signal)
+}
+
+export interface DashboardChange {
+  current: string
+  previous: string
+  percent: number | null
+}
+
+export interface DashboardCountChange {
+  current: number
+  previous: number
+  percent: number | null
+}
+
+export interface Dashboard {
+  sales30d: { date: string; orderCount: number; netTotal: string }[]
+  kpis: {
+    monthNet: DashboardChange
+    monthOrders: DashboardCountChange
+    averageOrderNet: DashboardChange
+    activeDealers: { current: number; orderingThisMonth: number }
+  }
+  pipeline: { status: OrderStatusValue; count: number }[]
+  attention: {
+    newOrders: number
+    pendingApplications: number
+    overdueApplications: number
+    notTransferred: number
+    failedNotifications: number
+    featuredOutOfStock: number
+    inactiveDealers60d: number
+  }
+  recentOrders: {
+    id: string
+    orderNo: number
+    dealer: { id: string; companyTitle: string }
+    status: OrderStatusValue
+    grandTotal: string
+    submittedAt: string
+  }[]
+  topDealersMonth: { dealerId: string; companyTitle: string; orderCount: number; netTotal: string }[]
+  recentActivity: {
+    id: string
+    createdAt: string
+    actorName: string | null
+    actionLabel: string
+    entityLabel: string | null
+    entityType: string
+    entityId: string | null
+  }[]
+}
+
+export function fetchDashboard(signal?: AbortSignal): Promise<Dashboard> {
+  return getJson('/admin/dashboard', signal)
+}
+
+export interface FeedItem {
+  id: string
+  type: 'order_submitted' | 'application_verified' | 'notification_failed' | 'order_status_changed'
+  title: string
+  body: string
+  link: string
+  createdAt: string
+}
+
+export function fetchNotificationFeed(signal?: AbortSignal): Promise<{ items: FeedItem[]; unread: number }> {
+  return getJson('/admin/notifications/feed', signal)
+}
+
+export async function markFeedRead(until: string): Promise<void> {
+  await post('/admin/notifications/feed/read', { until })
+}
+
+export interface OrderNote {
+  id: string
+  body: string
+  createdAt: string
+  createdBy: { id: string; fullName: string }
+}
+
+export function fetchOrderNotes(orderId: string, signal?: AbortSignal): Promise<OrderNote[]> {
+  return getJson(`/admin/orders/${encodeURIComponent(orderId)}/notes`, signal)
+}
+
+export async function addOrderNote(orderId: string, body: string): Promise<void> {
+  await post(`/admin/orders/${encodeURIComponent(orderId)}/notes`, { body })
+}
+
+export async function deleteOrderNote(orderId: string, noteId: string): Promise<void> {
+  await del(`/admin/orders/${encodeURIComponent(orderId)}/notes/${encodeURIComponent(noteId)}`)
+}
+
+export async function duplicateProduct(
+  id: string,
+  input: { barcode: string; code?: string },
+): Promise<AdminProduct> {
+  return (await (
+    await post(`/admin/products/${encodeURIComponent(id)}/duplicate`, input)
+  ).json()) as AdminProduct
+}
+
+/** Ürün listesi Excel'i (aynı süzgeçler). */
+export function downloadProductsExcel(params: {
+  q?: string
+  groupId?: string
+  stock?: string
+  active?: string
+  featured?: string
+}): Promise<{ blob: Blob; filename: string | null }> {
+  return downloadFile(`/admin/products/export.xlsx${qsOf(params)}`)
+}
+
+/** Bayi listesi Excel'i (aynı süzgeçler). */
+export function downloadDealersExcel(params: {
+  status?: string
+  q?: string
+}): Promise<{ blob: Blob; filename: string | null }> {
+  return downloadFile(`/admin/dealers/export.xlsx${qsOf(params)}`)
 }

@@ -17,6 +17,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { MediaModule } from './media/media.module.js';
 import { DealersModule } from './dealers/dealers.module.js';
+import { AdminPanelModule } from './admin-panel/admin-panel.module.js';
 import { HealthController } from './health/health.controller.js';
 
 @Module({
@@ -37,6 +38,7 @@ import { HealthController } from './health/health.controller.js';
     AccountModule,
     SiteModule,
     AdminAuditModule,
+    AdminPanelModule,
     // K-04 hatırlatma zamanlayıcısı; test ortamında çalışmaz (mantık servis metoduyla test edilir).
     ...(process.env.NODE_ENV === 'test' ? [] : [ScheduleModule.forRoot()]),
   ],

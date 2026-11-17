@@ -13,24 +13,24 @@ import {
 import { Link } from '../Link'
 import { replace, useRoute } from '../router'
 import { DELIVERY_LABEL } from '../shop/delivery'
-import { Alert, Badge, Button, EmptyState, OrderStatusBadge, Pagination } from '../ui/components'
-import { ErrorAlert, LoadingCard } from '../ui/catalog'
-import { formatDateTime, formatInt, formatTRY } from '../ui/format'
+import { Alert, Badge, Button, EmptyState, OrderStatusBadge } from '../ui/components'
+import { ErrorAlert } from '../ui/catalog'
+import { formatDateTime, formatTRY } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { ORDER_STATUS } from '../ui/orderStatus'
 import { AdminLayout } from './AdminLayout'
 import { saveBlob } from './download'
+import { ListFooter, SkeletonRows } from './kit'
+import { parsePageSize } from './kitUtils'
 import { useLoad } from './useLoad'
-
-const PAGE_SIZE = 20
 
 const TABS: { value: OrderStatusValue | ''; label: string }[] = [
   { value: '', label: 'Tümü' },
   { value: 'submitted', label: 'Gönderildi' },
   { value: 'negotiating', label: 'Görüşülüyor' },
   { value: 'approved', label: 'Onaylandı' },
-  { value: 'shipped', label: 'Sevk edildi' },
-  { value: 'delivered', label: 'Teslim edildi' },
+  { value: 'shipped', label: 'Sevk' },
+  { value: 'delivered', label: 'Teslim' },
   { value: 'cancelled', label: 'İptal' },
 ]
 
@@ -42,6 +42,7 @@ interface Filters {
   to: string
   dealerId: string
   page: number
+  size: number
 }
 
 function pathFor(f: Filters): string {
@@ -52,6 +53,7 @@ function pathFor(f: Filters): string {
   if (f.from) qs.set('bas', f.from)
   if (f.to) qs.set('bit', f.to)
   if (f.dealerId) qs.set('bayi', f.dealerId)
+  if (f.size !== 20) qs.set('adet', String(f.size))
   if (f.page > 1) qs.set('sayfa', String(f.page))
   const s = qs.toString()
   return `/yonetim/siparisler${s ? `?${s}` : ''}`
@@ -85,6 +87,7 @@ export function OrderListPage() {
     to: query.get('bit') ?? '',
     dealerId: query.get('bayi') ?? '',
     page: Math.max(1, Number(query.get('sayfa')) || 1),
+    size: parsePageSize(query.get('adet')),
   }
   const [search, setSearch] = useState(f.q)
   // Adres dışarıdan değişince (menü bağlantısı, geri tuşu) arama kutusu da eşitlenir.
@@ -106,7 +109,7 @@ export function OrderListPage() {
 
   const key = pathFor(f)
   const { state, reload } = useLoad<Paged<AdminOrderListItem>>(
-    (s) => fetchAdminOrders({ ...apiFilters(f), page: f.page, pageSize: PAGE_SIZE }, s),
+    (s) => fetchAdminOrders({ ...apiFilters(f), page: f.page, pageSize: f.size }, s),
     key,
   )
   const hasFilter = !!(f.status || f.q || f.notTransferred || f.from || f.to || f.dealerId)
@@ -130,7 +133,9 @@ export function OrderListPage() {
   }
 
   const orderLink = (o: AdminOrderListItem) => (
-    <Link to={`/yonetim/siparisler/${encodeURIComponent(o.id)}`}>#{o.orderNo}</Link>
+    <Link className="ui-rowlink num" to={`/yonetim/siparisler/${encodeURIComponent(o.id)}`}>
+      #{o.orderNo}
+    </Link>
   )
   const stockFlag = (o: AdminOrderListItem) =>
     o.hasOutOfStock ? <span className="ui-pill ui-pill--warning">Stokta yok</span> : null
@@ -145,19 +150,19 @@ export function OrderListPage() {
       }
     >
       {exportError && <Alert tone="danger">{exportError}</Alert>}
-      <div className="ui-toolbar">
-        <div className="ui-search">
+      <div className="adm-filters">
+        <div className="ui-search adm-filters__search">
           <Icon name="search" />
           <input
             className="ui-input"
             type="search"
             aria-label="Sipariş ara"
-            placeholder="Sipariş no, firma veya yetkili ara"
+            placeholder="Sipariş no, firma veya yetkili"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="ui-chips ui-chips--wrap" role="group" aria-label="Durum filtresi">
+        <div className="ui-chips" role="group" aria-label="Durum filtresi">
           {TABS.map((t) => (
             <button
               key={t.value}
@@ -170,7 +175,7 @@ export function OrderListPage() {
             </button>
           ))}
         </div>
-        <div className="ui-orderfilters">
+        <div className="adm-filters__dates">
           <label className="ui-check">
             <input
               type="checkbox"
@@ -179,33 +184,25 @@ export function OrderListPage() {
             />
             <span>BizimHesap'a girilmedi</span>
           </label>
-          <label className="ui-orderfilters__date">
-            <span className="ui-label">Başlangıç</span>
-            <input
-              className="ui-input"
-              type="date"
-              value={f.from}
-              max={f.to || undefined}
-              onChange={(e) => go({ from: e.target.value })}
-            />
-          </label>
-          <label className="ui-orderfilters__date">
-            <span className="ui-label">Bitiş</span>
-            <input
-              className="ui-input"
-              type="date"
-              value={f.to}
-              min={f.from || undefined}
-              onChange={(e) => go({ to: e.target.value })}
-            />
-          </label>
+          <input
+            className="ui-input"
+            type="date"
+            aria-label="Başlangıç tarihi"
+            value={f.from}
+            max={f.to || undefined}
+            onChange={(e) => go({ from: e.target.value })}
+          />
+          <span aria-hidden="true">–</span>
+          <input
+            className="ui-input"
+            type="date"
+            aria-label="Bitiş tarihi"
+            value={f.to}
+            min={f.from || undefined}
+            onChange={(e) => go({ to: e.target.value })}
+          />
           {f.dealerId && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="ui-button--touch"
-              onClick={() => go({ dealerId: '' })}
-            >
+            <Button variant="secondary" size="sm" onClick={() => go({ dealerId: '' })}>
               <Icon name="close" />
               Bayi filtresini kaldır
             </Button>
@@ -213,10 +210,10 @@ export function OrderListPage() {
         </div>
       </div>
 
-      {state.status === 'loading' && <LoadingCard rows={5} />}
+      {state.status === 'loading' && <SkeletonRows rows={8} />}
       {state.status === 'error' && <ErrorAlert onRetry={reload}>Siparişler alınamadı.</ErrorAlert>}
       {state.status === 'ready' && state.data.items.length === 0 && (
-        <div className="ui-card">
+        <div className="adm-card">
           <EmptyState
             title="Sipariş bulunamadı"
             action={
@@ -239,9 +236,6 @@ export function OrderListPage() {
       )}
       {state.status === 'ready' && state.data.items.length > 0 && (
         <>
-          <p className="muted" aria-live="polite">
-            {formatInt(state.data.total)} sipariş · Tutarlar TL, net tutar KDV hariçtir
-          </p>
           <div className="ui-table-wrap ui-table-wrap--cards">
             <table className="ui-table">
               <thead>
@@ -325,11 +319,13 @@ export function OrderListPage() {
               </li>
             ))}
           </ul>
-          <Pagination
+          <ListFooter
+            total={state.data.total}
+            unit="sipariş · net tutarlar KDV hariç"
             page={state.data.page}
             pageSize={state.data.pageSize}
-            total={state.data.total}
-            onChange={(p) => go({ page: p })}
+            onPage={(p) => go({ page: p })}
+            onPageSize={(n) => go({ size: n })}
           />
         </>
       )}

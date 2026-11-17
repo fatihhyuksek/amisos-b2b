@@ -2546,6 +2546,35 @@
   font-size: var(--font-size-xs);
 }
 
+.ui-footer__social {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-footer__socialLink {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.ui-footer__socialLink:hover {
+  border-color: var(--color-gold-line);
+  color: var(--color-bronze);
+}
+
+.ui-footer__socialLink .ui-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .ui-footer__hours {
   display: flex;
   align-items: center;
@@ -2883,23 +2912,12 @@
   display: inline-flex;
 }
 
-.ui-admin__main {
-  background: transparent;
-}
-
-.ui-admin {
-  background: var(--color-surface-sunken);
-}
-
-.ui-admin__top {
-  border-bottom-color: var(--color-gold-line);
-}
-
-.ui-admin__link[aria-current='page'] {
-  color: var(--color-accent-strong);
-}
-
 /* Başlık eylem etiketleri tek satırda kalır ("Hızlı sipariş" iki satıra bölünmesin). */
 .ui-headlink__label {
   white-space: nowrap;
+}
+
+.ui-footer ul.ui-footer__social {
+  display: flex;
+  gap: var(--space-2);
 }

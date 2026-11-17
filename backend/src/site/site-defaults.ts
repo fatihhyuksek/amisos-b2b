@@ -39,6 +39,26 @@ export const DEFAULT_CONTACT: SiteContact = {
   mapUrl: null,
 };
 
+/** K-77: sosyal medya hesapları (tam https URL veya null). */
+export const SOCIAL_KEYS = ['instagram', 'facebook', 'youtube', 'tiktok', 'linkedin'] as const;
+export type SocialKey = (typeof SOCIAL_KEYS)[number];
+export type SiteSocial = Record<SocialKey, string | null>;
+/** Alan adı doğrulaması: ana alan adı veya alt alan adı (www., m., tr. ...). */
+export const SOCIAL_DOMAINS: Record<SocialKey, string> = {
+  instagram: 'instagram.com',
+  facebook: 'facebook.com',
+  youtube: 'youtube.com',
+  tiktok: 'tiktok.com',
+  linkedin: 'linkedin.com',
+};
+export const DEFAULT_SOCIAL: SiteSocial = {
+  instagram: 'https://www.instagram.com/amisoszuccaciye/',
+  facebook: null,
+  youtube: null,
+  tiktok: null,
+  linkedin: null,
+};
+
 const DRAFT_NOTE =
   'TASLAK — hukuk onayı bekliyor. Bu metin bilgilendirme amaçlı bir taslaktır; yayın öncesinde hukuk danışmanı tarafından gözden geçirilecektir.';
 

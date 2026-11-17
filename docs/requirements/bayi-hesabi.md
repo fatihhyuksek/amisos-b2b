@@ -92,6 +92,8 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-74 | Öne çıkan ve yeni ürünler | Admin ürünü "öne çıkan" işaretler; son 30 günde eklenen ürünler "Yeni" rozetiyle gösterilir. Ana sayfada iki ayrı bölüm. |
 | K-75 | Admin araçları | Admin bayi bilgilerini düzenler, bayiye yalnızca Admin'in gördüğü notlar ekler, ürünlerde toplu işlem yapar, işlem geçmişini görüntüler, kendi şifresini değiştirir. |
 | K-76 | Asgari sipariş tutarı | Bu aşamada yok (iş sahibi isterse eklenecek). |
+| K-77 | Sosyal medya | Site ayarlarında sosyal medya bağlantıları (Instagram, Facebook, YouTube, TikTok, LinkedIn); varsayılan Instagram: amisoszuccaciye. Vitrinin üst şeridinde ve alt bilgisinde gösterilir (iş sahibi, 2026-11-17). |
+| K-78 | Yönetim paneli | Panel modern yönetim arayüzü düzeninde: gruplu ikonlu kenar menü, genel arama (Ctrl+K), bildirim merkezi, grafikli ana sayfa ve "ilgilenilmesi gerekenler" listesi, sekmeli bayi detayı, sipariş durum adımları, siparişe Admin iç notu, sipariş yazdırma, ürün kopyalama, ürün ve bayi listesi Excel'i. |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 
