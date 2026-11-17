@@ -97,6 +97,13 @@ Son güncelleme: 2026-11-16
 
 ## Sıradaki adım
 
+**ŞU AN YARIM (2026-11-17, branch `claude/dreamy-albattani-rnp2v3`): Yönetim paneli yenilemesi — K-77, K-78**
+- Backend bitti ve push edildi (sözleşme `docs/api/admin-panel-api.md`, migration `0011_admin_panel`).
+- Frontend (yeni koyu kenar menü, Ctrl+K arama, bildirim zili, grafikli ana sayfa, sekmeli bayi detayı, sipariş adımları
+  ve iç notlar, ürün kopyalama, Excel, site ayarlarında sosyal medya + vitrinde Instagram) yapılıyor.
+- Kalan: frontend'i bitir → kod incelemesi → Playwright ile tüm admin sayfalarını gerçek veriyle gez → PR → main
+  (iş sahibi: "bitince main'e al ben bakarım").
+
 **Canlıya hazırlık** (iş sahibiyle karar gerekiyor):
 - Sunucu/barındırma seçimi ve kurulum (alan adı, SSL, veritabanı yedekleme, `TRUST_PROXY`).
 - `onay@amisosb2b.com` SMTP bilgileri ve gerçek e-posta gönderimi (outbox hazır).
