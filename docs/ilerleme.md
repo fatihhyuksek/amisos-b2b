@@ -1,6 +1,6 @@
 # Proje İlerlemesi
 
-Son güncelleme: 2026-11-16
+Son güncelleme: 2026-11-17
 
 ## Tamamlananlar
 
@@ -94,15 +94,14 @@ Son güncelleme: 2026-11-16
      (`admin_users.notifications_read_at`), sipariş iç notları (`order_notes`), ürün kopyalama, ürün ve bayi Excel'i.
    - Ürün içe aktarma başlık takma adları (`Kod`, `Ad`, `Grup`, `Koli içi`, `KDV %`, `Durum`): dışa aktarılan dosya yeniden içe aktarılır.
    - Migration `0011_admin_panel`; e2e `backend/test/admin-panel.e2e-spec.ts`; dashboard gün/iptal kuralları rapor servisiyle ortak.
+17. Yönetim paneli yenilemesi ve sosyal medya — frontend (K-77, K-78):
+   - Kabuk: koyu, gruplu, ikonlu, daraltılabilir kenar menü (mobilde çekmece), kırıntı yolu, genel arama (Ctrl/Cmd+K komut paleti),
+     "Yeni" menüsü, bildirim merkezi, hesap menüsü. Admin belirteçleri `tokens.css` (`--adm-*`, açık + iki koyu blok), stiller `styles/admin.css`.
+   - Ana sayfa: KPI'lar, 30 günlük satış grafiği, açık sipariş hattı, "ilgilenilmesi gerekenler", son siparişler, en iyi bayiler, son işlemler.
+   - Listeler: tek satır filtre çubuğu, tüm satır tıklanabilir, sayfa başına adet (`adet`), ürün/bayi Excel'i; sipariş detayı: durum adımları, iç notlar, yazdır;
+     bayi detayı: sekmeler + mini göstergeler; ürün kopyalama; site ayarları sekmeli + sosyal medya; vitrin üst şerit ve footer sosyal simgeleri; yeni giriş sayfası.
 
 ## Sıradaki adım
-
-**ŞU AN YARIM (2026-11-17, branch `claude/dreamy-albattani-rnp2v3`): Yönetim paneli yenilemesi — K-77, K-78**
-- Backend bitti ve push edildi (sözleşme `docs/api/admin-panel-api.md`, migration `0011_admin_panel`).
-- Frontend (yeni koyu kenar menü, Ctrl+K arama, bildirim zili, grafikli ana sayfa, sekmeli bayi detayı, sipariş adımları
-  ve iç notlar, ürün kopyalama, Excel, site ayarlarında sosyal medya + vitrinde Instagram) yapılıyor.
-- Kalan: frontend'i bitir → kod incelemesi → Playwright ile tüm admin sayfalarını gerçek veriyle gez → PR → main
-  (iş sahibi: "bitince main'e al ben bakarım").
 
 **Canlıya hazırlık** (iş sahibiyle karar gerekiyor):
 - Sunucu/barındırma seçimi ve kurulum (alan adı, SSL, veritabanı yedekleme, `TRUST_PROXY`).
