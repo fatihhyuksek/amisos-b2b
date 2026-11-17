@@ -58,3 +58,49 @@ Yeni ürün: aynı grup, ad + " (kopya)", açıklama, koli içi, fiyat, KDV, gö
   (Barkod, Kod, Ad, Grup, Koli içi, Liste fiyatı, KDV) — çıktı düzenlenip yeniden içe aktarılabilir.
 - `GET /api/admin/dealers/export.xlsx?<bayi listesi filtreleri>`: Unvan, Yetkili, E-posta, Telefon, İl, İlçe, Adres,
   Vergi dairesi, Vergi no, Durum, Genel iskonto, Kayıt tarihi, Son giriş, Sipariş sayısı, Son sipariş.
+
+## Uygulama notları
+
+Sözleşmede belirsiz kalan noktalar için alınan kararlar (alan adları değişmedi). Backend: migration `0011_admin_panel`.
+
+- **Sosyal medya:** `PUT /api/admin/site` `social` alanı isteğe bağlıdır; hiç verilmezse mevcut değerler korunur. Verilen
+  anahtarlarda `null` veya boş metin alanı kaldırır, verilmeyen anahtar mevcut değerini korur. Alan adı eşleşmesi tam
+  ad veya alt alan adıdır (`www.`, `m.` ...); `evilyoutube.com` ve `youtube.com.evil.example` reddedilir. Hata
+  alanları `social.instagram` biçimindedir. Depolama: `site_settings` anahtarı `social`; kayıt yoksa varsayılan döner.
+- **Arama:** `q` kırpılır, 2–100 karakter (aksi 400). Sipariş numarası önek eşleşir (`#` öneki yok sayılır) veya bayi
+  unvanı/yetkilisi eşleşir; bayi telefonunda boşluk/işaretten bağımsız rakam eşleşmesi (en az 3 rakam). Sonuçlar:
+  sipariş en yeni önce, bayi unvana göre, ürün (tam barkod eşleşmesi önce) ada göre. İptal edilmiş siparişler de aranır.
+  `thumbUrl` ürünün ilk görselinin küçük sürümü, yoksa `null`.
+- **Dashboard:**
+  - `sales30d`: bugün dahil son 30 İstanbul günü, eskiden yeniye. `kpis.monthNet/monthOrders/averageOrderNet`:
+    bu ay 1'inden bugüne, önceki dönem geçen ayın aynı gün numarasına kadar (ay kısaysa son güne kıstırılır).
+    `percent`, önceki 0 ise `null`; aksi 1 ondalık, yarım yukarı. Ortalama sipariş = net toplam / sipariş sayısı (0 sipariş = `0.00`).
+  - `activeDealers.current` = durumu `active` bayiler; `orderingThisMonth` = bu ay en az bir (iptal dışı) sipariş verenler.
+  - `pipeline` sabit sırada `submitted, negotiating, approved, shipped`; tüm zamanlar, sayı yoksa 0.
+  - `attention`: `newOrders` = durumu `submitted`; `notTransferred` = sipariş listesindeki "BizimHesap'a girilmemiş" tanımı;
+    `featuredOutOfStock` = öne çıkan, aktif ve stokta olmayan ürün; `inactiveDealers60d` = rapor servisindeki "60 gündür
+    sipariş vermeyen aktif bayi" sayısı; `overdueApplications` bayi servisindeki iş günü kuralı.
+  - `recentOrders` tüm durumları (iptal dahil) gösterir; `topDealersMonth` ve tüm tutarlar iptal hariçtir.
+  - `recentActivity`: işlem geçmişinin son 8 kaydı, girişler (`auth.login`, `auth.login_failed`) hariç. `actorName`:
+    Admin adı, bayi unvanı; sistem eylemlerinde "Sistem". `entityLabel` çözülemezse `null`.
+- **Bildirim akışı:** yeni tablo yok; olaylar mevcut tablolardan türetilir.
+  - `order_submitted`: gönderilen her sipariş (`submittedAt`). `application_verified`: e-postasını doğrulayan, kaynağı
+    başvuru olan bayi (`emailVerifiedAt`). `notification_failed`: durumu `failed` e-posta (`createdAt`).
+    `order_status_changed`: ilk kayıt hariç durum geçmişi satırları; Adminin kendi yaptığı değişiklik o Admin için
+    olay sayılmaz (başka Adminler, sistem ve BizimHesap değişiklikleri sayılır).
+  - Öğe `id` değeri `<type>:<kaynak id>`'dir. Okunmamış sayısı 30 günlük pencerenin tamamı üzerinden hesaplanır
+    (en fazla 30 öğe dönse de). `notifications_read_at` `null` ise pencerenin tüm olayları okunmamıştır.
+  - `POST .../feed/read`: `until` ISO-8601 (saat dilimli); işaret geriye gitmez (`max`), gelecek tarih şu ana kıstırılır.
+    `until` anındaki olay dahil okunmuş sayılır (milisaniye hassasiyetinde). Kişisel işaret olduğundan audit'e yazılmaz.
+- **Sipariş iç notları:** bayi notlarıyla aynı kurallar (kırpılır, 1–2000, silmeyi herhangi bir Admin yapar). Eylemler
+  audit'te `order.note_added` / `order.note_deleted`. `internalNoteCount` yalnızca Admin sipariş detayındadır;
+  bayi uçları (liste, detay, Excel) notlara ve sayıya hiç dokunmaz. Sipariş silinirse notlar da silinir (cascade).
+- **Ürün kopyalama:** ad 300 karakteri aşacaksa özgün ad kısaltılıp `" (kopya)"` eklenir. `code` verilmezse `null`.
+  Stok kaynağı `manual`. Audit: `product.duplicated` (`sourceId`). Kaynak ürün bulunamazsa 404, barkod/kod çakışmasında hiçbir kayıt oluşmaz.
+- **Excel:** Ürün Excel'inde sütun başlıkları sözleşmedeki gibidir; içe aktarma bu başlıkları takma ad olarak tanır
+  (`Kod`, `Ad`, `Grup`, `Koli içi`, `Liste fiyatı`, `KDV %`) ve `Durum` sütunundaki `Aktif`/`Pasif` değerlerini okur;
+  `Öne çıkan` ve `Görsel sayısı` içe aktarmada yok sayılır. Stok `Var`/`Yok`. Tutarlar sayı hücresi, barkod/kod/telefon/vergi no metin.
+  Bayi Excel'inde `Sipariş sayısı` ve `Son sipariş` iptal edilen siparişleri saymaz; tarihler İstanbul saatiyle.
+  Filtreler liste uçlarıyla aynıdır (`page`/`pageSize` yok sayılır); her iki dışa aktarma da en fazla 20.000 satır,
+  aşılırsa 400 `EXPORT_TOO_LARGE`. Dosya adları `urunler-YYYY-AA-GG.xlsx`, `bayiler-YYYY-AA-GG.xlsx`.
+

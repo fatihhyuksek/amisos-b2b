@@ -89,6 +89,11 @@ Son güncelleme: 2026-11-16
      (`backend/demo-assets/`, `npm run db:demo`; `baslat.cmd` boş veritabanında otomatik yükler).
    - Kod incelemesi (backend + frontend) yapıldı, bulgular düzeltildi: e-posta değişiminde token iptali, KVKK sürümü,
      şifre deneme sınırı, hızlı sipariş eşleşmesi, WhatsApp gizleme, işlem geçmişi süzgeci vb. (branch `claude/dreamy-albattani-rnp2v3`)
+16. Yönetim paneli yenilemesi ve sosyal medya — backend (K-77, K-78, sözleşme `docs/api/admin-panel-api.md`, uygulama kararları sözleşmenin sonunda):
+   - Sosyal medya alanları (`GET /api/site`, `PUT /api/admin/site`), genel arama, dashboard, bildirim akışı
+     (`admin_users.notifications_read_at`), sipariş iç notları (`order_notes`), ürün kopyalama, ürün ve bayi Excel'i.
+   - Ürün içe aktarma başlık takma adları (`Kod`, `Ad`, `Grup`, `Koli içi`, `KDV %`, `Durum`): dışa aktarılan dosya yeniden içe aktarılır.
+   - Migration `0011_admin_panel`; e2e `backend/test/admin-panel.e2e-spec.ts`; dashboard gün/iptal kuralları rapor servisiyle ortak.
 
 ## Sıradaki adım
 

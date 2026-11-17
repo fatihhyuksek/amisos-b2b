@@ -21,7 +21,7 @@ const addDays = (day: string, n: number): string =>
   new Date(new Date(`${day}T00:00:00Z`).getTime() + n * DAY_MS).toISOString().slice(0, 10);
 
 /** Geçen ayın aynı gününe kadar (ay daha kısaysa son güne kıstırılır) dönem. */
-function previousMonthToDate(today: string): { from: string; to: string } {
+export function previousMonthToDate(today: string): { from: string; to: string } {
   const lastOfPrevious = addDays(monthStart(today), -1);
   const day = Math.min(Number(today.slice(8, 10)), Number(lastOfPrevious.slice(8, 10)));
   return { from: monthStart(lastOfPrevious), to: `${lastOfPrevious.slice(0, 8)}${String(day).padStart(2, '0')}` };

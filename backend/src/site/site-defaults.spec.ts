@@ -1,6 +1,6 @@
 // K-73: varsayılan site içerikleri.
 import { DEFAULT_PAGES, PAGE_SLUGS } from './site-defaults.js';
-import { updateSiteSchema } from './site.schemas.js';
+import { socialSchema, updateSiteSchema } from './site.schemas.js';
 import { actionLabel } from '../audit/audit-labels.js';
 
 describe('varsayılan sayfalar', () => {
@@ -44,5 +44,29 @@ describe('onay sürümü (GR-KVK-001)', () => {
     expect(pageVersionOf({ version: 0 })).toBe(1);
     expect(pageVersionOf(null)).toBe(1);
     expect(consentVersionLabel(2)).toBe('v2');
+  });
+});
+
+describe('K-77 sosyal medya şeması', () => {
+  const parse = (v: unknown) => socialSchema.safeParse(v);
+  it('https ve ilgili alan adı (alt alan adı dahil) kabul; null/boş = kaldır', () => {
+    expect(parse({ instagram: 'https://www.instagram.com/x/', tiktok: ' https://tiktok.com/@x ', linkedin: '' })).toMatchObject({
+      success: true,
+      data: { instagram: 'https://www.instagram.com/x/', tiktok: 'https://tiktok.com/@x', linkedin: null },
+    });
+    expect(parse({ facebook: null }).success).toBe(true);
+    expect(parse({}).success).toBe(true);
+  });
+  it('http, yanlış/benzer alan adı ve şema reddedilir', () => {
+    for (const bad of [
+      { instagram: 'http://instagram.com/x' },
+      { instagram: 'https://facebook.com/x' },
+      { youtube: 'https://evilyoutube.com/x' },
+      { youtube: 'https://youtube.com.evil.example/x' },
+      { facebook: 'javascript:alert(1)' },
+      { linkedin: 'linkedin.com/in/x' },
+    ]) {
+      expect(parse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
   });
 });
