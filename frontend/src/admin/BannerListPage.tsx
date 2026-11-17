@@ -1,8 +1,9 @@
 // K-65, GR-YON-001: Admin "Kampanya görselleri" (/yonetim/bannerlar). Liste, sıralama, ekle/düzenle, sil.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError, deleteBanner, fetchAdminBanners, reorderBanners, type AdminBanner } from '../api'
 import { Alert, Badge, Button, EmptyState, Modal } from '../ui/components'
 import { ErrorAlert, LoadingCard, ProductImage } from '../ui/catalog'
+import { replace, useRoute } from '../router'
 import { networkMessage } from '../ui/networkMessage'
 import { AdminLayout } from './AdminLayout'
 import { BANNER_STATUS, bannerStatus, rangeText } from './bannerDates'
@@ -13,6 +14,16 @@ export function BannerListPage() {
   const { state, reload } = useLoad<AdminBanner[]>((s) => fetchAdminBanners(s), 'banners')
   // 'new' | banner | null
   const [editing, setEditing] = useState<AdminBanner | 'new' | null>(null)
+  // "Yeni > Kampanya görseli" menüsü ?yeni=1 ile gelir (K-78): formu açar, adresi temizler.
+  const wantsNew = useRoute().query.get('yeni') === '1'
+  const [seenNew, setSeenNew] = useState(false)
+  if (wantsNew !== seenNew) {
+    setSeenNew(wantsNew)
+    if (wantsNew) setEditing('new')
+  }
+  useEffect(() => {
+    if (wantsNew) replace('/yonetim/bannerlar')
+  }, [wantsNew])
   const [override, setOverride] = useState<AdminBanner[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')

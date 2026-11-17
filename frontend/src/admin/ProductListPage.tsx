@@ -154,9 +154,11 @@ export function ProductListPage() {
       setNotice({
         tone: 'danger',
         text:
-          err instanceof ApiError && err.status === 404
-            ? 'Excel dışa aktarma bu sunucuda henüz yok.'
-            : 'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+          err instanceof ApiError && err.code === 'EXPORT_TOO_LARGE'
+            ? 'Çok fazla kayıt var (en fazla 20.000). Filtreyle daraltın.'
+            : err instanceof ApiError && err.status === 404
+              ? 'Excel dışa aktarma bu sunucuda henüz yok.'
+              : 'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
       })
     } finally {
       setExporting(false)

@@ -781,6 +781,14 @@ kbd {
   font-size: 0.9375rem;
 }
 
+.ui-admin .adm-palette__input input:focus-visible {
+  outline: none;
+}
+
+.adm-palette__input:focus-within {
+  box-shadow: inset 0 -2px 0 var(--color-bronze);
+}
+
 .adm-palette__input input::placeholder {
   color: var(--color-text-muted);
 }
@@ -1544,7 +1552,7 @@ kbd {
 
 .adm-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
   gap: var(--space-3);
 }
 
@@ -2063,7 +2071,7 @@ kbd {
   box-shadow: 0 0 0 1px var(--adm-nav-muted);
 }
 
-.adm-login__title {
+.adm-login .adm-login__title {
   max-width: 20rem;
   color: var(--adm-nav-strong);
   font-family: var(--font-serif);
@@ -2300,5 +2308,22 @@ kbd {
 
   .ui-admin .ui-table .ui-rowlink::after {
     display: none;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .ui-admin .adm-hide-sm {
+    display: none;
+  }
+
+  .adm-kpi__value {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 36rem) {
+  .adm-steps li {
+    min-width: 3.5rem;
+    font-size: 0.6875rem;
   }
 }

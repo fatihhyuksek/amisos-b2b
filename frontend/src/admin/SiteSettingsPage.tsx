@@ -221,7 +221,19 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
       onSaved(saved)
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
-        setServerMsgs(Object.values(err.fields ?? {}))
+        const fields = err.fields ?? {}
+        const social: Errors = {}
+        for (const [k, v] of Object.entries(fields))
+          if (k.startsWith('social.')) social[`social-${k.slice(7)}`] = v
+        if (Object.keys(social).length > 0) {
+          setErrors(social)
+          setTab('sosyal')
+        }
+        setServerMsgs(
+          Object.entries(fields)
+            .filter(([k]) => !k.startsWith('social.'))
+            .map(([, v]) => v),
+        )
         setNotice({ tone: 'danger', text: 'Kayıt yapılamadı. Alanları kontrol edin.' })
       } else
         setNotice({ tone: 'danger', text: networkMessage(err, 'Kayıt yapılamadı. Lütfen tekrar deneyin.') })

@@ -95,6 +95,45 @@ export function ReportsPage() {
 
   return (
     <AdminLayout title="Raporlar">
+      <div
+        className="adm-tabs"
+        role="tablist"
+        aria-label="Rapor türü"
+        onKeyDown={(e) => {
+          const i = TABS.findIndex((t) => t.id === tab)
+          const next =
+            e.key === 'ArrowRight'
+              ? (i + 1) % TABS.length
+              : e.key === 'ArrowLeft'
+                ? (i - 1 + TABS.length) % TABS.length
+                : e.key === 'Home'
+                  ? 0
+                  : e.key === 'End'
+                    ? TABS.length - 1
+                    : -1
+          if (next < 0) return
+          e.preventDefault()
+          replace(pathFor(TABS[next].id, from, to))
+          requestAnimationFrame(() => document.getElementById(`tab-${TABS[next].id}`)?.focus())
+        }}
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            aria-selected={tab === t.id}
+            aria-controls="rapor-panel"
+            className="adm-tabs__tab"
+            onClick={() => replace(pathFor(t.id, from, to))}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {invalidParams && tab !== 'pasif' && (
         <Alert tone="warning">
           Adresteki dönem geçersiz (tarih bulunamadı, sıra hatalı veya 3 yıldan uzun). Bu ay gösteriliyor.
@@ -102,7 +141,7 @@ export function ReportsPage() {
       )}
       {tab !== 'pasif' && (
         <section className="ui-card ui-card__body ui-stack" aria-label="Dönem">
-          <div className="ui-chips ui-chips--wrap" role="group" aria-label="Dönem seçimi">
+          <div className="ui-chips" role="group" aria-label="Dönem seçimi">
             {PRESETS.map((p) => (
               <button
                 key={p.id}
@@ -163,45 +202,6 @@ export function ReportsPage() {
           </p>
         </section>
       )}
-
-      <div
-        className="ui-chips ui-chips--wrap"
-        role="tablist"
-        aria-label="Rapor türü"
-        onKeyDown={(e) => {
-          const i = TABS.findIndex((t) => t.id === tab)
-          const next =
-            e.key === 'ArrowRight'
-              ? (i + 1) % TABS.length
-              : e.key === 'ArrowLeft'
-                ? (i - 1 + TABS.length) % TABS.length
-                : e.key === 'Home'
-                  ? 0
-                  : e.key === 'End'
-                    ? TABS.length - 1
-                    : -1
-          if (next < 0) return
-          e.preventDefault()
-          replace(pathFor(TABS[next].id, from, to))
-          requestAnimationFrame(() => document.getElementById(`tab-${TABS[next].id}`)?.focus())
-        }}
-      >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            id={`tab-${t.id}`}
-            tabIndex={tab === t.id ? 0 : -1}
-            aria-selected={tab === t.id}
-            aria-controls="rapor-panel"
-            className="ui-chip"
-            onClick={() => replace(pathFor(t.id, from, to))}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       <div id="rapor-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'genel' && (

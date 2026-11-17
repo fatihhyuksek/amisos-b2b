@@ -208,7 +208,9 @@ function Content({ d }: { d: Dashboard }) {
                       <th scope="col" className="num">
                         Toplam (KDV dahil)
                       </th>
-                      <th scope="col">Tarih</th>
+                      <th scope="col" className="adm-hide-sm">
+                        Tarih
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -227,7 +229,7 @@ function Content({ d }: { d: Dashboard }) {
                           <OrderStatusBadge status={o.status} />
                         </td>
                         <td className="num">{formatTRY(o.grandTotal)}</td>
-                        <td className="muted num">{formatDateTime(o.submittedAt)}</td>
+                        <td className="muted num adm-hide-sm">{formatDateTime(o.submittedAt)}</td>
                       </tr>
                     ))}
                   </tbody>

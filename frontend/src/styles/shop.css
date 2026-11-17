@@ -2916,3 +2916,8 @@
 .ui-headlink__label {
   white-space: nowrap;
 }
+
+.ui-footer ul.ui-footer__social {
+  display: flex;
+  gap: var(--space-2);
+}
