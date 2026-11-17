@@ -94,6 +94,11 @@ const BANNERS: { file: string; title: string; subtitle: string; group: string }[
  * (media.service.ts fixFilename) Admin'in yüklediği bir görsel bu önekle başlayamaz.
  */
 const DEMO_MEDIA_PREFIX = 'demo-assets/';
+/**
+ * Demo görsel sürümü: görseller yeniden üretildiğinde artırılır; `--if-empty` eski sürümü görünce demo verisini yeniler
+ * (baslat.cmd her açılışta böyle çağırır).
+ */
+const DEMO_ASSET_VERSION = 'v2';
 const DEALERS = [
   ['Güneş Züccaciye', 'Mehmet Güneş', 'Kayseri', 'Melikgazi'],
   ['Yıldız Ev Gereçleri', 'Ayşe Yıldız', 'Ankara', 'Çankaya'],
@@ -130,7 +135,7 @@ export async function hasDemoData(db: Db): Promise<boolean> {
   const images = await db
     .select({ id: schema.media.id })
     .from(schema.media)
-    .where(like(schema.media.originalName, `${DEMO_MEDIA_PREFIX}%`))
+    .where(like(schema.media.originalName, `${DEMO_MEDIA_PREFIX}${DEMO_ASSET_VERSION}/%`))
     .limit(1);
   return images.length > 0;
 }
@@ -276,7 +281,7 @@ async function storeDemoImage(db: Executor, file: string, adminId: string, media
   await db.insert(schema.media).values({
     id,
     storageKey: id,
-    originalName: `${DEMO_MEDIA_PREFIX}${path.basename(path.dirname(file))}/${path.basename(file)}`,
+    originalName: `${DEMO_MEDIA_PREFIX}${DEMO_ASSET_VERSION}/${path.basename(path.dirname(file))}/${path.basename(file)}`,
     mime: processed.mime,
     size: processed.large.length,
     width: processed.width,

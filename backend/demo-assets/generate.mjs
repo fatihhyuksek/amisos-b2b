@@ -392,31 +392,74 @@ const PRODUCTS = {
   'catal-kasik-seti': () => join(raw(shadow(500, 830, 250, 30)), cutlery(500, 820)),
 };
 
+// ---------- sahneler: duvar + masa (fotoğraf stüdyosu hissi) ----------
+const SCENES = {
+  cream: { wall: ['#f3ebdf', '#e4d6c2'], table: ['#d9b48a', '#b88a5c'], grain: '#8a5f36' },
+  terracotta: { wall: ['#d49a7c', '#b9715a'], table: ['#e9dccb', '#cdbba3'], grain: '#9c8a72' },
+  sage: { wall: ['#c7d0bd', '#a9b59d'], table: ['#e8e2d8', '#d3cabd'], grain: '#a59c8e', marble: true },
+  sand: { wall: ['#eadcc6', '#d8c3a3'], table: ['#f4efe8', '#e2d9cc'], grain: '#b5a998', marble: true },
+  blue: { wall: ['#cfd9df', '#aebfc9'], table: ['#d6b48e', '#b78c63'], grain: '#7e5733' },
+  charcoal: { wall: ['#4a433d', '#2e2925'], table: ['#7a5638', '#563a24'], grain: '#2c1d12', glow: '#ffdca8' },
+};
+function scene(w, h, name, tableY) {
+  const sc = SCENES[name];
+  const wall = vgrad(sc.wall[0], sc.wall[1]);
+  const table = vgrad(sc.table[0], sc.table[1]);
+  const glow = radial(sc.glow ?? '#ffffff', `${sc.glow ?? '#ffffff'}00`, 0.5, 0.5);
+  const lines = Array.from({ length: Math.round((h - tableY) / 22) }, (_, i) => {
+    const y = tableY + 18 + i * 22 + (i % 3) * 4;
+    const amp = sc.marble ? 30 : 4;
+    return `<path d="M 0 ${y} C ${w * 0.25} ${y - amp}, ${w * 0.5} ${y + amp}, ${w * 0.75} ${y - amp * 0.5} S ${w} ${y + amp * 0.3}, ${w * 1.05} ${y}" stroke="${sc.grain}" stroke-width="${sc.marble ? 1.4 : 2}" fill="none" opacity="${sc.marble ? 0.18 : 0.22}"/>`;
+  }).join('');
+  return {
+    defs: wall.def + table.def + glow.def,
+    svg: `<rect width="${w}" height="${tableY}" fill="url(#${wall.g})"/>
+    <ellipse cx="${w * 0.3}" cy="${tableY * 0.35}" rx="${w * 0.55}" ry="${tableY * 0.7}" fill="url(#${glow.g})" opacity="${sc.glow ? 0.35 : 0.45}"/>
+    <polygon points="${w * 0.62},0 ${w * 0.86},0 ${w * 0.7},${tableY} ${w * 0.44},${tableY}" fill="#ffffff" opacity="${sc.glow ? 0.04 : 0.09}"/>
+    <rect y="${tableY - 26}" width="${w}" height="26" fill="#000" opacity=".06"/>
+    <rect y="${tableY}" width="${w}" height="${h - tableY}" fill="url(#${table.g})"/>${lines}
+    <rect y="${tableY}" width="${w}" height="3" fill="#fff" opacity=".35"/>`,
+  };
+}
+
+/** Ürün → sahne (ürün rengine göre kontrastlı zemin). */
+const SCENE_OF = {
+  'cay-bardagi': 'blue', 'su-bardagi': 'terracotta', 'kahve-fincani': 'sand', kupa: 'sage', 'mesrubat-bardagi': 'cream',
+  'yemek-tabagi': 'terracotta', 'corba-kasesi': 'cream', 'servis-tabagi': 'sand', 'tatli-tabagi': 'terracotta', 'salata-kasesi': 'sand',
+  'catal-kasik-seti': 'charcoal', 'celik-tencere': 'terracotta', 'granit-tava': 'sage', 'duduklu-tencere': 'blue', caydanlik: 'cream',
+  sahan: 'sage', suzgec: 'terracotta', 'kesme-tahtasi': 'sage', 'bicak-seti': 'blue', rende: 'terracotta', 'spatula-seti': 'sage',
+  'cam-saklama': 'terracotta', 'plastik-kutu': 'sand', 'baharat-takimi': 'blue', 'ekmek-kutusu': 'sage', termos: 'sand',
+  'seramik-vazo': 'charcoal', 'mumluk-seti': 'charcoal', 'dekoratif-tepsi': 'sage', 'dekoratif-kase': 'sand', 'mini-vazo': 'cream',
+};
+
 const BG = (w, h, dark = false) =>
   dark
     ? `<rect width="${w}" height="${h}" fill="#141210"/><rect width="${w}" height="${h}" fill="url(#bgd)"/>`
     : `<rect width="${w}" height="${h}" fill="url(#bg)"/>`;
 
-function productSvg(fn) {
+function productSvg(fn, sceneName) {
   uid = 0;
   const art = fn();
+  const sc = scene(1000, 1000, sceneName, 660);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1000 1000">
   <defs><radialGradient id="bg" cx="0.5" cy="0.4" r="0.8"><stop offset="0" stop-color="#fffdf9"/><stop offset="1" stop-color="#ece4d6"/></radialGradient>
-  <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>${art.defs}</defs>
-  ${BG(1000, 1000)}<rect y="770" width="1000" height="230" fill="#e6dccb" opacity=".35"/><g id="art">${art.svg}</g></svg>`;
+  <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>${art.defs}${sc.defs}</defs>
+  ${sc.svg}<g id="art">${art.svg}</g></svg>`;
 }
 
 // ---------- kampanya görselleri (3:1) ----------
-function bannerSvg({ dark, eyebrow, title, sub, art }) {
+function bannerSvg({ dark, eyebrow, title, sub, art, sceneName }) {
   uid = 0;
   const a = art();
+  const sc = scene(1800, 600, sceneName, 470);
   const fg = dark ? '#f7f3eb' : '#1c1a17';
   const accent = dark ? '#f2c78a' : '#8a5a1c';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="600" viewBox="0 0 1800 600">
   <defs><radialGradient id="bg" cx="0.7" cy="0.5" r="0.9"><stop offset="0" stop-color="#fffaf2"/><stop offset="1" stop-color="#eadfcc"/></radialGradient>
   <radialGradient id="bgd" cx="0.72" cy="0.5" r="0.7"><stop offset="0" stop-color="#3a2f22" stop-opacity=".9"/><stop offset="1" stop-color="#141210" stop-opacity="0"/></radialGradient>
-  <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>${a.defs}</defs>
-  ${BG(1800, 600, dark)}
+  <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>${a.defs}${sc.defs}
+  <linearGradient id="fade" x1="0" x2="1"><stop offset="0" stop-color="${dark ? '#000' : '#fff'}" stop-opacity="${dark ? 0.35 : 0.3}"/><stop offset="0.55" stop-color="${dark ? '#000' : '#fff'}" stop-opacity="0"/></linearGradient></defs>
+  ${sc.svg}<rect width="1800" height="600" fill="url(#fade)"/>
   <line x1="120" y1="168" x2="190" y2="168" stroke="${dark ? '#f2c78a' : '#dcb47a'}" stroke-width="3"/>
   <text x="206" y="178" font-family="Plus Jakarta Sans" font-weight="700" font-size="26" letter-spacing="5" fill="${accent}">${eyebrow}</text>
   ${title.map((t, i) => `<text x="120" y="${268 + i * 84}" font-family="Playfair Display" font-weight="700" font-size="76" fill="${fg}">${t}</text>`).join('')}
@@ -426,15 +469,15 @@ function bannerSvg({ dark, eyebrow, title, sub, art }) {
 
 const BANNERS = {
   'kampanya-sofra': {
-    dark: true, eyebrow: 'YENİ SEZON', title: ['Sofranıza yeni', 'sezon şıklığı'], sub: 'Altın detaylı tabak ve servis koleksiyonu katalogda.',
+    dark: true, sceneName: 'terracotta', eyebrow: 'YENİ SEZON', title: ['Sofranıza yeni', 'sezon şıklığı'], sub: 'Altın detaylı tabak ve servis koleksiyonu katalogda.',
     art: () => join(raw(shadow(500, 900, 520, 70, 0.5)), plate(430, 820, 420, '#fbfaf7', { gold: true }), bowl(620, 640, 200, 150, '#1d1c1b', { inner: '#c9a15e' }), teaGlass(950, 880, 2.2)),
   },
   'kampanya-mutfak': {
-    dark: false, eyebrow: 'MUTFAK', title: ['Profesyonel', 'mutfak ekipmanı'], sub: 'Tencere, tava ve gereçlerde koli bazında toptan fiyat.',
+    dark: false, sceneName: 'sand', eyebrow: 'MUTFAK', title: ['Profesyonel', 'mutfak ekipmanı'], sub: 'Tencere, tava ve gereçlerde koli bazında toptan fiyat.',
     art: () => join(raw(shadow(560, 950, 560, 60)), pot(300, 950, 200, 300, '#c4c9ce', { glassLid: true }), pan(680, 830, 220)),
   },
   'kampanya-dekor': {
-    dark: true, eyebrow: 'DEKORASYON', title: ['Evlere sıcaklık', 'katan detaylar'], sub: 'Vazo, mumluk ve dekoratif tepsiler stokta.',
+    dark: true, sceneName: 'charcoal', eyebrow: 'DEKORASYON', title: ['Evlere sıcaklık', 'katan detaylar'], sub: 'Vazo, mumluk ve dekoratif tepsiler stokta.',
     art: () => join(raw(shadow(560, 940, 520, 60, 0.5)), vase(300, 930, 1.3, '#e6dccb', { stems: true }), candle(620, 930, 90, 330), vase(880, 930, 0.95, '#a3502f')),
   },
 };
@@ -468,7 +511,7 @@ async function render(svg, w, h, file, width) {
 }
 for (const [slug, fn] of Object.entries(PRODUCTS)) {
   if (only && only !== slug) continue;
-  await render(productSvg(fn), 1200, 1200, path.join(outDir('products'), `${slug}.webp`), 1000);
+  await render(productSvg(fn, SCENE_OF[slug] ?? 'cream'), 1200, 1200, path.join(outDir('products'), `${slug}.webp`), 1000);
 }
 for (const [slug, b] of Object.entries(BANNERS)) {
   if (only && only !== slug) continue;
