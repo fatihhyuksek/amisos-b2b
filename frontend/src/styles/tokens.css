@@ -57,6 +57,12 @@
   --color-strip-bg: #000000;
   --color-strip-text: #f7f3eb;
 
+  /* --- Görsel üstü öğeler (karusel oku, koleksiyon başlığı): görselin rengine bağlı, tema ile değişmez --- */
+  --color-on-image-bg: #ffffff;
+  --color-on-image-text: #1c1a17;
+  --color-image-scrim: rgb(0 0 0 / 55%);
+  --color-image-text: #ffffff;
+
   /* --- Yazı: gövde geometrik sans, başlık serif (ikisi de OFL, @fontsource ile kendi içinden) --- */
   --font-sans:
     'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -147,6 +153,10 @@
     --color-focus: #f2c78a;
     --color-strip-bg: #000000;
     --color-strip-text: #f7f3eb;
+    --color-on-image-bg: #ffffff;
+    --color-on-image-text: #1c1a17;
+    --color-image-scrim: rgb(0 0 0 / 55%);
+    --color-image-text: #ffffff;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
     --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);
@@ -187,6 +197,10 @@
   --color-focus: #f2c78a;
   --color-strip-bg: #000000;
   --color-strip-text: #f7f3eb;
+  --color-on-image-bg: #ffffff;
+  --color-on-image-text: #1c1a17;
+  --color-image-scrim: rgb(0 0 0 / 55%);
+  --color-image-text: #ffffff;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-md: 0 6px 18px rgb(0 0 0 / 45%);
   --shadow-lg: 0 16px 40px rgb(0 0 0 / 55%);

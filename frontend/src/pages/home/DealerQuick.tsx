@@ -3,10 +3,8 @@ import { fetchAccount, fetchOrders, type Account, type OrderListItem, type Paged
 import { useLoad } from '../../admin/useLoad'
 import { useAuth } from '../../auth/useAuth'
 import { Link } from '../../Link'
-import { PriceListButton } from '../../shop/PriceListButton'
 import { OrderStatusBadge } from '../../ui/components'
 import { formatDate, formatInt, formatPercent, formatTRY } from '../../ui/format'
-import { Icon } from '../../ui/Icon'
 
 export function DealerQuick() {
   const { state: auth } = useAuth()
@@ -17,45 +15,27 @@ export function DealerQuick() {
 
   return (
     <section className="ui-quick" aria-labelledby="quick-title">
-      <div className="ui-quick__lead">
-        <p className="ui-eyebrow">Bayi hesabınız</p>
-        <h2 id="quick-title">Hoş geldiniz{name ? `, ${name}` : ''}</h2>
-        <div className="ui-quick__actions">
-          <Link to="/hizli-siparis" className="ui-button ui-button--primary">
-            <Icon name="zap" />
-            Hızlı sipariş
-          </Link>
-          <PriceListButton />
-          <Link to="/favorilerim" className="ui-button ui-button--secondary">
-            <Icon name="heart" />
-            Favorilerim
-          </Link>
-        </div>
-      </div>
+      <h2 id="quick-title" className="ui-quick__hello">
+        Hoş geldiniz{name ? `, ${name}` : ''}
+      </h2>
       <div className="ui-quick__stats" aria-live="polite">
-        {account.state.status === 'loading' && (
-          <>
-            <div className="ui-skeleton ui-quick__skel" />
-            <div className="ui-skeleton ui-quick__skel" />
-            <div className="ui-skeleton ui-quick__skel" />
-          </>
-        )}
+        {account.state.status === 'loading' && <div className="ui-skeleton ui-quick__skel" />}
         {a && (
           <>
-            <div className="ui-quickstat">
+            <span className="ui-quickstat">
               <span className="ui-quickstat__label">İskonto oranınız</span>
               <strong className="num">
                 {a.generalDiscountPercent ? formatPercent(a.generalDiscountPercent) : 'Liste fiyatı'}
               </strong>
-            </div>
-            <div className="ui-quickstat">
+            </span>
+            <span className="ui-quickstat">
               <span className="ui-quickstat__label">Açık siparişler</span>
               <strong className="num">{formatInt(a.stats.openOrderCount)}</strong>
-            </div>
-            <div className="ui-quickstat">
+            </span>
+            <span className="ui-quickstat">
               <span className="ui-quickstat__label">Bu yıl net (KDV hariç)</span>
               <strong className="num">{formatTRY(a.stats.yearNetTotal)}</strong>
-            </div>
+            </span>
           </>
         )}
         {account.state.status === 'error' && (
@@ -68,14 +48,11 @@ export function DealerQuick() {
         )}
       </div>
       <div className="ui-quick__orders">
-        <div className="ui-quick__ordershead">
-          <h3>Son siparişleriniz</h3>
-          <Link to="/siparislerim">Tümü</Link>
-        </div>
-        {orders.state.status === 'loading' && <div className="ui-skeleton" style={{ height: '4.5rem' }} />}
-        {orders.state.status === 'error' && <p className="muted">Siparişler alınamadı.</p>}
+        <span className="ui-quickstat__label">Son siparişler</span>
+        {orders.state.status === 'loading' && <span className="ui-skeleton ui-quick__skel" />}
+        {orders.state.status === 'error' && <span className="muted">Alınamadı.</span>}
         {orders.state.status === 'ready' && orders.state.data.items.length === 0 && (
-          <p className="muted">Henüz siparişiniz yok. Kataloğa göz atarak ilk ön siparişinizi verin.</p>
+          <span className="muted">Henüz siparişiniz yok.</span>
         )}
         {orders.state.status === 'ready' && orders.state.data.items.length > 0 && (
           <ul className="ui-quick__orderlist">
@@ -91,6 +68,9 @@ export function DealerQuick() {
             ))}
           </ul>
         )}
+        <Link to="/siparislerim" className="ui-quick__all">
+          Tümü
+        </Link>
       </div>
     </section>
   )

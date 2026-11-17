@@ -4,19 +4,19 @@ import { Icon } from '../ui/Icon'
 import { useShopMode } from './mode'
 import { loginHref } from './returnTo'
 
-export function PriceLock({ size = 'md' }: { size?: 'md' | 'lg' }) {
+export function PriceLock({ size = 'md', short }: { size?: 'md' | 'lg'; short?: boolean }) {
   const mode = useShopMode()
   if (mode === 'admin')
     return (
       <p className={`ui-pricelock ui-pricelock--${size} muted`}>
         <Icon name="eye" />
-        Fiyatlar yalnızca bayi oturumunda görünür
+        {short ? 'Yalnızca bayide görünür' : 'Fiyatlar yalnızca bayi oturumunda görünür'}
       </p>
     )
   return (
     <Link to={loginHref()} className={`ui-pricelock ui-pricelock--${size}`}>
       <Icon name="lock" />
-      Fiyatı görmek için giriş yapın
+      {short ? 'Fiyat için giriş yapın' : 'Fiyatı görmek için giriş yapın'}
     </Link>
   )
 }

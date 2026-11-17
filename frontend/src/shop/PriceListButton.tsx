@@ -1,13 +1,6 @@
 // K-72: bayiye özel net fiyatlı fiyat listesini Excel olarak indirir.
-import { useState } from 'react'
-import { downloadPriceList } from '../api'
-import { saveBlob } from '../admin/download'
 import { Button } from '../ui/components'
-import { useCart } from './cart'
-
-function today(): string {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Istanbul' })
-}
+import { usePriceListDownload } from './usePriceListDownload'
 
 export function PriceListButton({
   variant = 'secondary',
@@ -18,27 +11,9 @@ export function PriceListButton({
   size?: 'md' | 'sm'
   label?: string
 }) {
-  const { notify } = useCart()
-  const [busy, setBusy] = useState(false)
-  async function run() {
-    setBusy(true)
-    try {
-      const { blob, filename } = await downloadPriceList()
-      saveBlob(blob, filename ?? `fiyat-listesi-${today()}.xlsx`)
-    } catch (err) {
-      notify({
-        tone: 'danger',
-        text:
-          err instanceof TypeError
-            ? 'Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.'
-            : 'Fiyat listesi indirilemedi. Lütfen tekrar deneyin.',
-      })
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { busy, run } = usePriceListDownload()
   return (
-    <Button variant={variant} size={size} icon="download" disabled={busy} onClick={() => void run()}>
+    <Button variant={variant} size={size} icon="download" disabled={busy} onClick={run}>
       {busy ? 'Hazırlanıyor…' : label}
     </Button>
   )
