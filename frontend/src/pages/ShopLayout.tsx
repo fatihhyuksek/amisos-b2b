@@ -27,19 +27,109 @@ function useLogout() {
   }
 }
 
-// ---------- Duyuru şeridi (metin Admin "Site ayarları"ndan; boşsa şerit gizlenir) ----------
-function AnnouncementStrip() {
+// ---------- Üst şerit (GR-URN-003, K-11, K-73): solda iletişim, ortada dönen duyuru, sağda kısa bağlantılar ----------
+const ROTATE_MS = 5000
+
+function TopStrip({ mode }: { mode: ShopMode }) {
   const site = useSite()
-  if (!site.announcement) return null
+  const c = site.contact
+  const wa = whatsappLink(c)
+  const messages = [site.announcement, 'Fiyatlar KDV hariçtir', `Sipariş ve destek: ${c.phone}`].filter(
+    (m): m is string => Boolean(m),
+  )
+  const [index, setIndex] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const count = messages.length
+  const current = index % count
+
+  // Otomatik geçiş: fare/odak üstündeyken ve "hareketi azalt" tercihinde durur; oklarla elle de gezilir.
+  useEffect(() => {
+    if (paused || reduced || count < 2) return
+    const t = window.setInterval(() => setIndex((i) => i + 1), ROTATE_MS)
+    return () => window.clearInterval(t)
+  }, [paused, reduced, count])
+
   return (
     <div className="ui-strip">
-      <p>
-        {site.announcement} <span aria-hidden="true">·</span>{' '}
-        <a href={phoneHref(site.contact)}>
-          <span className="visually-hidden">Telefon: </span>
-          {site.contact.phone}
-        </a>
-      </p>
+      <div className="ui-shop__container ui-strip__row">
+        <ul className="ui-strip__contact" aria-label="İletişim">
+          <li>
+            <a href={phoneHref(c)} aria-label={`Telefon: ${c.phone}`} title={c.phone}>
+              <Icon name="phone" />
+            </a>
+          </li>
+          {wa && (
+            <li>
+              <a
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp (yeni sekmede açılır)"
+                title="WhatsApp"
+              >
+                <Icon name="whatsapp" />
+              </a>
+            </li>
+          )}
+          <li>
+            <a href={`mailto:${c.email}`} aria-label={`E-posta: ${c.email}`} title={c.email}>
+              <Icon name="mail" />
+            </a>
+          </li>
+        </ul>
+        <div
+          className="ui-strip__rotator"
+          role="group"
+          aria-roledescription="carousel"
+          aria-label="Duyurular"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
+          {count > 1 && (
+            <button
+              type="button"
+              className="ui-strip__arrow"
+              aria-label="Önceki duyuru"
+              onClick={() => setIndex(current - 1 + count)}
+            >
+              <Icon name="chevronLeft" />
+            </button>
+          )}
+          <p className="ui-strip__msg" aria-live={paused ? 'polite' : 'off'}>
+            {messages[current]}
+          </p>
+          {count > 1 && (
+            <button
+              type="button"
+              className="ui-strip__arrow"
+              aria-label="Sonraki duyuru"
+              onClick={() => setIndex(current + 1)}
+            >
+              <Icon name="chevronRight" />
+            </button>
+          )}
+        </div>
+        <ul className="ui-strip__links" aria-label="Kısa bağlantılar">
+          <li>
+            <Link to="/sss">SSS</Link>
+          </li>
+          <li>
+            <Link to="/iletisim">İletişim</Link>
+          </li>
+          <li>
+            {mode === 'guest' ? (
+              <Link to="/basvuru">Bayi ol</Link>
+            ) : mode === 'dealer' ? (
+              <Link to="/siparislerim">Siparişlerim</Link>
+            ) : (
+              <Link to="/yonetim">Yönetim paneli</Link>
+            )}
+          </li>
+        </ul>
+      </div>
     </div>
   )
 }
@@ -140,12 +230,7 @@ function AccountMenu({ name, email }: { name: string; email: string }) {
         onClick={() => setOpen((o) => !o)}
       >
         <Icon name="user" />
-        <span className="ui-headlink__text">
-          <span className="ui-headlink__label">Hesabım</span>
-          <span className="ui-headlink__sub" title={name}>
-            {name}
-          </span>
-        </span>
+        <span className="ui-headlink__label">Hesabım</span>
         <Icon name="chevronDown" />
       </button>
       {open && (
@@ -180,30 +265,43 @@ function AccountMenu({ name, email }: { name: string; email: string }) {
   )
 }
 
-function CartLink({ compact }: { compact?: boolean }) {
+function CartLink({ guest }: { guest?: boolean }) {
   const count = useCartCount()
   return (
     <Link
-      to="/sepet"
-      className={compact ? 'ui-headlink ui-headlink--icon' : 'ui-headlink'}
-      aria-label={`Sepetim, ${count} ürün`}
+      to={guest ? loginHref('/sepet') : '/sepet'}
+      className="ui-headlink"
+      aria-label={guest ? 'Sepetim (giriş gerekir)' : `Sepetim, ${count} ürün`}
     >
       <span className="ui-headlink__iconwrap">
         <Icon name="bag" />
-        <span className="ui-countbadge" aria-hidden="true" data-empty={count === 0}>
-          {count}
-        </span>
+        {!guest && (
+          <span className="ui-countbadge" aria-hidden="true" data-empty={count === 0}>
+            {count}
+          </span>
+        )}
       </span>
-      {!compact && <span className="ui-headlink__label">Sepetim</span>}
+      <span className="ui-headlink__label">Sepetim</span>
     </Link>
   )
 }
 
-// ---------- Kategori menüsü (masaüstü): sığmayan gruplar yalnızca "Tüm kategoriler"de ----------
-function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId: string | null }) {
+// ---------- Kategori menüsü (masaüstü): "Kategoriler" mega menüsü, sığan gruplar, Öne Çıkanlar, Yeni Ürünler ----------
+const FEATURED_HREF = '/katalog?one-cikan=1'
+const NEW_HREF = '/katalog?yeni=1&sirala=yeni'
+
+function AllCategories({
+  groups,
+  activeId,
+  rootRef,
+}: {
+  groups: CatalogGroup[]
+  activeId: string | null
+  rootRef: React.RefObject<HTMLDivElement | null>
+}) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const closeTimer = useRef<number | undefined>(undefined)
   const { path, query } = useRoute()
   const routeKey = `${path}?${query.toString()}`
   const [lastRoute, setLastRoute] = useState(routeKey)
@@ -229,12 +327,26 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, rootRef])
+
+  // Fare ile üzerine gelince açılır; kapanmadan önce kısa bir bekleme (menüye geçiş) tanınır. Tık ve klavye de çalışır.
+  const hoverOpen = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return
+    window.clearTimeout(closeTimer.current)
+    setOpen(true)
+  }
+  const hoverClose = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setOpen(false), 160)
+  }
 
   return (
     <div
-      className="ui-popover-wrap"
+      className="ui-popover-wrap ui-catnav__allwrap"
       ref={rootRef}
+      onPointerEnter={hoverOpen}
+      onPointerLeave={hoverClose}
       onBlur={(e) => {
         if (!rootRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false)
       }}
@@ -247,23 +359,11 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
         aria-controls="all-categories"
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon name="grid" />
-        Tüm kategoriler
+        Kategoriler
         <Icon name="chevronDown" />
       </button>
       {open && (
         <div id="all-categories" className="ui-mega">
-          <div className="ui-mega__head">
-            <h2>Kategoriler</h2>
-            <Link
-              to="/katalog"
-              className="ui-sectionhead__more"
-              aria-current={activeId === '' ? 'page' : undefined}
-            >
-              Tüm ürünler
-              <Icon name="arrowRight" />
-            </Link>
-          </div>
           <ul className="ui-mega__grid">
             {groups.map((g) => (
               <li key={g.id}>
@@ -274,11 +374,15 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
                 >
                   <GroupThumb src={g.thumbUrl} />
                   <span className="ui-mega__name">{g.name}</span>
-                  <span className="ui-mega__count num">{g.productCount}</span>
+                  <span className="ui-mega__count num">{g.productCount} ürün</span>
                 </Link>
               </li>
             ))}
           </ul>
+          <Link to="/katalog" className="ui-mega__all" aria-current={activeId === '' ? 'page' : undefined}>
+            Tüm ürünleri gör
+            <Icon name="arrowRight" />
+          </Link>
         </div>
       )}
     </div>
@@ -286,22 +390,31 @@ function AllCategories({ groups, activeId }: { groups: CatalogGroup[]; activeId:
 }
 
 function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: string | null }) {
-  const listRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
+  const allRef = useRef<HTMLDivElement>(null)
+  const tailRef = useRef<HTMLUListElement>(null)
   const measureRef = useRef<HTMLUListElement>(null)
   const [fit, setFit] = useState(groups.length)
 
-  // Önce ölçülür, sonra sığan kadar grup gösterilir (sığmayanlar odak sırasına girmez).
+  // Önce ölçülür, sonra sığan kadar grup gösterilir; kalan boşluk öğeler arasında eşit dağılır (space-between).
   useLayoutEffect(() => {
-    const box = listRef.current
+    const box = innerRef.current
+    const all = allRef.current
+    const tail = tailRef.current
     const measure = measureRef.current
-    if (!box || !measure) return
+    if (!box || !all || !tail || !measure) return
     const calc = () => {
-      const avail = box.clientWidth
-      const gap = parseFloat(getComputedStyle(measure).columnGap) || 0
-      let used = 0
+      const cs = getComputedStyle(box)
+      const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const gap = 24 // öğeler arası en az boşluk
+      const tailW = (Array.from(tail.children) as HTMLElement[]).reduce(
+        (sum, li) => sum + li.offsetWidth + gap,
+        0,
+      )
+      let used = all.offsetWidth + tailW
       let n = 0
       for (const li of Array.from(measure.children) as HTMLElement[]) {
-        const w = li.offsetWidth + (n > 0 ? gap : 0)
+        const w = li.offsetWidth + gap
         if (used + w > avail) break
         used += w
         n++
@@ -314,33 +427,42 @@ function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: s
     return () => ro.disconnect()
   }, [groups])
 
-  const items = (list: CatalogGroup[]) =>
-    list.map((g) => (
-      <li key={g.id}>
-        <Link
-          to={catalogHref({ grup: g.id })}
-          className="ui-catnav__link"
-          aria-current={activeId === g.id ? 'page' : undefined}
-        >
-          {g.name}
-        </Link>
-      </li>
-    ))
-
   return (
     <nav className="ui-catnav" aria-label="Kategoriler">
-      <div className="ui-catnav__inner">
-        <AllCategories groups={groups} activeId={activeId} />
-        <div className="ui-catnav__fit" ref={listRef}>
-          <ul className="ui-catnav__list">{items(groups.slice(0, fit))}</ul>
-          <ul className="ui-catnav__list ui-catnav__measure" ref={measureRef} aria-hidden="true">
-            {groups.map((g) => (
-              <li key={g.id}>
-                <span className="ui-catnav__link">{g.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      <div className="ui-catnav__inner" ref={innerRef}>
+        <AllCategories groups={groups} activeId={activeId} rootRef={allRef} />
+        <ul className="ui-catnav__list">
+          {groups.slice(0, fit).map((g) => (
+            <li key={g.id}>
+              <Link
+                to={catalogHref({ grup: g.id })}
+                className="ui-catnav__link"
+                aria-current={activeId === g.id ? 'page' : undefined}
+              >
+                {g.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <ul className="ui-catnav__tail" ref={tailRef}>
+          <li>
+            <Link to={FEATURED_HREF} className="ui-catnav__link">
+              Öne Çıkanlar
+            </Link>
+          </li>
+          <li>
+            <Link to={NEW_HREF} className="ui-catnav__link">
+              Yeni Ürünler
+            </Link>
+          </li>
+        </ul>
+        <ul className="ui-catnav__measure" ref={measureRef} aria-hidden="true">
+          {groups.map((g) => (
+            <li key={g.id}>
+              <span className="ui-catnav__link">{g.name}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </nav>
   )
@@ -520,8 +642,13 @@ function FooterColumn({ id, title, children }: { id: string; title: string; chil
 
 function Footer({ mode }: { mode: ShopMode }) {
   const site = useSite()
+  const groups = useCatalogGroups()
   const c = site.contact
   const wa = whatsappLink(c)
+  const popular =
+    groups.state.status === 'ready'
+      ? [...groups.state.data].sort((x, y) => y.productCount - x.productCount).slice(0, 6)
+      : []
   const legal = site.pages.filter((p) => p.slug === 'kvkk' || p.slug === 'kullanim-kosullari')
   const corporate = site.pages.filter((p) => p.slug !== 'kvkk' && p.slug !== 'kullanim-kosullari')
   const li = (to: string, label: string) => (
@@ -550,16 +677,25 @@ function Footer({ mode }: { mode: ShopMode }) {
       </div>
       <div className="ui-footer__main">
         <div className="ui-shop__container ui-footer__cols">
-          <div className="ui-footer__brand">
-            <BrandLogo size="lg" />
-            <p className="muted">
-              Amisos Züccaciye: mutfak eşyaları ve dekorasyon ürünlerinde bayilere toptan ön sipariş portalı.
-              Fiyatlar KDV hariçtir.
-            </p>
-          </div>
-          <FooterColumn id="f-portal" title="Portal">
+          <FooterColumn id="f-kurumsal" title="Kurumsal">
+            <ul>
+              {corporate.map((p) => li(`/${p.slug}`, p.title))}
+              {li('/iletisim', 'İletişim')}
+            </ul>
+          </FooterColumn>
+          {popular.length > 0 && (
+            <FooterColumn id="f-populer" title="Popüler kategoriler">
+              <ul>{popular.map((g) => li(catalogHref({ grup: g.id }), g.name))}</ul>
+            </FooterColumn>
+          )}
+          <FooterColumn id="f-yasal" title="Yasal">
+            <ul>{legal.map((p) => li(`/${p.slug}`, p.title))}</ul>
+          </FooterColumn>
+          <FooterColumn id="f-portal" title="Keşfet">
             <ul>
               {li('/katalog', 'Ürün kataloğu')}
+              {li(FEATURED_HREF, 'Öne çıkanlar')}
+              {li(NEW_HREF, 'Yeni ürünler')}
               {mode === 'guest' && (
                 <>
                   {li(loginHref(), 'Bayi girişi')}
@@ -577,39 +713,9 @@ function Footer({ mode }: { mode: ShopMode }) {
               {mode === 'admin' && li('/yonetim', 'Yönetim paneli')}
             </ul>
           </FooterColumn>
-          <FooterColumn id="f-kurumsal" title="Kurumsal">
-            <ul>
-              {corporate.map((p) => li(`/${p.slug}`, p.title))}
-              {li('/iletisim', 'İletişim')}
-            </ul>
-          </FooterColumn>
-          <FooterColumn id="f-yasal" title="Yasal">
-            <ul>{legal.map((p) => li(`/${p.slug}`, p.title))}</ul>
-          </FooterColumn>
-          <section aria-labelledby="f-iletisim" className="ui-footer__col">
-            <h2 id="f-iletisim">İletişim</h2>
+          <section aria-labelledby="f-iletisim" className="ui-footer__col ui-footer__address">
+            <h2 id="f-iletisim">Adres bilgileri</h2>
             <ul className="ui-footer__contact">
-              <li>
-                <Icon name="phone" />
-                <a href={phoneHref(c)} className="ui-footer__link">
-                  <span className="visually-hidden">Telefon: </span>
-                  {c.phone}
-                </a>
-              </li>
-              {wa && (
-                <li>
-                  <Icon name="whatsapp" />
-                  <a href={wa} className="ui-footer__link" target="_blank" rel="noopener noreferrer">
-                    WhatsApp ile yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
-                  </a>
-                </li>
-              )}
-              <li>
-                <Icon name="mail" />
-                <a href={`mailto:${c.email}`} className="ui-footer__link">
-                  {c.email}
-                </a>
-              </li>
               <li>
                 <Icon name="pin" />
                 <span>
@@ -617,15 +723,48 @@ function Footer({ mode }: { mode: ShopMode }) {
                   {c.city ? `, ${c.city}` : ''}
                 </span>
               </li>
-              {c.workingHours && (
-                <li>
-                  <Icon name="clock" />
-                  <span>{c.workingHours}</span>
-                </li>
-              )}
+              <li>
+                <Icon name="mail" />
+                <a href={`mailto:${c.email}`} className="ui-footer__link">
+                  {c.email}
+                </a>
+              </li>
             </ul>
           </section>
         </div>
+        <div className="ui-shop__container ui-footer__contactrow">
+          <BrandLogo size="lg" />
+          <ul className="ui-footer__boxes">
+            <li>
+              <a href={phoneHref(c)} className="ui-footer__box">
+                <Icon name="phone" />
+                <span>
+                  <span className="muted">Müşteri hattı</span>
+                  <strong className="num">{c.phone}</strong>
+                </span>
+              </a>
+            </li>
+            {wa && (
+              <li>
+                <a href={wa} className="ui-footer__box" target="_blank" rel="noopener noreferrer">
+                  <Icon name="whatsapp" />
+                  <span>
+                    <span className="muted">WhatsApp destek</span>
+                    <strong>
+                      Bize yazın<span className="visually-hidden"> (yeni sekmede açılır)</span>
+                    </strong>
+                  </span>
+                </a>
+              </li>
+            )}
+          </ul>
+        </div>
+        {c.workingHours && (
+          <p className="ui-footer__hours">
+            <Icon name="clock" />
+            {c.workingHours}
+          </p>
+        )}
       </div>
       <div className="ui-footer__bottom">
         <div className="ui-shop__container">
@@ -660,7 +799,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
         İçeriğe geç
       </button>
       {mode === 'admin' && <AdminBar />}
-      <AnnouncementStrip />
+      <TopStrip mode={mode} />
       <header className="ui-shophead">
         <div className="ui-shop__container ui-shophead__row">
           <button
@@ -674,53 +813,45 @@ export function ShopLayout({ children }: { children: ReactNode }) {
             <Icon name="menu" />
           </button>
           <Link to="/" className="ui-shophead__logo" aria-label="AMİSOS B2B ana sayfa">
-            <BrandLogo />
+            <BrandLogo size="lg" />
           </Link>
           <div className="ui-shophead__search ui-shophead__search--wide">
             <SearchForm key={`w-${q}`} initial={q} idSuffix="wide" />
           </div>
           <div className="ui-shophead__actions">
+            {mode === 'dealer' && (
+              <Link to="/hizli-siparis" className="ui-headlink ui-headlink--wide" aria-label="Hızlı sipariş">
+                <Icon name="zap" />
+                <span className="ui-headlink__label">Hızlı sipariş</span>
+              </Link>
+            )}
+            {mode !== 'admin' && (
+              <Link
+                to={mode === 'guest' ? loginHref('/favorilerim') : '/favorilerim'}
+                className="ui-headlink ui-headlink--fav"
+                aria-label="Favorilerim"
+              >
+                <Icon name="heart" />
+                <span className="ui-headlink__label">Favorilerim</span>
+              </Link>
+            )}
             {mode === 'guest' && (
               <>
-                <Link to={loginHref()} className="ui-button ui-button--secondary ui-button--sm ui-headbtn">
-                  Giriş yap
+                <Link to={loginHref()} className="ui-headlink">
+                  <Icon name="user" />
+                  <span className="ui-headlink__label">Giriş yap</span>
                 </Link>
-                <Link to="/basvuru" className="ui-button ui-button--primary ui-button--sm ui-headbtn">
+                <Link to="/basvuru" className="ui-headcta">
                   Bayi ol
                 </Link>
               </>
             )}
-            {mode === 'dealer' && (
-              <>
-                <Link
-                  to="/hizli-siparis"
-                  className="ui-headlink ui-headlink--wide"
-                  aria-label="Hızlı sipariş"
-                >
-                  <Icon name="zap" />
-                  <span className="ui-headlink__label">Hızlı sipariş</span>
-                </Link>
-                <Link to="/favorilerim" className="ui-headlink ui-headlink--wide" aria-label="Favorilerim">
-                  <Icon name="heart" />
-                  <span className="ui-headlink__label">Favorilerim</span>
-                </Link>
-                <Link
-                  to="/siparislerim"
-                  className="ui-headlink ui-headlink--collapse"
-                  aria-label="Siparişlerim"
-                >
-                  <Icon name="orders" />
-                  <span className="ui-headlink__label">Siparişlerim</span>
-                </Link>
-                <div className="ui-shophead__account">
-                  <AccountMenu name={name} email={email} />
-                </div>
-                <CartLink />
-              </>
-            )}
+            {mode === 'dealer' && <AccountMenu name={name} email={email} />}
+            {mode !== 'admin' && <CartLink guest={mode === 'guest'} />}
             {mode === 'admin' && (
-              <Link to="/yonetim" className="ui-button ui-button--primary ui-button--sm ui-headbtn">
-                Yönetim paneli
+              <Link to="/yonetim" className="ui-headlink">
+                <Icon name="sliders" />
+                <span className="ui-headlink__label">Yönetim paneli</span>
               </Link>
             )}
           </div>

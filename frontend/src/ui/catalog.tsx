@@ -102,7 +102,7 @@ export function ProductCard({
   return (
     <li className="ui-pcard">
       <div className="ui-pcard__media">
-        <ProductImage src={p.images[0]?.thumbUrl} alt="" ratio="1" fit="contain" />
+        <ProductImage src={p.images[0]?.thumbUrl} alt="" ratio="1" fit="cover" />
         {hasBadges && (
           <div className="ui-pcard__badges">
             {p.isNew && <span className="ui-pill ui-pill--soft">Yeni</span>}
@@ -118,16 +118,18 @@ export function ProductCard({
         </div>
       </div>
       <div className="ui-pcard__body">
-        <p className="ui-pcard__barcode num">
-          <span className="visually-hidden">Barkod: </span>
-          {p.barcode}
+        <p className="ui-pcard__group">
+          <span className="ui-pcard__groupname">{p.groupName}</span>
+          <span className="ui-pcard__barcode num">
+            <span className="visually-hidden">Barkod: </span>
+            {p.barcode}
+          </span>
         </p>
         <H className="ui-pcard__name">
           <Link to={href} className="ui-pcard__link">
             {p.name}
           </Link>
         </H>
-        <p className="ui-pcard__case num">Koli içi: {p.caseQuantity} adet</p>
         <div className="ui-pcard__foot">
           {priced ? (
             <Price
@@ -137,7 +139,7 @@ export function ProductCard({
               hideDiscount
             />
           ) : (
-            <PriceLock />
+            <PriceLock short />
           )}
           {mode === 'dealer' &&
             (onAdd ? (
@@ -156,6 +158,10 @@ export function ProductCard({
               </Link>
             ))}
         </div>
+        <p className="ui-pcard__case num">
+          <Icon name="boxes" />
+          Koli içi {p.caseQuantity} adet
+        </p>
       </div>
     </li>
   )

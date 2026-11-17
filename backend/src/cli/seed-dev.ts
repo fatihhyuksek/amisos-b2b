@@ -93,7 +93,7 @@ async function main(): Promise<void> {
     await db
       .update(schema.products)
       .set({ isActive: false })
-      .where(sql`${schema.products.code} like 'DEV-%' and ${schema.products.barcode} in (${sql.join(LEGACY_DEV_BARCODES.map((b) => sql`${b}`), sql`, `)})`);
+      .where(sql`(${schema.products.code} like 'DEV-%' or ${schema.products.code} is null) and ${schema.products.barcode} in (${sql.join(LEGACY_DEV_BARCODES.map((b) => sql`${b}`), sql`, `)})`);
     await db
       .update(schema.productGroups)
       .set({ isActive: false })
