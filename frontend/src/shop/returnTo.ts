@@ -15,7 +15,7 @@ export function safeReturnPath(value: string | null | undefined): string | null 
 
 /** Adres çubuğundaki geçerli uygulama yolu ("/katalog?grup=1"). */
 export function currentPath(): string {
-  return location.hash.replace(/^#/, '') || '/'
+  return location.pathname + location.search
 }
 
 /** Giriş sayfası adresi; `donus` verilmezse geçerli sayfaya döner. */

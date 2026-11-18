@@ -251,7 +251,7 @@ describe('Katalog (e2e)', () => {
       expect(list2.find((g) => g.id === a.id)?.productCount).toBe(2);
       const mine = list.filter((g) => [a.id, b.id].includes(g.id));
       expect(mine.map((g) => g.id)).toEqual([b.id, a.id]);
-      expect(mine[0]).toEqual({ id: b.id, name: gname('Sıralı A'), sortOrder: 10, isActive: true, productCount: 0 });
+      expect(mine[0]).toMatchObject({ id: b.id, name: gname('Sıralı A'), sortOrder: 10, isActive: true, productCount: 0 });
 
       const patched = await admin.agent
         .patch(`/api/admin/product-groups/${a.id}`)
@@ -558,6 +558,7 @@ describe('Katalog (e2e)', () => {
       expect(header).toEqual([
         'Barkod',
         'Ürün kodu',
+        'BizimHesap ID',
         'Ürün adı',
         'Ürün grubu',
         'Koli içi adet',
@@ -870,7 +871,7 @@ describe('Katalog (e2e)', () => {
       expect(t.stock).toBe('out_of_stock');
       expect(Object.keys(t).sort()).toEqual(
         [
-          'id', 'name', 'barcode', 'code', 'description', 'groupId', 'groupName', 'caseQuantity',
+          'id', 'name', 'barcode', 'code', 'description', 'groupId', 'groupName', 'groupSlug', 'slug', 'seoTitle', 'seoDescription', 'priceOnRequest', 'caseQuantity',
           'stock', 'listPrice', 'price', 'discountPercent', 'vatRate', 'images',
           'isFeatured', 'isNew', 'isFavorite', 'priceVisible',
         ].sort(),
@@ -904,7 +905,7 @@ describe('Katalog (e2e)', () => {
       const ids = groups.map((g) => g.id);
       expect(ids).not.toContain(empty.id);
       expect(ids).not.toContain(onlyInactive.id);
-      expect(groups.find((g) => g.id === mutfak)).toEqual({ id: mutfak, name: gname('Katalog Mutfak'), productCount: 2, thumbUrl: null });
+      expect(groups.find((g) => g.id === mutfak)).toMatchObject({ id: mutfak, name: gname('Katalog Mutfak'), productCount: 2, thumbUrl: null });
       expect(ids.indexOf(mutfak)).toBeLessThan(ids.indexOf(tabak));
     });
 

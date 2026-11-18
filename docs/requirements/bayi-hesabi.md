@@ -94,6 +94,11 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-76 | Asgari sipariş tutarı | Bu aşamada yok (iş sahibi isterse eklenecek). |
 | K-77 | Sosyal medya | Site ayarlarında sosyal medya bağlantıları (Instagram, Facebook, YouTube, TikTok, LinkedIn); varsayılan Instagram: amisoszuccaciye. Vitrinin üst şeridinde ve alt bilgisinde gösterilir (iş sahibi, 2026-11-17). |
 | K-78 | Yönetim paneli | Panel modern yönetim arayüzü düzeninde: gruplu ikonlu kenar menü, genel arama (Ctrl+K), bildirim merkezi, grafikli ana sayfa ve "ilgilenilmesi gerekenler" listesi, sekmeli bayi detayı, sipariş durum adımları, siparişe Admin iç notu, sipariş yazdırma, ürün kopyalama, ürün ve bayi listesi Excel'i. |
+| K-79 | Fiyatı girilmemiş ürün | Liste fiyatı 0 olan ürün vitrinde "Fiyat için bize ulaşın" ile gösterilir; sepete eklenemez, ön siparişe giremez. Fiyat girilince normal satışa açılır (iş sahibinin stok Excel'inde fiyat yok, 2026-11-18). |
+| K-80 | BizimHesap ürün kimliği | Ürünlerde BizimHesap ürün ID'si (GUID) saklanır; Excel içe/dışa aktarmada "BizimHesap ID" sütunu. Entegrasyonda eşleştirme anahtarıdır. |
+| K-81 | Gerçek ürünler | İş sahibinin stok listesindeki stoğu 0'dan büyük ürünler içe aktarılır; demo/deneme ürünleri ve demo verisi kaldırılır. Barkodu olmayan ürünlere geçici `BH-…` barkodu verilir; iş sahibi gerçeğiyle değiştirir. |
+| K-82 | SEO | Vitrin adresleri `#` içermez (ör. `/urun/<slug>`); Admin'de site geneli SEO (başlık, açıklama, paylaşım görseli, Google Analytics ve Search Console doğrulama, arama motorlarına açık/kapalı), ürün ve grup için adres (slug), başlık ve açıklama. `sitemap.xml`, `robots.txt`, sayfa başına meta ve yapılandırılmış veri (fiyat içermez). |
+| K-83 | Bildirimler | Zil ve "Bildirimler" sayfası tek yerde birleşir: Etkinlikler ve E-posta gönderimleri sekmeleri. |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 

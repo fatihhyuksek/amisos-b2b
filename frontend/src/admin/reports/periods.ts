@@ -8,18 +8,18 @@ export function todayIstanbul(): string {
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d))
 
-export type PresetId = 'this-month' | 'last-month' | 'last-30' | 'last-3-months' | 'this-year' | 'last-year'
+export type PresetId = 'this-month' | 'last-month' | 'last-30' | 'this-quarter' | 'this-year' | 'last-year'
 
 export const PRESETS: { id: PresetId; label: string }[] = [
   { id: 'this-month', label: 'Bu ay' },
   { id: 'last-month', label: 'Geçen ay' },
   { id: 'last-30', label: 'Son 30 gün' },
-  { id: 'last-3-months', label: 'Son 3 ay' },
+  { id: 'this-quarter', label: 'Bu çeyrek' },
   { id: 'this-year', label: 'Bu yıl' },
   { id: 'last-year', label: 'Geçen yıl' },
 ]
 
-/** Hazır dönemin başlangıç/bitişi. "Son 3 ay": içinde bulunulan ay ile önceki iki ayın başından bugüne. */
+/** Hazır dönemin başlangıç/bitişi. "Bu çeyrek": içinde bulunulan takvim çeyreğinin başından bugüne. */
 export function presetRange(id: PresetId, today = todayIstanbul()): { from: string; to: string } {
   const [y, m, d] = today.split('-').map(Number)
   switch (id) {
@@ -29,8 +29,8 @@ export function presetRange(id: PresetId, today = todayIstanbul()): { from: stri
       return { from: iso(utc(y, m - 2, 1)), to: iso(utc(y, m - 1, 0)) }
     case 'last-30':
       return { from: iso(utc(y, m - 1, d - 29)), to: today }
-    case 'last-3-months':
-      return { from: iso(utc(y, m - 3, 1)), to: today }
+    case 'this-quarter':
+      return { from: iso(utc(y, Math.floor((m - 1) / 3) * 3, 1)), to: today }
     case 'this-year':
       return { from: iso(utc(y, 0, 1)), to: today }
     case 'last-year':

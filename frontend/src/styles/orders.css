@@ -706,13 +706,27 @@
 
 .ui-kpi__label {
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
 }
 
 .ui-kpi__value {
-  font-size: var(--font-size-2xl);
+  font-size: 2rem;
   font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
   overflow-wrap: anywhere;
+}
+
+.ui-kpi__was {
+  color: var(--color-text-muted);
+}
+
+.ui-kpi__cmp > div {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }
 
 .ui-kpi__cmp {
@@ -749,20 +763,56 @@
   height: 1rem;
 }
 
-.ui-delta--up {
+.ui-delta {
+  flex-wrap: wrap;
+}
+
+.ui-delta__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+}
+
+.ui-delta--up .ui-delta__pill {
+  background: var(--color-success-soft);
   color: var(--color-success);
 }
 
-.ui-delta--down {
+.ui-delta--down .ui-delta__pill {
+  background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
-.ui-delta--flat {
+.ui-delta--flat .ui-delta__pill {
+  background: var(--color-surface-sunken);
   color: var(--color-text-muted);
 }
 
-.ui-delta__pct {
+.ui-delta__amt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
+}
+
+/* Rapor bölümü başlığı ve kısa açıklaması */
+.ui-rsection__head {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-rsection__head h2 {
+  font-size: var(--font-size-lg);
+}
+
+.ui-rsection__note {
+  margin: 0;
+  max-width: 44rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .ui-cmpcell {
@@ -785,8 +835,49 @@
 }
 
 .ui-chart__box {
+  position: relative;
   width: 100%;
   min-width: 0;
+}
+
+.ui-chart__tip {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 0.25rem;
+  width: 11rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.ui-chart__tiprow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+}
+
+.ui-chart__tiprow b {
+  grid-column: 1 / -1;
+  padding-left: 1.25rem;
+  font-weight: var(--font-weight-bold);
+}
+
+.ui-chart__tiprow--muted {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ui-chart__hl {
+  fill: var(--color-surface-sunken);
 }
 
 .ui-chart__box svg {
@@ -816,14 +907,15 @@
 }
 
 .ui-chart__sw--line {
-  width: 1rem;
+  width: 1.25rem;
   height: 0;
-  border-top: 3px dashed var(--color-bronze);
+  border-top: 3px dashed var(--color-text);
 }
 
 .ui-chart__grid {
   stroke: var(--color-border);
   stroke-width: 1;
+  opacity: 0.55;
 }
 
 .ui-chart__tick {
@@ -837,14 +929,14 @@
 }
 
 .ui-chart__line {
-  stroke: var(--color-bronze);
+  stroke: var(--color-text);
   stroke-width: 2.5;
   stroke-dasharray: 6 4;
 }
 
 .ui-chart__dot {
   fill: var(--color-surface);
-  stroke: var(--color-bronze);
+  stroke: var(--color-text);
   stroke-width: 2;
 }
 
@@ -858,10 +950,36 @@
 
 .ui-hbars__row {
   display: grid;
-  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(6rem, 12rem) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   font-size: var(--font-size-sm);
+}
+
+.ui-hbars--ranked .ui-hbars__row {
+  grid-template-columns: 1.5rem minmax(6rem, 13rem) minmax(0, 1fr) auto;
+}
+
+.ui-hbars__rank {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.ui-hbars__label {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.ui-hbars__sub {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .ui-hbars__label {
@@ -883,6 +1001,7 @@
 }
 
 .ui-hbars__text {
+  font-weight: var(--font-weight-semibold);
   text-align: right;
 }
 
@@ -891,9 +1010,17 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .ui-hbars--ranked .ui-hbars__row {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  }
+
   .ui-hbars__track {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  .ui-hbars--ranked .ui-hbars__track {
+    grid-column: 2 / -1;
   }
 }
 

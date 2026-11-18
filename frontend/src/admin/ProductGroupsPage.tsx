@@ -1,4 +1,4 @@
-// K-40, K-12: Ürün grupları yönetimi. Ekle, yeniden adlandır, sıra, pasife al, sil.
+// K-40, K-12, K-82: Ürün grupları yönetimi. Ekle, yeniden adlandır, sıra, adres (slug), açıklama, SEO, pasife al, sil.
 import { useState, type FormEvent } from 'react'
 import {
   ApiError,
@@ -12,6 +12,8 @@ import { Alert, Badge, Button, EmptyState, Field, Modal } from '../ui/components
 import { ErrorAlert, LoadingCard } from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
 import { AdminLayout } from './AdminLayout'
+import { SearchPreview, SeoTextFields, CharCount } from './seoKit'
+import { isValidSlug, SEO_DESC_MAX, slugify } from './seoUtils'
 import { useLoad } from './useLoad'
 
 const DUPLICATE = 'Bu adla bir ürün grubu zaten var.'
@@ -27,6 +29,7 @@ function groupError(err: unknown): string {
     if (err.status === 409 && err.code === 'DUPLICATE_GROUP') return DUPLICATE
     if (err.status === 409 && err.code === 'GROUP_NOT_EMPTY')
       return 'Bu gruba bağlı ürünler var, silinemez. Ürünleri başka gruba taşıyın veya grubu pasife alın.'
+    if (err.status === 409 && err.code === 'DUPLICATE_SLUG') return 'Bu adres başka bir grupta kullanılıyor.'
     if (err.status === 404) return 'Grup bulunamadı; liste yenilendi.'
     if (err.status === 400) return 'Girilen bilgiler geçersiz.'
   }
@@ -44,7 +47,18 @@ function EditDialog({
 }) {
   const [name, setName] = useState(group.name)
   const [order, setOrder] = useState(String(group.sortOrder))
-  const [errors, setErrors] = useState<{ name?: string; order?: string }>({})
+  const [slug, setSlug] = useState(group.slug ?? '')
+  const [description, setDescription] = useState(group.description ?? '')
+  const [seoTitle, setSeoTitle] = useState(group.seoTitle ?? '')
+  const [seoDescription, setSeoDescription] = useState(group.seoDescription ?? '')
+  const [errors, setErrors] = useState<{
+    name?: string
+    order?: string
+    slug?: string
+    description?: string
+    seoTitle?: string
+    seoDescription?: string
+  }>({})
   const [serverError, setServerError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -54,16 +68,30 @@ function EditDialog({
     const next: typeof errors = {}
     if (!name.trim()) next.name = 'Grup adı zorunludur.'
     if (o === null || o === undefined) next.order = 'Sıra için 0 veya pozitif bir tam sayı girin.'
+    if (slug.trim() && !isValidSlug(slug.trim()))
+      next.slug = 'Adres yalnızca küçük harf, rakam ve tire içerebilir.'
+    if (description.length > 1000) next.description = 'En fazla 1000 karakter.'
+    if (seoTitle.length > 70) next.seoTitle = 'En fazla 70 karakter.'
+    if (seoDescription.length > SEO_DESC_MAX) next.seoDescription = `En fazla ${SEO_DESC_MAX} karakter.`
     setErrors(next)
     if (Object.keys(next).length > 0) return
     setBusy(true)
     setServerError(null)
     try {
-      await updateProductGroup(group.id, { name: name.trim(), sortOrder: o ?? undefined })
+      await updateProductGroup(group.id, {
+        name: name.trim(),
+        sortOrder: o ?? undefined,
+        ...(slug.trim() ? { slug: slug.trim() } : {}),
+        description: description.trim() || null,
+        seoTitle: seoTitle.trim() || null,
+        seoDescription: seoDescription.trim() || null,
+      })
       onSaved()
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.code === 'DUPLICATE_GROUP')
         setErrors({ name: DUPLICATE })
+      else if (err instanceof ApiError && err.status === 409 && err.code === 'DUPLICATE_SLUG')
+        setErrors({ slug: 'Bu adres başka bir grupta kullanılıyor.' })
       else setServerError(groupError(err))
     } finally {
       setBusy(false)
@@ -94,6 +122,59 @@ function EditDialog({
             aria-invalid={errors.order ? true : undefined}
           />
         </Field>
+        <Field
+          label="Açıklama (isteğe bağlı)"
+          htmlFor="g-desc"
+          error={errors.description}
+          help="Grup sayfasında ürünlerin üstünde gösterilir."
+        >
+          <textarea
+            id="g-desc"
+            className="ui-textarea"
+            rows={3}
+            value={description}
+            aria-invalid={errors.description ? true : undefined}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <CharCount value={description.length} max={1000} />
+        </Field>
+        <fieldset className="adm-seoset">
+          <legend>SEO</legend>
+          <Field
+            label="Adres (slug)"
+            htmlFor="g-slug"
+            error={errors.slug}
+            help="Grup sayfasının adresi: /katalog/adres"
+          >
+            <div className="adm-slugrow">
+              <input
+                id="g-slug"
+                className="ui-input"
+                value={slug}
+                aria-invalid={errors.slug ? true : undefined}
+                onChange={(e) => setSlug(e.target.value.toLocaleLowerCase('tr'))}
+              />
+              <Button variant="secondary" size="sm" icon="zap" onClick={() => setSlug(slugify(name))}>
+                Addan üret
+              </Button>
+            </div>
+          </Field>
+          <SeoTextFields
+            title={seoTitle}
+            description={seoDescription}
+            onTitle={setSeoTitle}
+            onDescription={setSeoDescription}
+            titlePlaceholder={name}
+            errorTitle={errors.seoTitle}
+            errorDescription={errors.seoDescription}
+            descriptionRows={2}
+          />
+          <SearchPreview
+            title={seoTitle || name}
+            url={`${location.host} › katalog › ${slug || '…'}`}
+            description={seoDescription || description}
+          />
+        </fieldset>
         <div className="ui-modal__actions">
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Vazgeç

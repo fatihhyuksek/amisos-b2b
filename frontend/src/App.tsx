@@ -349,6 +349,13 @@ function Routes() {
             <ProductDetailPage id={shopProduct.id} />
           </Public>
         )
+      const shopGroup = matchPath(path, '/katalog/:slug')
+      if (shopGroup)
+        return (
+          <Public>
+            <CatalogPage key={shopGroup.slug} groupSlug={shopGroup.slug} />
+          </Public>
+        )
       const detail = matchPath(path, '/yonetim/bayiler/:id')
       if (detail)
         return (

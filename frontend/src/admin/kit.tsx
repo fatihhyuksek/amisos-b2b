@@ -1,4 +1,5 @@
 // K-78: Yönetim paneli ortak küçük bileşenleri (açılır menü, sekmeler, liste altlığı, değişim oku).
+import { Link } from '../Link'
 import {
   useCallback,
   useEffect,
@@ -103,15 +104,9 @@ export function MenuButton({
             )
             const cls = `adm-pop__item${it.divider ? ' adm-pop__item--divider' : ''}`
             return it.to ? (
-              <a
-                key={it.label}
-                role="menuitem"
-                className={cls}
-                href={`#${it.to}`}
-                onClick={() => setOpen(false)}
-              >
+              <Link key={it.label} role="menuitem" className={cls} to={it.to} onClick={() => setOpen(false)}>
                 {inner}
-              </a>
+              </Link>
             ) : (
               <button
                 key={it.label}
@@ -250,13 +245,15 @@ export function Delta({ percent, label = 'geçen aya göre' }: { percent: number
   const dir = percent > 0 ? 'up' : percent < 0 ? 'down' : 'flat'
   return (
     <span className={`adm-delta adm-delta--${dir}`}>
-      {dir !== 'flat' && <Icon name={dir === 'up' ? 'trendUp' : 'trendDown'} />}
-      <span className="num">
-        {dir === 'up' ? '+' : dir === 'down' ? '−' : ''}
-        {formatAbsPercent(percent)}
-      </span>
-      <span className="visually-hidden">
-        {dir === 'up' ? ' artış' : dir === 'down' ? ' düşüş' : ' değişim yok'}
+      <span className="adm-delta__pill">
+        {dir !== 'flat' && <Icon name={dir === 'up' ? 'trendUp' : 'trendDown'} />}
+        <span className="num">
+          {dir === 'up' ? '+' : dir === 'down' ? '−' : ''}
+          {formatAbsPercent(percent)}
+        </span>
+        <span className="visually-hidden">
+          {dir === 'up' ? ' artış' : dir === 'down' ? ' düşüş' : ' değişim yok'}
+        </span>
       </span>
       <span className="adm-delta__label"> {label}</span>
     </span>

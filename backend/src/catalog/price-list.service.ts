@@ -9,6 +9,7 @@ import { DB, type Database } from '../database/database.module.js';
 import { dealers, productGroups, products } from '../database/schema.js';
 import { loadDealerRates } from '../pricing/dealer-rates.js';
 import { calculateDealerPrice } from '../pricing/pricing.service.js';
+import { isPriceOnRequest } from './catalog.service.js';
 
 @Injectable()
 export class PriceListService {
@@ -71,17 +72,19 @@ export class PriceListService {
         rates.general,
         rates.byGroup.get(product.groupId),
       );
+      // K-79: fiyatı girilmemiş üründe fiyat hücreleri boş, Stok yerinde "Fiyat sorunuz".
+      const onRequest = isPriceOnRequest(product.listPrice);
       const row = sheet.addRow([
         product.barcode,
         product.code ?? '',
         product.name,
         groupName,
         product.caseQuantity,
-        Number(product.listPrice),
-        discountPercent === null ? 0 : Number(discountPercent),
-        Number(price),
+        onRequest ? null : Number(product.listPrice),
+        onRequest ? null : discountPercent === null ? 0 : Number(discountPercent),
+        onRequest ? null : Number(price),
         Number(product.vatRate),
-        product.stockStatus === 'in_stock' ? 'Var' : 'Yok',
+        onRequest ? 'Fiyat sorunuz' : product.stockStatus === 'in_stock' ? 'Var' : 'Yok',
       ]);
       row.getCell(1).numFmt = '@';
       row.getCell(2).numFmt = '@';
@@ -100,7 +103,7 @@ export class PriceListService {
       { width: 10 },
       { width: 30 },
       { width: 8 },
-      { width: 8 },
+      { width: 14 },
     ];
     return { filename: `fiyat-listesi-${dayIso}.xlsx`, data: Buffer.from(await wb.xlsx.writeBuffer()) };
   }

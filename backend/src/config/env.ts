@@ -19,6 +19,8 @@ export interface Env {
   TRUST_PROXY: boolean | number | string;
   /** Görsel kütüphanesi dizini (K-61, K-62). Göreli yol, backend çalışma dizinine göredir. */
   MEDIA_DIR: string;
+  /** K-82: verilirse backend vitrini (derlenmiş frontend) sunar ve sayfaya özel meta enjekte eder (canlıda `frontend/dist`). */
+  SERVE_FRONTEND_DIR?: string;
 }
 
 /** Çerez `Secure` ve token'lı bağlantı log'u: yalnızca açıkça development/test dışında güvenli mod. */
@@ -102,5 +104,9 @@ export function validateEnv(raw: Record<string, unknown>): Env {
       typeof raw.MEDIA_DIR === 'string' && raw.MEDIA_DIR.trim()
         ? raw.MEDIA_DIR.trim()
         : 'storage/media',
+    SERVE_FRONTEND_DIR:
+      typeof raw.SERVE_FRONTEND_DIR === 'string' && raw.SERVE_FRONTEND_DIR.trim()
+        ? raw.SERVE_FRONTEND_DIR.trim()
+        : undefined,
   };
 }

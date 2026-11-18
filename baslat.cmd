@@ -55,10 +55,12 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-call npm run db:demo -- --if-empty
+rem Deneme (demo) urunleri, bayileri ve siparisleri kaldirilir; gercek urunler ilk acilista yuklenir.
+call npm run db:demo -- --clear
+call npm run db:urunler -- --if-empty
 if errorlevel 1 (
   echo.
-  echo UYARI: Ornek urunler yuklenemedi. Portal yine de acilacak.
+  echo UYARI: Urunler yuklenemedi. Yukaridaki mesaji okuyun. Portal yine de acilacak.
 )
 cd ..
 start "Amisos Backend" cmd /k "cd /d %~dp0backend && npm run start:dev"

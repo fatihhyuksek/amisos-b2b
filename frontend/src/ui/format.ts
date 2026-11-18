@@ -37,10 +37,14 @@ export function formatDateTime(iso: string): string {
   return dateTimeFormatter.format(new Date(iso))
 }
 
-const compactFormatter = new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 })
+const compactFormatter = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 })
 
-/** Grafik ekseni için kısaltılmış tutar: 12500 → "₺12,5 B", 1200000 → "₺1,2 Mn". */
+/** Grafik ekseni için Türkçe kısaltma: 12500 → "₺12,5 bin", 150000 → "₺150 bin", 1200000 → "₺1,2 mn". */
 export function formatCompactTRY(value: number): string {
+  const abs = Math.abs(value)
+  if (abs >= 1e9) return `₺${compactFormatter.format(value / 1e9)} mr`
+  if (abs >= 1e6) return `₺${compactFormatter.format(value / 1e6)} mn`
+  if (abs >= 1e3) return `₺${compactFormatter.format(value / 1e3)} bin`
   return `₺${compactFormatter.format(value)}`
 }
 

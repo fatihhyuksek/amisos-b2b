@@ -1,5 +1,5 @@
 // Tasarım sistemi önizlemesi: belirteçler, bileşenler ve ekran taslakları.
-// Geliştirmede #/tasarim adresinden açılır.
+// Geliştirmede /tasarim adresinden açılır.
 import { useEffect, useState } from 'react'
 import {
   Alert,
@@ -32,7 +32,7 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 function readInitialTab(): Tab {
-  const t = new URLSearchParams(location.hash.split('?')[1]).get('sekme')
+  const t = new URLSearchParams(location.search).get('sekme')
   return t === 'shop' || t === 'catalog' || t === 'cart' ? t : 'system'
 }
 

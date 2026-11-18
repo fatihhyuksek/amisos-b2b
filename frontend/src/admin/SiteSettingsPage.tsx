@@ -1,4 +1,4 @@
-// K-73, K-77, K-78: Site ayarları (Admin), sekmeli: genel (duyuru, iletişim), sosyal medya, bilgi sayfaları
+// K-73, K-77, K-78, K-82: Site ayarları (Admin), sekmeli: genel (duyuru, iletişim), SEO, sosyal medya, bilgi sayfaları
 // (düzenleyici, önizleme, yayımla anahtarı).
 // PUT /api/admin/site tüm bölümü birlikte kaydeder.
 import { useState, type FormEvent } from 'react'
@@ -8,6 +8,8 @@ import {
   saveAdminSite,
   type AdminSite,
   type AdminSiteInput,
+  type Media,
+  type SeoSettings,
   type SiteContact,
   type SocialLinks,
 } from '../api'
@@ -20,6 +22,9 @@ import { networkMessage } from '../ui/networkMessage'
 import { RichText } from '../ui/RichText'
 import { AdminLayout } from './AdminLayout'
 import { SkeletonRows, TabPanel, Tabs } from './kit'
+import { MediaPicker } from './MediaPicker'
+import { CharCount, SearchPreview } from './seoKit'
+import { SEO_DESC_MAX, SEO_TITLE_MAX } from './seoUtils'
 import { useLoad } from './useLoad'
 
 const ANNOUNCEMENT_MAX = 160
@@ -65,7 +70,32 @@ const SOCIALS: { key: SocialKey; label: string; domain: string; icon: IconName; 
   },
 ]
 
-type TabId = 'genel' | 'sosyal' | 'sayfalar'
+type TabId = 'genel' | 'seo' | 'sosyal' | 'sayfalar'
+
+const DEFAULT_SEO: SeoSettings = {
+  siteTitle: 'AMİSOS B2B',
+  titleTemplate: '%s | AMİSOS B2B',
+  description: '',
+  keywords: null,
+  ogImageMediaId: null,
+  indexable: true,
+  googleAnalyticsId: null,
+  googleSiteVerification: null,
+  canonicalBaseUrl: null,
+}
+
+interface SeoForm {
+  siteTitle: string
+  titleTemplate: string
+  description: string
+  keywords: string
+  ogImageMediaId: string | null
+  ogImageUrl: string | null
+  indexable: boolean
+  googleAnalyticsId: string
+  googleSiteVerification: string
+  canonicalBaseUrl: string
+}
 
 /** Boş = gizli. Dolu ise https:// ile başlamalı ve ilgili alan adına ait olmalı (sunucu da doğrular). */
 function socialError(value: string, domain: string, label: string): string | undefined {
@@ -91,6 +121,7 @@ interface FormState {
     whatsappE164: string
     whatsappOn: boolean
   }
+  seo: SeoForm
   social: Record<SocialKey, string>
   pages: AdminSite['pages']
 }
@@ -104,6 +135,18 @@ function toForm(s: AdminSite): FormState {
       phoneE164: s.contact.phoneE164 ?? '',
       whatsappE164: s.contact.whatsappE164 ?? '',
       whatsappOn: s.contact.whatsappE164 !== null,
+    },
+    seo: {
+      siteTitle: (s.seo ?? DEFAULT_SEO).siteTitle,
+      titleTemplate: (s.seo ?? DEFAULT_SEO).titleTemplate,
+      description: (s.seo ?? DEFAULT_SEO).description,
+      keywords: (s.seo ?? DEFAULT_SEO).keywords ?? '',
+      ogImageMediaId: (s.seo ?? DEFAULT_SEO).ogImageMediaId,
+      ogImageUrl: s.seo?.ogImageUrl ?? null,
+      indexable: (s.seo ?? DEFAULT_SEO).indexable,
+      googleAnalyticsId: (s.seo ?? DEFAULT_SEO).googleAnalyticsId ?? '',
+      googleSiteVerification: (s.seo ?? DEFAULT_SEO).googleSiteVerification ?? '',
+      canonicalBaseUrl: (s.seo ?? DEFAULT_SEO).canonicalBaseUrl ?? '',
     },
     social: {
       instagram: s.social?.instagram ?? '',
@@ -137,6 +180,17 @@ function toPayload(f: FormState): AdminSiteInput {
           ? { whatsappE164: whatsappE164.trim() }
           : {}),
     },
+    seo: {
+      siteTitle: f.seo.siteTitle.trim(),
+      titleTemplate: f.seo.titleTemplate.trim(),
+      description: f.seo.description.trim(),
+      keywords: f.seo.keywords.trim() || null,
+      ogImageMediaId: f.seo.ogImageMediaId,
+      indexable: f.seo.indexable,
+      googleAnalyticsId: f.seo.googleAnalyticsId.trim().toUpperCase() || null,
+      googleSiteVerification: f.seo.googleSiteVerification.trim() || null,
+      canonicalBaseUrl: f.seo.canonicalBaseUrl.trim().replace(/\/+$/, '') || null,
+    },
     social: {
       instagram: f.social.instagram.trim() || null,
       facebook: f.social.facebook.trim() || null,
@@ -163,6 +217,17 @@ function validate(f: FormState): Errors {
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.email.trim())) e.email = 'Geçerli bir e-posta girin.'
   if (f.contact.mapUrl.trim() && !f.contact.mapUrl.trim().startsWith('https://'))
     e.mapUrl = 'Harita bağlantısı https:// ile başlamalıdır.'
+  const q = f.seo
+  if (!q.siteTitle.trim() || q.siteTitle.length > SEO_TITLE_MAX)
+    e['seo-siteTitle'] = `Site başlığı 1–${SEO_TITLE_MAX} karakter olmalıdır.`
+  if (!q.titleTemplate.includes('%s')) e['seo-titleTemplate'] = 'Şablon sayfa başlığı için “%s” içermelidir.'
+  if (q.description.length > SEO_DESC_MAX) e['seo-description'] = `En fazla ${SEO_DESC_MAX} karakter.`
+  if (q.keywords.length > 255) e['seo-keywords'] = 'En fazla 255 karakter.'
+  if (q.googleAnalyticsId.trim() && !/^G-[A-Z0-9]{4,12}$/.test(q.googleAnalyticsId.trim().toUpperCase()))
+    e['seo-googleAnalyticsId'] = 'Kimlik “G-” ile başlamalıdır (ör. G-ABC123XYZ4).'
+  if (q.googleSiteVerification.length > 100) e['seo-googleSiteVerification'] = 'En fazla 100 karakter.'
+  if (q.canonicalBaseUrl.trim() && !/^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(q.canonicalBaseUrl.trim()))
+    e['seo-canonicalBaseUrl'] = 'Adres https:// ile başlamalıdır (ör. https://www.amisos.com).'
   for (const x of SOCIALS) {
     const m = socialError(f.social[x.key], x.domain, x.label)
     if (m) e[`social-${x.key}`] = m
@@ -187,10 +252,13 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
   const [preview, setPreview] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
   const [tab, setTab] = useState<TabId>('genel')
+  const [picker, setPicker] = useState(false)
   const dirty = JSON.stringify(form) !== baseline
 
   const setContact = (k: Exclude<keyof FormState['contact'], 'whatsappOn'>, v: string) =>
     setForm((f) => ({ ...f, contact: { ...f.contact, [k]: v } }))
+  const setSeo = <K extends keyof SeoForm>(k: K, v: SeoForm[K]) =>
+    setForm((f) => ({ ...f, seo: { ...f.seo, [k]: v } }))
   const setPage = (i: number, patch: Partial<AdminSite['pages'][number]>) =>
     setForm((f) => ({ ...f, pages: f.pages.map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
 
@@ -203,7 +271,13 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
     const firstKey = Object.keys(found)[0]
     if (firstKey) {
       setTab(
-        firstKey.startsWith('social-') ? 'sosyal' : /^(title|body)-/.test(firstKey) ? 'sayfalar' : 'genel',
+        firstKey.startsWith('seo-')
+          ? 'seo'
+          : firstKey.startsWith('social-')
+            ? 'sosyal'
+            : /^(title|body)-/.test(firstKey)
+              ? 'sayfalar'
+              : 'genel',
       )
       requestAnimationFrame(() =>
         requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()),
@@ -223,15 +297,17 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
       if (err instanceof ApiError && err.status === 400) {
         const fields = err.fields ?? {}
         const social: Errors = {}
-        for (const [k, v] of Object.entries(fields))
+        for (const [k, v] of Object.entries(fields)) {
           if (k.startsWith('social.')) social[`social-${k.slice(7)}`] = v
+          else if (k.startsWith('seo.')) social[`seo-${k.slice(4)}`] = v
+        }
         if (Object.keys(social).length > 0) {
           setErrors(social)
-          setTab('sosyal')
+          setTab(Object.keys(social)[0].startsWith('seo-') ? 'seo' : 'sosyal')
         }
         setServerMsgs(
           Object.entries(fields)
-            .filter(([k]) => !k.startsWith('social.'))
+            .filter(([k]) => !k.startsWith('social.') && !k.startsWith('seo.'))
             .map(([, v]) => v),
         )
         setNotice({ tone: 'danger', text: 'Kayıt yapılamadı. Alanları kontrol edin.' })
@@ -281,6 +357,7 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
         onChange={setTab}
         tabs={[
           { value: 'genel', label: 'Genel' },
+          { value: 'seo', label: 'SEO' },
           { value: 'sosyal', label: 'Sosyal medya' },
           { value: 'sayfalar', label: 'Bilgi sayfaları' },
         ]}
@@ -373,6 +450,188 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
                 {contactInput('mapUrl', 'mapUrl', { type: 'url' })}
               </Field>
             </div>
+          </section>
+        </TabPanel>
+      )}
+
+      {tab === 'seo' && (
+        <TabPanel idBase="site" value="seo">
+          <section className="ui-card ui-card__body ui-section" aria-labelledby="site-seo">
+            <h2 id="site-seo">Arama motorları (SEO)</h2>
+            <p className="muted">
+              Sitenin Google gibi arama motorlarında ve paylaşımlarda nasıl görüneceğini belirler. Ürün ve
+              grup sayfalarına özel başlık/açıklama ilgili düzenleme ekranlarından girilir.
+            </p>
+            <div className="ui-form-grid ui-form-grid--2">
+              <Field
+                label="Site başlığı"
+                htmlFor="seo-siteTitle"
+                help="Ana sayfa başlığı ve şablonsuz durumlarda kullanılır."
+                error={errors['seo-siteTitle']}
+              >
+                <input
+                  id="seo-siteTitle"
+                  className="ui-input"
+                  value={form.seo.siteTitle}
+                  aria-invalid={errors['seo-siteTitle'] ? true : undefined}
+                  onChange={(e) => setSeo('siteTitle', e.target.value)}
+                />
+                <CharCount value={form.seo.siteTitle.length} max={SEO_TITLE_MAX} />
+              </Field>
+              <Field
+                label="Başlık şablonu"
+                htmlFor="seo-titleTemplate"
+                help="“%s” sayfa başlığının yerine geçer. Örn. %s | AMİSOS B2B"
+                error={errors['seo-titleTemplate']}
+              >
+                <input
+                  id="seo-titleTemplate"
+                  className="ui-input"
+                  value={form.seo.titleTemplate}
+                  aria-invalid={errors['seo-titleTemplate'] ? true : undefined}
+                  onChange={(e) => setSeo('titleTemplate', e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field
+              label="Site açıklaması"
+              htmlFor="seo-description"
+              help="Arama sonucunda başlığın altında görünen özet (ana sayfa ve açıklaması olmayan sayfalar)."
+              error={errors['seo-description']}
+            >
+              <textarea
+                id="seo-description"
+                className="ui-textarea"
+                rows={3}
+                value={form.seo.description}
+                aria-invalid={errors['seo-description'] ? true : undefined}
+                onChange={(e) => setSeo('description', e.target.value)}
+              />
+              <CharCount value={form.seo.description.length} max={SEO_DESC_MAX} />
+            </Field>
+            <Field
+              label="Anahtar kelimeler"
+              htmlFor="seo-keywords"
+              help="Virgülle ayırın (isteğe bağlı). Günümüzde arama sıralamasına etkisi sınırlıdır."
+              error={errors['seo-keywords']}
+            >
+              <input
+                id="seo-keywords"
+                className="ui-input"
+                value={form.seo.keywords}
+                aria-invalid={errors['seo-keywords'] ? true : undefined}
+                onChange={(e) => setSeo('keywords', e.target.value)}
+              />
+            </Field>
+            <SearchPreview
+              title={form.seo.siteTitle}
+              url={(form.seo.canonicalBaseUrl.trim() || 'https://www.ornek.com').replace(/^https?:\/\//, '')}
+              description={form.seo.description}
+            />
+          </section>
+
+          <section className="ui-card ui-card__body ui-section" aria-labelledby="site-seo-share">
+            <h2 id="site-seo-share">Paylaşım görseli</h2>
+            <p className="muted">
+              Bağlantı WhatsApp, Instagram veya Facebook’ta paylaşılınca görünen görsel. Önerilen oran 1,91:1
+              (ör. 1200×630).
+            </p>
+            <div className="adm-seoimg">
+              {form.seo.ogImageUrl && <img src={form.seo.ogImageUrl} alt="Seçili paylaşım görseli" />}
+              <Button variant="secondary" size="sm" icon="image" onClick={() => setPicker(true)}>
+                {form.seo.ogImageMediaId ? 'Görseli değiştir' : 'Görsel seç'}
+              </Button>
+              {form.seo.ogImageMediaId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setForm((f) => ({ ...f, seo: { ...f.seo, ogImageMediaId: null, ogImageUrl: null } }))
+                  }
+                >
+                  Kaldır
+                </Button>
+              )}
+            </div>
+          </section>
+
+          <section className="ui-card ui-card__body ui-section" aria-labelledby="site-seo-index">
+            <h2 id="site-seo-index">Yayın ve izleme</h2>
+            <div className="ui-field">
+              <label className="ui-check ui-switch" htmlFor="seo-indexable">
+                <input
+                  id="seo-indexable"
+                  type="checkbox"
+                  role="switch"
+                  checked={form.seo.indexable}
+                  onChange={(e) => setSeo('indexable', e.target.checked)}
+                />
+                <span>Arama motorlarına açık</span>
+              </label>
+              <span className="ui-help">
+                Kapalıyken site “noindex” olarak işaretlenir, robots.txt tüm taramayı engeller ve site
+                haritası boş döner. Yayına almadan önce açın.
+              </span>
+            </div>
+            {!form.seo.indexable && (
+              <Alert tone="warning">Site şu an arama motorlarına kapalı; Google’da görünmez.</Alert>
+            )}
+            <div className="ui-form-grid ui-form-grid--2">
+              <Field
+                label="Google Analytics 4 kimliği"
+                htmlFor="seo-googleAnalyticsId"
+                help="Ölçüm kimliği, örn. G-ABC123XYZ4. Boşsa izleme yüklenmez."
+                error={errors['seo-googleAnalyticsId']}
+              >
+                <input
+                  id="seo-googleAnalyticsId"
+                  className="ui-input"
+                  autoComplete="off"
+                  value={form.seo.googleAnalyticsId}
+                  aria-invalid={errors['seo-googleAnalyticsId'] ? true : undefined}
+                  onChange={(e) => setSeo('googleAnalyticsId', e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Search Console doğrulama kodu"
+                htmlFor="seo-googleSiteVerification"
+                help="Google Search Console “HTML etiketi” yönteminin content değeri."
+                error={errors['seo-googleSiteVerification']}
+              >
+                <input
+                  id="seo-googleSiteVerification"
+                  className="ui-input"
+                  autoComplete="off"
+                  value={form.seo.googleSiteVerification}
+                  aria-invalid={errors['seo-googleSiteVerification'] ? true : undefined}
+                  onChange={(e) => setSeo('googleSiteVerification', e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Canonical taban adres"
+                htmlFor="seo-canonicalBaseUrl"
+                help="Sitenin gerçek adresi, örn. https://www.amisos.com. Site haritası ve kanonik bağlantılar bunu kullanır."
+                error={errors['seo-canonicalBaseUrl']}
+              >
+                <input
+                  id="seo-canonicalBaseUrl"
+                  className="ui-input"
+                  type="url"
+                  inputMode="url"
+                  autoComplete="off"
+                  value={form.seo.canonicalBaseUrl}
+                  aria-invalid={errors['seo-canonicalBaseUrl'] ? true : undefined}
+                  onChange={(e) => setSeo('canonicalBaseUrl', e.target.value)}
+                />
+              </Field>
+            </div>
+            {form.seo.googleAnalyticsId.trim() && (
+              <Alert tone="warning">
+                Analytics kimliği girildiğinde ziyaretçi izleme, çerez onayı beklenmeden vitrinde başlar. KVKK
+                ve çerez aydınlatması yükümlülüğünüzü ayrıca değerlendirin; yönetim sayfalarında izleme
+                yapılmaz.
+              </Alert>
+            )}
           </section>
         </TabPanel>
       )}
@@ -487,6 +746,18 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
         </TabPanel>
       )}
 
+      {picker && (
+        <MediaPicker
+          single
+          excludeIds={[]}
+          onClose={() => setPicker(false)}
+          onConfirm={(items: Media[]) => {
+            const m = items[0]
+            if (m) setForm((f) => ({ ...f, seo: { ...f.seo, ogImageMediaId: m.id, ogImageUrl: m.url } }))
+            setPicker(false)
+          }}
+        />
+      )}
       <div className="ui-savebar">
         <span className="muted" aria-live="polite">
           {dirty ? 'Kaydedilmemiş değişiklikler var.' : 'Tüm değişiklikler kaydedildi.'}

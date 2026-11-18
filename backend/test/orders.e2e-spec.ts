@@ -428,7 +428,7 @@ describe('Sepet ve ön sipariş (e2e)', () => {
     it('GR-FIY-001: pasif ürün sepetten düşmüşse toplam aynı olsa da 409 PRICE_CHANGED; hepsi düşerse removed ile 409', async () => {
       const { agent } = await dealerAgent('gonder-pasif');
       const p1 = await createProduct(groupA);
-      const free = await createProduct(groupA, { listPrice: '0', caseQuantity: 1 });
+      const free = await createProduct(groupA, { listPrice: '0.01', caseQuantity: 1 });
       await put(agent, p1.id, 12).expect(200);
       await put(agent, free.id, 1).expect(200);
       const seenCart = (await agent.get('/api/cart')).body;
@@ -623,18 +623,18 @@ describe('Sepet ve ön sipariş (e2e)', () => {
 
     it('K-21, GR-SIP-004: gönderim anında koli katı düzeltilmişse (adjusted) toplam aynı olsa da 409; sipariş oluşmaz', async () => {
       const { agent, dealer } = await dealerAgent('gonder-adjusted');
-      const p = await createProduct(groupA, { caseQuantity: 6, listPrice: '0' });
+      const p = await createProduct(groupA, { caseQuantity: 6, listPrice: '1.00' });
       await put(agent, p.id, 12).expect(200);
       const seen = (await agent.get('/api/cart')).body;
-      expect(seen.summary.grandTotal).toBe('0.00');
+      expect(seen.summary.grandTotal).toBe('14.40');
       await admin.agent.patch(`/api/admin/products/${p.id}`).send({ caseQuantity: 5 }).expect(200);
-      const res = await (await orderReq(agent, carrierBody('0.00', { expectedVersion: seen.version }))).req.expect(409);
+      const res = await (await orderReq(agent, carrierBody('14.40', { expectedVersion: seen.version }))).req.expect(409);
       expect(res.body.code).toBe('PRICE_CHANGED');
       expect(res.body.cart.adjusted).toEqual([{ productId: p.id, name: p.name, from: 12, to: 15, caseQuantity: 5 }]);
       expect(res.body.cart.lines[0].quantity).toBe(15);
       expect(await db.select().from(orders).where(eq(orders.dealerId, dealer.id))).toHaveLength(0);
       // Bayi güncel sepeti görüp onaylayınca gönderilir.
-      await (await orderReq(agent, carrierBody('0.00'))).req.expect(201);
+      await (await orderReq(agent, carrierBody(res.body.cart.summary.grandTotal))).req.expect(201);
     });
 
     it('GR-SIP-006, K-10: sipariş detayında iskonto yoksa discountPercent null, varsa oran', async () => {

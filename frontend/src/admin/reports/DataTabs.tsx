@@ -32,7 +32,9 @@ interface Period {
 function Empty({ children }: { children: ReactNode }) {
   return (
     <div className="ui-card">
-      <EmptyState title="Veri yok">{children}</EmptyState>
+      <EmptyState icon="chart" title="Bu dönemde veri yok">
+        {children} Üstteki dönem seçiciden “Bu yıl” veya “Geçen yıl” gibi daha geniş bir dönem deneyin.
+      </EmptyState>
     </div>
   )
 }
@@ -167,7 +169,7 @@ function DealerProducts({ id, from, to }: { id: string; from: string; to: string
   )
   if (state.status === 'loading') return <p className="muted">Yükleniyor…</p>
   if (state.status === 'error') return <ErrorAlert onRetry={reload}>Ürünler alınamadı.</ErrorAlert>
-  if (state.data.length === 0) return <p className="muted">Bu dönemde ürün yok.</p>
+  if (state.data.length === 0) return <Empty>Bu dönemde ürün yok.</Empty>
   return (
     <div className="ui-stack">
       <strong>En çok aldığı ürünler</strong>
@@ -410,6 +412,7 @@ export function GroupsTab({ from, to }: Period) {
             <section className="ui-card ui-card__body ui-stack" aria-labelledby="rp-g-chart">
               <h2 id="rp-g-chart">Net ciro payı</h2>
               <HBarList
+                ranked
                 label="Ürün grubu net ciro payı"
                 rows={[...state.data]
                   .sort((a, b) => num(b.sharePercent) - num(a.sharePercent))

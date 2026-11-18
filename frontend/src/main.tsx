@@ -10,11 +10,10 @@ import '@fontsource/playfair-display/500.css'
 import '@fontsource/playfair-display/600.css'
 import './index.css'
 import App from './App.tsx'
+import { upgradeLegacyHash } from './router'
 
-// E-posta bağlantıları temiz yol olabilir (/sifre-sifirla?...); hash rotasına çevrilir.
-if (location.pathname !== '/' && !location.hash) {
-  location.replace(`/#${location.pathname}${location.search}`)
-}
+// Eski "/#/..." bağlantıları (e-postalar dahil) aynı temiz yola taşınır (K-82).
+upgradeLegacyHash()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

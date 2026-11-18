@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { fetchFavorites, type CatalogProduct } from '../api'
 import { useLoad } from '../admin/useLoad'
+import { productHref } from '../shop/catalogHref'
 import { Link } from '../Link'
 import { usePageTitle } from '../shop/pageTitle'
 import { useAddToCart } from '../shop/useAddToCart'
@@ -71,9 +72,7 @@ export function FavoritesPage() {
                   setRemoved((r) => [...r, p.id])
                   requestAnimationFrame(() => {
                     const el = target
-                      ? document.querySelector<HTMLElement>(
-                          `a[href="#/urun/${encodeURIComponent(target.id)}"].ui-pcard__link`,
-                        )
+                      ? document.querySelector<HTMLElement>(`a[href="${productHref(target)}"].ui-pcard__link`)
                       : document.getElementById('fav-title')
                     el?.focus()
                   })

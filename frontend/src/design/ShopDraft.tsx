@@ -37,6 +37,10 @@ const toCatalog = (i: number): CatalogProduct => {
     isFavorite: false,
     isFeatured: false,
     isNew: false,
+    priceOnRequest: false,
+    slug: null,
+    seoTitle: null,
+    seoDescription: null,
   }
 }
 

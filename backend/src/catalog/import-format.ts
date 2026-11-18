@@ -12,6 +12,7 @@ export const DEFAULT_VAT = '20.00';
 export type ColumnKey =
   | 'barcode'
   | 'code'
+  | 'bizimhesapId'
   | 'name'
   | 'group'
   | 'caseQuantity'
@@ -32,6 +33,7 @@ interface ColumnDef {
 export const COLUMNS: ColumnDef[] = [
   { key: 'barcode', header: 'Barkod', required: true },
   { key: 'code', header: 'Ürün kodu', required: false, aliases: ['Kod'] },
+  { key: 'bizimhesapId', header: 'BizimHesap ID', required: false, aliases: ['BizimHesap Ürün ID'] },
   { key: 'name', header: 'Ürün adı', required: true, aliases: ['Ad'] },
   { key: 'group', header: 'Ürün grubu', required: true, aliases: ['Grup'] },
   { key: 'caseQuantity', header: 'Koli içi adet', required: true, aliases: ['Koli içi'] },
@@ -55,6 +57,8 @@ export interface ImportRow {
   row: number;
   barcode: string;
   code: string | null;
+  /** K-80: boşsa null (mevcut üründe değişmez). */
+  bizimhesapId: string | null;
   name: string;
   groupName: string;
   caseQuantity: number;
@@ -188,6 +192,17 @@ export function parseSheet(sheet: ExcelJS.Worksheet): ParsedSheet {
     }
     if (code.length > 64) fail('code', 'Ürün kodu en fazla 64 karakter olabilir.');
 
+    let bizimhesapId = raw('bizimhesapId');
+    const bhNumber = numericValue(cellOf('bizimhesapId')?.value);
+    if (bhNumber !== null) {
+      if (Number.isSafeInteger(bhNumber) && bhNumber >= 0) bizimhesapId = String(bhNumber);
+      else {
+        bizimhesapId = '';
+        fail('bizimhesapId', 'BizimHesap ID sayı olarak geçersiz; sütunu Metin biçimine çevirip yeniden yazın.');
+      }
+    }
+    if (bizimhesapId.length > 100) fail('bizimhesapId', 'BizimHesap ID en fazla 100 karakter olabilir.');
+
     const name = raw('name');
     if (!name) fail('name', 'Ürün adı boş olamaz.');
     else if (name.length > 300) fail('name', 'Ürün adı en fazla 300 karakter olabilir.');
@@ -254,6 +269,7 @@ export function parseSheet(sheet: ExcelJS.Worksheet): ParsedSheet {
         row: r,
         barcode,
         code: code || null,
+        bizimhesapId: bizimhesapId || null,
         name,
         groupName,
         caseQuantity,

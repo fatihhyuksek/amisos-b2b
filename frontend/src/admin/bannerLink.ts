@@ -6,6 +6,8 @@ export function parseLink(path: string | null): { kind: LinkKind; id: string } {
   if (path === '/katalog') return { kind: 'catalog', id: '' }
   const g = /^\/katalog\?grup=([^&\s]+)$/.exec(path)
   if (g) return { kind: 'group', id: decodeURIComponent(g[1]) }
+  const gs = /^\/katalog\/([^/?\s]+)$/.exec(path)
+  if (gs) return { kind: 'keep', id: '' }
   const p = /^\/urun\/([^/?\s]+)$/.exec(path)
   if (p) return { kind: 'product', id: decodeURIComponent(p[1]) }
   return { kind: 'keep', id: '' }

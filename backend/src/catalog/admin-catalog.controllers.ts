@@ -113,6 +113,8 @@ export class AdminProductsController {
         { header: 'Durum', kind: 'text', value: (r) => (r.product.isActive ? 'Aktif' : 'Pasif') },
         { header: 'Öne çıkan', kind: 'text', value: (r) => yesNo(r.product.isFeatured) },
         { header: 'Görsel sayısı', kind: 'int', value: (r) => r.imageCount },
+        // K-80: ilk 7 sütun şablonla aynı sırada kalır; ID içe aktarmada da başlıkla eşleşir.
+        { header: 'BizimHesap ID', kind: 'text', width: 22, value: (r) => r.product.bizimhesapId },
       ],
       rows,
     );

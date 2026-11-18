@@ -2,7 +2,9 @@
 // Satır tutarları ve toplamlar sunucudan gelir; arayüz hesaplamaz.
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, type CartLine } from '../api'
+import { productHref } from '../shop/catalogHref'
 import { Link } from '../Link'
+import { PriceOnRequest } from '../shop/PriceOnRequest'
 import { navigate } from '../router'
 import { useCart } from '../shop/cart'
 import { CartNotices } from '../shop/CartNotices'
@@ -111,7 +113,7 @@ function CartLineRow({ line, onDirty }: { line: CartLine; onDirty: (id: string, 
       </div>
       <div className="ui-cartline__info">
         <h3 className="ui-cartline__name">
-          <Link to={`/urun/${encodeURIComponent(line.productId)}`}>{line.name}</Link>
+          <Link to={productHref({ id: line.productId, slug: line.slug })}>{line.name}</Link>
         </h3>
         <p className="ui-cartline__meta num">
           <span>
@@ -120,19 +122,30 @@ function CartLineRow({ line, onDirty }: { line: CartLine; onDirty: (id: string, 
           </span>
           <span>Koli içi: {line.caseQuantity} adet</span>
         </p>
-        <p className="ui-cartline__unit num">
-          <strong>{formatTRY(line.unitPrice)}</strong> <span className="muted">KDV hariç / adet</span>
-          {line.discountPercent && (
-            <>
-              {' '}
-              <s className="muted">
-                <span className="visually-hidden">Liste fiyatı </span>
-                {formatTRY(line.listPrice)}
-              </s>{' '}
-              <span className="ui-pill ui-pill--accent">{formatPercent(line.discountPercent)} iskonto</span>
-            </>
-          )}
-        </p>
+        {line.priceOnRequest ? (
+          <p className="ui-cartline__unit">
+            <PriceOnRequest product={line} />
+          </p>
+        ) : (
+          <p className="ui-cartline__unit num">
+            <strong>{formatTRY(line.unitPrice)}</strong> <span className="muted">KDV hariç / adet</span>
+            {line.discountPercent && (
+              <>
+                {' '}
+                <s className="muted">
+                  <span className="visually-hidden">Liste fiyatı </span>
+                  {formatTRY(line.listPrice)}
+                </s>{' '}
+                <span className="ui-pill ui-pill--accent">{formatPercent(line.discountPercent)} iskonto</span>
+              </>
+            )}
+          </p>
+        )}
+        {line.priceOnRequest && (
+          <span className="ui-pill ui-pill--warning">
+            Fiyatı girilmedi · siparişe eklenemez, sepetten çıkarın
+          </span>
+        )}
         {out && <span className="ui-pill ui-pill--warning">Stokta yok · tedarik süresi görüşülecek</span>}
       </div>
       <div className="ui-cartline__qty">
@@ -146,7 +159,7 @@ function CartLineRow({ line, onDirty }: { line: CartLine; onDirty: (id: string, 
       <div className="ui-cartline__total">
         <span className="ui-cartline__amount num">
           <span className="visually-hidden">Satır net tutarı, KDV hariç: </span>
-          {formatTRY(line.lineNet)}
+          {line.priceOnRequest ? '—' : formatTRY(line.lineNet)}
         </span>
         <Button
           variant="ghost"
@@ -189,6 +202,7 @@ export function CartPage() {
   }
 
   const hasOut = cart?.lines.some((l) => l.stock !== 'in_stock') ?? false
+  const hasUnpriced = cart?.lines.some((l) => l.priceOnRequest) ?? false
 
   return (
     <ShopLayout>
@@ -233,6 +247,12 @@ export function CartPage() {
             <h2 id="cart-lines-h" className="visually-hidden">
               Sepetteki ürünler
             </h2>
+            {hasUnpriced && (
+              <Alert tone="danger">
+                Sepetinizde fiyatı girilmemiş ürün var. Siparişe devam etmek için bu ürünleri sepetten çıkarın
+                veya fiyat için bize ulaşın.
+              </Alert>
+            )}
             {hasOut && (
               <Alert tone="warning">
                 Sepetinizde stokta olmayan ürün var. Bu ürünlerin tedarik süresi görüşülecek; yine de ön
@@ -252,7 +272,7 @@ export function CartPage() {
               <p className="muted ui-summary__note">Fiyatlar KDV hariçtir; KDV ayrı satırda gösterilir.</p>
               <Button
                 block
-                disabled={anyDirty || busy}
+                disabled={anyDirty || busy || hasUnpriced}
                 onClick={() => navigate('/sepet/onay')}
                 icon="arrowRight"
               >

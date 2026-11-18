@@ -18,27 +18,33 @@ function publish(next: FeedState) {
   listeners.forEach((l) => l(next))
 }
 
-async function refreshFeed(signal?: AbortSignal) {
-  try {
-    const r = await fetchNotificationFeed(signal)
-    publish({ items: r.items, unread: r.unread, loaded: true, error: false })
-  } catch {
-    if (signal?.aborted) return
-    publish({ ...current, loaded: true, error: true })
-  }
+let inflight: Promise<void> | null = null
+
+/** Aynı anda tek istek: kabuktaki rozet ve zil paneli aynı veriyi paylaşır. */
+function refreshFeed(): Promise<void> {
+  inflight ??= fetchNotificationFeed()
+    .then((r) => publish({ items: r.items, unread: r.unread, loaded: true, error: false }))
+    .catch(() => publish({ ...current, loaded: true, error: true }))
+    .finally(() => {
+      inflight = null
+    })
+  return inflight
 }
+
+let timer: ReturnType<typeof setInterval> | undefined
 
 export function useNotificationFeed() {
   const [state, setState] = useState<FeedState>(current)
   useEffect(() => {
     listeners.add(setState)
-    const c = new AbortController()
-    void refreshFeed(c.signal)
-    const t = setInterval(() => void refreshFeed(), 60_000)
+    void refreshFeed()
+    timer ??= setInterval(() => void refreshFeed(), 60_000)
     return () => {
       listeners.delete(setState)
-      c.abort()
-      clearInterval(t)
+      if (listeners.size === 0) {
+        clearInterval(timer)
+        timer = undefined
+      }
     }
   }, [])
 

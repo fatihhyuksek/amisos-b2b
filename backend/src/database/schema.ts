@@ -240,12 +240,25 @@ export const productGroups = pgTable(
      * ile üretilir (src/dealers/company-title.ts); migration mevcut satırları aynı sonucu veren SQL ile doldurur.
      */
     nameKey: text().notNull(),
+    /**
+     * K-82: vitrin adresi `/katalog/<slug>`; tekil, boş olamaz. Boş bırakılırsa veritabanı tetikleyicisi addan üretir
+     * (uygulama yine de `allocateGroupSlug` ile açıkça yazar).
+     */
+    slug: text().notNull().default(''),
+    seoTitle: text(),
+    seoDescription: text(),
+    /** K-82: grup sayfası tanıtım metni (≤1000). */
+    description: text(),
     sortOrder: integer().notNull().default(0),
     isActive: boolean().notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex('product_groups_name_key_uq').on(t.nameKey)],
+  (t) => [
+    uniqueIndex('product_groups_name_key_uq').on(t.nameKey),
+    uniqueIndex('product_groups_slug_uq').on(t.slug),
+    check('product_groups_slug_not_blank', sql`length(trim(${t.slug})) > 0`),
+  ],
 );
 
 /**
@@ -287,6 +300,12 @@ export const products = pgTable(
     barcode: text().notNull(),
     /** BizimHesap ürün kodu; yoksa eşleşme yalnızca barkodla yapılır (K-15). */
     code: text(),
+    /** K-80: BizimHesap ürün ID'si (tekil, null hariç). Eşleşme yine barkodla yapılır. */
+    bizimhesapId: text(),
+    /** K-82: vitrin adresi `/urun/<slug>`; tekil, boş olamaz. Boş bırakılırsa tetikleyici addan üretir. */
+    slug: text().notNull().default(''),
+    seoTitle: text(),
+    seoDescription: text(),
     name: text().notNull(),
     description: text(),
     /** Koli içi adedi; tek satılan üründe 1 (K-21, K-32). */
@@ -308,6 +327,11 @@ export const products = pgTable(
     uniqueIndex('products_code_uq')
       .on(t.code)
       .where(sql`${t.code} IS NOT NULL`),
+    uniqueIndex('products_bizimhesap_id_uq')
+      .on(t.bizimhesapId)
+      .where(sql`${t.bizimhesapId} IS NOT NULL`),
+    uniqueIndex('products_slug_uq').on(t.slug),
+    check('products_slug_not_blank', sql`length(trim(${t.slug})) > 0`),
     index('products_group_idx').on(t.groupId),
     index('products_name_idx').on(sql`lower(${t.name})`),
     index('products_featured_idx')
@@ -318,6 +342,19 @@ export const products = pgTable(
     check('products_list_price_non_negative', sql`${t.listPrice} >= 0`),
     check('products_vat_rate_range', sql`${t.vatRate} >= 0 AND ${t.vatRate} < 100`),
   ],
+);
+
+/** K-82: ürün slug'ı değişince eski adres burada tutulur; vitrin 301 ile yeni adrese yönlendirir. */
+export const productSlugRedirects = pgTable(
+  'product_slug_redirects',
+  {
+    slug: text().primaryKey(),
+    productId: uuid()
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('product_slug_redirects_product_idx').on(t.productId)],
 );
 
 /** Ürün görselleri; birden çok görsel ve sıra (K-40). */

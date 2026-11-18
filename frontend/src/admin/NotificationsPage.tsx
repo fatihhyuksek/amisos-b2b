@@ -1,10 +1,17 @@
-// GR-BLD-001: Admin e-posta bildirimleri (/yonetim/bildirimler). Başarısız e-postalar yeniden denenebilir.
+// GR-BLD-001, K-83: Admin bildirimleri (/yonetim/bildirimler). Sekmeler: Etkinlikler (feed) ve E-posta gönderimleri
+// (outbox; başarısız e-postalar yeniden denenebilir).
 import { useState } from 'react'
+import { Link } from '../Link'
+import { Icon, type IconName } from '../ui/Icon'
+import { timeAgo } from './time'
+import { useNotificationFeed } from './useFeed'
+import { TabPanel, Tabs } from './kit'
 import {
   ApiError,
   fetchNotifications,
   retryNotification,
   type AdminNotification,
+  type FeedItem,
   type NotificationKind,
   type NotificationStatus,
   type Paged,
@@ -48,7 +55,7 @@ function shorten(text: string | null, max = 80): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
-export function NotificationsPage() {
+function EmailTab() {
   const { query } = useRoute()
   const rawStatus = query.get('durum')
   const status: NotificationStatus = rawStatus === 'pending' || rawStatus === 'sent' ? rawStatus : 'failed'
@@ -63,6 +70,7 @@ export function NotificationsPage() {
 
   const path = (s: NotificationStatus, p: number, n = size) => {
     const qs = new URLSearchParams()
+    qs.set('sekme', 'eposta')
     if (s !== 'failed') qs.set('durum', s)
     if (n !== 20) qs.set('adet', String(n))
     if (p > 1) qs.set('sayfa', String(p))
@@ -117,7 +125,7 @@ export function NotificationsPage() {
     )
 
   return (
-    <AdminLayout title="Bildirimler">
+    <>
       <p className="muted">
         Sistemin gönderdiği e-postalar. Başarısız olanlar otomatik yeniden denenir; buradan elle de
         deneyebilirsiniz.
@@ -215,6 +223,125 @@ export function NotificationsPage() {
           />
         </>
       )}
+    </>
+  )
+}
+
+// ---------- Etkinlikler (feed) ----------
+const TYPE_META: Record<FeedItem['type'], { label: string; icon: IconName }> = {
+  order_submitted: { label: 'Yeni sipariş', icon: 'orders' },
+  application_verified: { label: 'Bayi başvurusu', icon: 'users' },
+  order_status_changed: { label: 'Sipariş durumu', icon: 'truck' },
+  notification_failed: { label: 'E-posta hatası', icon: 'warning' },
+}
+
+function EventsTab() {
+  const feed = useNotificationFeed()
+  const [type, setType] = useState<FeedItem['type'] | 'all'>('all')
+  const shown = type === 'all' ? feed.items : feed.items.filter((i) => i.type === type)
+  // Okunmamışlar listenin en yenileridir (sunucu `unread` sayısını verir).
+  const unreadIds = new Set(feed.items.slice(0, feed.unread).map((i) => i.id))
+  return (
+    <>
+      <div className="adm-evhead">
+        <p className="muted">
+          Son 30 günün gelişmeleri: yeni siparişler, başvurular ve durum değişiklikleri.
+          {feed.unread > 0 && (
+            <>
+              {' '}
+              <strong className="num">{feed.unread}</strong> okunmamış.
+            </>
+          )}
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon="check"
+          disabled={feed.unread === 0}
+          onClick={() => void feed.markAllRead()}
+        >
+          Tümünü okundu say
+        </Button>
+      </div>
+      <div className="ui-chips" role="group" aria-label="Tür">
+        {(['all', ...Object.keys(TYPE_META)] as (FeedItem['type'] | 'all')[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            className="ui-chip"
+            aria-pressed={type === t}
+            onClick={() => setType(t)}
+          >
+            {t === 'all' ? 'Tümü' : TYPE_META[t].label}
+          </button>
+        ))}
+      </div>
+      {!feed.loaded && <LoadingCard rows={4} />}
+      {feed.loaded && feed.error && feed.items.length === 0 && (
+        <ErrorAlert onRetry={feed.reload}>Etkinlikler alınamadı.</ErrorAlert>
+      )}
+      {feed.loaded && !feed.error && shown.length === 0 && (
+        <div className="ui-card">
+          <EmptyState icon="inbox" title="Etkinlik yok">
+            {type === 'all'
+              ? 'Son 30 günde yeni bir gelişme yok.'
+              : 'Bu türde etkinlik yok. Başka bir tür seçin.'}
+          </EmptyState>
+        </div>
+      )}
+      {shown.length > 0 && (
+        <ul className="ui-card adm-evlist">
+          {shown.map((it) => {
+            const unread = unreadIds.has(it.id)
+            return (
+              <li key={it.id}>
+                <Link to={it.link} className="adm-evitem" data-unread={unread || undefined}>
+                  <span className="adm-evitem__icon">
+                    <Icon name={TYPE_META[it.type]?.icon ?? 'info'} />
+                  </span>
+                  <span className="adm-evitem__text">
+                    <span className="adm-evitem__title">
+                      {unread && <span className="visually-hidden">Okunmamış: </span>}
+                      {it.title}
+                    </span>
+                    <span className="adm-evitem__body">{it.body}</span>
+                  </span>
+                  <span className="adm-evitem__meta">
+                    <Badge tone="neutral">{TYPE_META[it.type]?.label ?? 'Etkinlik'}</Badge>
+                    <time dateTime={it.createdAt}>{timeAgo(it.createdAt)}</time>
+                  </span>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
+  )
+}
+
+export function NotificationsPage() {
+  const { query } = useRoute()
+  const feed = useNotificationFeed()
+  // Eski adresler (?durum=...) e-posta sekmesine düşer.
+  const tab = query.get('sekme') === 'eposta' || query.has('durum') ? 'eposta' : 'etkinlikler'
+  return (
+    <AdminLayout title="Bildirimler">
+      <Tabs
+        idBase="bildirim"
+        label="Bildirim türü"
+        value={tab}
+        onChange={(v) =>
+          replace(v === 'eposta' ? '/yonetim/bildirimler?sekme=eposta' : '/yonetim/bildirimler')
+        }
+        tabs={[
+          { value: 'etkinlikler', label: 'Etkinlikler', count: feed.unread || undefined },
+          { value: 'eposta', label: 'E-posta gönderimleri' },
+        ]}
+      />
+      <TabPanel idBase="bildirim" value={tab}>
+        {tab === 'eposta' ? <EmailTab /> : <EventsTab />}
+      </TabPanel>
     </AdminLayout>
   )
 }

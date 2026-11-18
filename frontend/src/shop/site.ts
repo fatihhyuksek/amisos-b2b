@@ -10,6 +10,7 @@ let inflight: Promise<SiteInfo | null> | null = null
 
 const FALLBACK: SiteInfo = {
   announcement: null,
+  seo: null,
   contact: DEFAULT_CONTACT,
   pages: DEFAULT_PAGES,
   social: DEFAULT_SOCIAL,
@@ -21,6 +22,7 @@ function load(): Promise<SiteInfo | null> {
     .then((data) => {
       const merged: SiteInfo = {
         announcement: data.announcement ?? null,
+        seo: data.seo ?? null,
         contact: { ...DEFAULT_CONTACT, ...data.contact },
         pages: Array.isArray(data.pages) ? data.pages : DEFAULT_PAGES,
         // Eski sunucu yanıtında social yoksa varsayılan hesap gösterilir (K-77).

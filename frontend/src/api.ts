@@ -286,6 +286,11 @@ export interface ProductGroup {
   sortOrder: number
   isActive: boolean
   productCount: number
+  /** Adres parçası (K-82); eski sunucuda olmayabilir. */
+  slug?: string
+  description?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
 }
 
 export function fetchProductGroups(signal?: AbortSignal): Promise<ProductGroup[]> {
@@ -299,7 +304,15 @@ export async function createProductGroup(name: string, sortOrder?: number): Prom
 
 export async function updateProductGroup(
   id: string,
-  patch: { name?: string; sortOrder?: number; isActive?: boolean },
+  patch: {
+    name?: string
+    sortOrder?: number
+    isActive?: boolean
+    slug?: string
+    description?: string | null
+    seoTitle?: string | null
+    seoDescription?: string | null
+  },
 ): Promise<ProductGroup> {
   const res = await send('PATCH', `/admin/product-groups/${encodeURIComponent(id)}`, patch)
   return (await res.json()) as ProductGroup
@@ -332,6 +345,11 @@ export interface AdminProduct {
   isActive: boolean
   /** Ana sayfada "Öne çıkan ürünler"de gösterilir (K-74). */
   isFeatured?: boolean
+  /** Adres parçası, arama başlığı/açıklaması (K-82) ve BizimHesap ürün kimliği (K-80). */
+  slug?: string
+  seoTitle?: string | null
+  seoDescription?: string | null
+  bizimhesapId?: string | null
   images: (ProductImage & { mediaId: string; sortOrder: number })[]
   createdAt: string
   updatedAt: string
@@ -349,6 +367,10 @@ export interface ProductInput {
   stockStatus: StockStatus
   isActive: boolean
   isFeatured?: boolean
+  slug?: string
+  seoTitle?: string | null
+  seoDescription?: string | null
+  bizimhesapId?: string | null
   mediaIds: string[]
 }
 
@@ -359,6 +381,7 @@ export function fetchAdminProducts(
     stock?: string
     active?: string
     featured?: string
+    priceMissing?: string
     page: number
     pageSize: number
   },
@@ -472,12 +495,22 @@ export interface CatalogProduct {
   isFavorite: boolean
   isFeatured: boolean
   isNew: boolean
+  /** K-79: liste fiyatı girilmemiş; fiyat yerine "Fiyat için bize ulaşın" gösterilir. */
+  priceOnRequest: boolean
+  /** Adres parçası (K-82); eski sunucuda olmayabilir. */
+  slug: string | null
+  seoTitle: string | null
+  seoDescription: string | null
 }
 
 export interface CatalogGroup {
   id: string
   name: string
   productCount: number
+  slug?: string | null
+  description?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
   /** Grubun kapak küçük resmi (ilk görselli ürün); yoksa null/eksik. */
   thumbUrl?: string | null
 }
@@ -507,6 +540,10 @@ function normalizeProduct(raw: Record<string, unknown>): CatalogProduct {
     isFavorite: r.isFavorite ?? false,
     isFeatured: r.isFeatured ?? false,
     isNew: r.isNew ?? false,
+    priceOnRequest: r.priceOnRequest ?? false,
+    slug: r.slug ?? null,
+    seoTitle: r.seoTitle ?? null,
+    seoDescription: r.seoDescription ?? null,
   }
 }
 
@@ -540,8 +577,31 @@ export async function fetchCatalogProducts(
   }
 }
 
-export async function fetchCatalogProduct(id: string, signal?: AbortSignal): Promise<CatalogProduct> {
-  return normalizeProduct(await getJson(`/catalog/products/${encodeURIComponent(id)}`, signal))
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Ürün adresi parçası slug ya da (eski bağlantılar için) kimliktir (K-82).
+ * Eski slug ise sunucu `redirectTo` döner; `redirectTo` doluysa ürün yerine yeni slug verilir.
+ */
+export async function fetchCatalogProductByRef(
+  ref: string,
+  signal?: AbortSignal,
+): Promise<{ product: CatalogProduct } | { redirectTo: string }> {
+  if (UUID_RE.test(ref)) {
+    return {
+      product: normalizeProduct(await getJson(`/catalog/products/${encodeURIComponent(ref)}`, signal)),
+    }
+  }
+  const body = await getJson<Record<string, unknown> & { redirectTo?: string }>(
+    `/catalog/products/by-slug/${encodeURIComponent(ref)}`,
+    signal,
+  )
+  if (typeof body.redirectTo === 'string') return { redirectTo: body.redirectTo }
+  return { product: normalizeProduct(body) }
+}
+
+export async function fetchCatalogGroupBySlug(slug: string, signal?: AbortSignal): Promise<CatalogGroup> {
+  return getJson(`/catalog/groups/by-slug/${encodeURIComponent(slug)}`, signal)
 }
 
 /** Bayi kendine özel net fiyatlı fiyat listesini Excel olarak indirir (K-72). */
@@ -569,6 +629,9 @@ export interface CartLine {
   lineNet: string
   vatRate: string
   lineVat: string
+  /** K-79: fiyat sonradan kaldırılmış; satır gönderilemez. */
+  priceOnRequest?: boolean
+  slug?: string | null
 }
 
 export interface MoneySummary {
@@ -1168,8 +1231,24 @@ export interface SocialLinks {
   linkedin: string | null
 }
 
+/** Site geneli SEO ayarları (K-82). */
+export interface SeoSettings {
+  siteTitle: string
+  /** "%s" sayfa başlığının yerini alır, ör. "%s | AMİSOS B2B". */
+  titleTemplate: string
+  description: string
+  keywords: string | null
+  ogImageMediaId: string | null
+  indexable: boolean
+  googleAnalyticsId: string | null
+  googleSiteVerification: string | null
+  canonicalBaseUrl: string | null
+}
+
 export interface SiteInfo {
   announcement: string | null
+  /** Eski sunucu yanıtında olmayabilir. */
+  seo?: (Omit<SeoSettings, 'ogImageMediaId'> & { ogImageUrl?: string | null }) | null
   contact: SiteContact
   pages: { slug: string; title: string }[]
   /** Eski sunucu yanıtında olmayabilir. */
@@ -1196,6 +1275,7 @@ export function fetchSitePage(slug: string, signal?: AbortSignal): Promise<SiteP
 
 export interface AdminSite {
   announcement: string | null
+  seo?: SeoSettings & { ogImageUrl?: string | null }
   contact: SiteContact
   pages: { slug: string; title: string; body: string; published: boolean; updatedAt?: string }[]
   social?: SocialLinks
@@ -1204,6 +1284,7 @@ export interface AdminSite {
 /** Kayıt gövdesi: E.164 alanları verilmezse sunucu telefondan türetir, null verilirse gizler. */
 export interface AdminSiteInput {
   announcement: string | null
+  seo?: SeoSettings
   contact: Omit<SiteContact, 'phoneE164' | 'whatsappE164'> & {
     phoneE164?: string | null
     whatsappE164?: string | null
@@ -1320,7 +1401,7 @@ export async function removeFavorite(productId: string): Promise<void> {
 
 // ---------- Hızlı sipariş (§5, K-71) ----------
 
-export type QuickAddErrorCode = 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY'
+export type QuickAddErrorCode = 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY' | 'PRICE_NOT_SET'
 
 export interface QuickAddResult {
   added: {
@@ -1500,6 +1581,8 @@ export interface Dashboard {
     overdueApplications: number
     notTransferred: number
     failedNotifications: number
+    /** K-79: aktif ve fiyatı girilmemiş ürün sayısı. */
+    priceMissing?: number
     featuredOutOfStock: number
     inactiveDealers60d: number
   }

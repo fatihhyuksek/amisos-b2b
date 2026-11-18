@@ -62,6 +62,17 @@ export class CatalogController {
       .end(file.data);
   }
 
+  // K-82: oturumsuz açık; `products/:id` ile çakışmaz (ek segment).
+  @Get('products/by-slug/:slug')
+  productBySlug(@Param('slug') slug: string, @CurrentUser() user: AuthIdentity | undefined) {
+    return this.catalog.productBySlug(dealerIdOf(user), slug);
+  }
+
+  @Get('groups/by-slug/:slug')
+  groupBySlug(@Param('slug') slug: string) {
+    return this.catalog.groupBySlug(slug);
+  }
+
   @Get('products/:id')
   get(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthIdentity | undefined) {
     return this.catalog.get(dealerIdOf(user), id);
