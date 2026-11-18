@@ -3,6 +3,7 @@
 // mevcut servis ve koşullardan gelir, tekrar yazılmaz.
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 import { AuditQueryService } from '../audit/admin-audit.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { Money } from '../common/money.js';
@@ -37,6 +38,7 @@ export class DashboardService {
     @Inject(ReportsService) private readonly reports: ReportsService,
     @Inject(DealersService) private readonly dealers: DealersService,
     @Inject(AuditQueryService) private readonly audit: AuditQueryService,
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
   ) {}
 
   private async rows<T = Row>(query: ReturnType<typeof sql>): Promise<T[]> {
@@ -48,7 +50,7 @@ export class DashboardService {
     const today = istanbulToday(now);
     const month = { from: monthStart(today), to: today };
     const prev = previousMonthToDate(today);
-    const [salesSeries, kpis, pipeline, attention, recentOrders, topDealers, recentActivity] = await Promise.all([
+    const [salesSeries, kpis, pipeline, attention, recentOrders, topDealers, recentActivity, traffic] = await Promise.all([
       this.sales30d(today),
       this.kpis(month, prev),
       this.pipeline(),
@@ -56,6 +58,7 @@ export class DashboardService {
       this.recentOrders(),
       this.topDealers(month),
       this.recentActivity(),
+      this.analytics.traffic(),
     ]);
     return {
       sales30d: salesSeries,
@@ -65,6 +68,8 @@ export class DashboardService {
       recentOrders,
       topDealersMonth: topDealers,
       recentActivity,
+      // K-85: bugünkü ziyaretçi/sayfa görüntüleme, şu an aktif ve dünkü ziyaretçi.
+      traffic,
     };
   }
 

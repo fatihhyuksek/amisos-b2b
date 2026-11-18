@@ -4,6 +4,7 @@ import { AdminProductImportController } from './admin-product-import.controller.
 import { AdminProductGroupsController, AdminProductsController } from './admin-catalog.controllers.js';
 import { CatalogController, FavoritesController } from './catalog.controller.js';
 import { CatalogService } from './catalog.service.js';
+import { PopularityService } from './popularity.service.js';
 import { PriceListService } from './price-list.service.js';
 import { ProductGroupsService } from './product-groups.service.js';
 import { ProductImportService } from './product-import.service.js';
@@ -19,6 +20,7 @@ import { ProductsService } from './products.service.js';
     CatalogController,
     FavoritesController,
   ],
-  providers: [ProductGroupsService, ProductsService, ProductImportService, CatalogService, PriceListService],
+  providers: [ProductGroupsService, ProductsService, ProductImportService, CatalogService, PriceListService, PopularityService],
+  exports: [PopularityService],
 })
 export class CatalogModule {}

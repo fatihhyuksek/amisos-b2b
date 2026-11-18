@@ -18,6 +18,7 @@ import type { CatalogListQuery } from './catalog.schemas.js';
 import { catalogImageDto, loadImages } from './product-images.js';
 import { mediaThumbUrl } from '../media/media.urls.js';
 import { productSearch } from './products.service.js';
+import { PopularityService, soldQuantity90dSql } from './popularity.service.js';
 
 type ProductRow = typeof products.$inferSelect;
 
@@ -31,6 +32,7 @@ export class CatalogService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(PopularityService) private readonly popularity: PopularityService,
   ) {}
 
   async groups() {
@@ -128,6 +130,7 @@ export class CatalogService {
     if (dealerId && query.stock === 'in_stock') filters.push(eq(products.stockStatus, 'in_stock'));
     if (query.featured) filters.push(eq(products.isFeatured, true));
     if (query.new) filters.push(gte(products.createdAt, this.newCutoff()));
+    if (query.ids) filters.push(inArray(products.id, query.ids));
     const where = and(...filters);
 
     // Bayinin genel ve grup oranları tek sorguda (ürün başına sorgu yok).
@@ -142,7 +145,12 @@ export class CatalogService {
     if (query.q) order.push(sql`case when ${products.barcode} = ${query.q} then 0 else 1 end`);
     const byName = [asc(sql`lower(${products.name})`), asc(products.id)];
     let sortBy: SQL[];
-    if (query.sort === 'newest') {
+    if (query.ids) {
+      // K-86: verilen sırayla.
+      sortBy = [asc(sql`array_position(string_to_array(${query.ids.join(',')}, ',')::uuid[], ${products.id})`)];
+    } else if (query.sort === 'popular') {
+      sortBy = [desc(soldQuantity90dSql(sql`${products.id}`, this.clock.now())), ...byName];
+    } else if (query.sort === 'newest') {
       sortBy = [desc(products.createdAt), desc(products.id)];
     } else if ((query.sort === 'price_asc' || query.sort === 'price_desc') && dealerId && rates) {
       // Sıralama yalnızca bayinin kendi fiyatına göre (iskontolu birim fiyat); oturumsuzda isme göre.
@@ -231,10 +239,12 @@ export class CatalogService {
       for (const f of fav) favorites.add(f.productId);
     }
     const cutoff = this.newCutoff();
+    const bestSellers = await this.popularity.bestSellerBadgeIds();
     return rows.map((r) =>
       this.toDto(r.product, r.groupName, r.groupSlug, rates, images.get(r.product.id) ?? [], {
         isFavorite: favorites.has(r.product.id),
         isNew: r.product.createdAt >= cutoff,
+        isBestSeller: bestSellers.has(r.product.id),
       }),
     );
   }
@@ -260,7 +270,7 @@ export class CatalogService {
     groupSlug: string,
     rates: DealerRates | null,
     images: { mediaId: string; sortOrder: number }[],
-    flags: { isFavorite: boolean; isNew: boolean },
+    flags: { isFavorite: boolean; isNew: boolean; isBestSeller: boolean },
   ) {
     // K-66: oturumsuz/Admin görünümünde fiyat, iskonto, stok ve KDV alanları null (alan adları korunur).
     const priced = rates
@@ -288,6 +298,8 @@ export class CatalogService {
       vatRate: rates ? row.vatRate : null,
       isFeatured: row.isFeatured,
       isNew: flags.isNew,
+      // K-86: son 90 günde (iptal hariç) en çok satan ilk 20 aktif ürün; satışı olmayan asla.
+      isBestSeller: flags.isBestSeller,
       isFavorite: flags.isFavorite,
       images: images.map(catalogImageDto),
     };

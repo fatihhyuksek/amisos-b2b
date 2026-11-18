@@ -192,10 +192,15 @@ Amisos Züccaciye (İSTOÇ Z Blok No: 91, İstanbul), bayi başvurusu ve bayi he
 - Firma bilgileri: firma unvanı, adres, il ve ilçe, vergi dairesi ve vergi numarası
 - İşlem bilgileri: sipariş geçmişi, sepet, favori ürünler, kayıtlı teslimat adresleri
 - Kullanım bilgileri: giriş zamanı ve oturum kayıtları
+- Ziyaret istatistikleri: sayfa, ürün ve arama kullanımı (aşağıya bakın)
 
 ## İşleme amaçları
 
 Verileriniz bayilik başvurusunun değerlendirilmesi, hesabınızın yönetilmesi, ön siparişlerin alınması ve takibi, size özel fiyatlandırma ve iskonto uygulanması, iletişim ve bilgilendirme ile yasal yükümlülüklerin yerine getirilmesi amaçlarıyla işlenir. Pazarlama iletişimi yalnızca açık onayınız varsa yapılır ve onayınızı hesabınızdan istediğiniz zaman geri alabilirsiniz.
+
+## Ziyaret istatistikleri ve işlem kaydı
+
+Portalı iyileştirmek için çerez kullanmadan, adınızla ilişkilendirilmeyen ziyaret istatistikleri tutulur: görüntülenen sayfa ve ürünler, yapılan aramalar ve cihaz türü. IP adresiniz saklanmaz; ziyaretçi sayısı, her gün değişen ve saklanmayan gizli bir anahtarla üretilen tek yönlü bir değerle hesaplanır, bu nedenle günler arasında sizi izlemek mümkün değildir. Bayi olarak giriş yaptığınızda gezinme, sepete ekleme, giriş ve sipariş işlemleriniz hesabınızla ilişkili olarak kaydedilir; bu kayıtlar size daha iyi hizmet vermek ve ürün seçkisini geliştirmek için kullanılır ve en fazla 400 gün saklanır.
 
 ## Aktarım ve saklama
 

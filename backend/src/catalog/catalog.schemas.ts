@@ -154,13 +154,25 @@ export const catalogListSchema = z.object({
   groupId: z.uuid().optional(),
   stock: z.enum(['in_stock']).optional(),
   // K-66: price_* oturumsuzken isme göre sıralanır (servis katmanı).
-  sort: z.enum(['name', 'newest', 'price_asc', 'price_desc']).default('name'),
+  // K-86: popular = son 90 günde satış adedi azalan (iptal hariç), eşitlikte ad.
+  sort: z.enum(['name', 'newest', 'price_asc', 'price_desc', 'popular']).default('name'),
   featured: boolFlag,
   new: boolFlag,
+  // K-86: virgülle ayrılmış ürün kimlikleri (≤24); verilen sırayla döner, pasifler atlanır.
+  ids: z
+    .string()
+    .transform((v) => [...new Set(v.split(',').map((x) => x.trim()).filter(Boolean))])
+    .pipe(z.array(z.uuid()).min(1).max(24))
+    .optional(),
   ...paging,
   pageSize: z.coerce.number().int().min(1).max(100).default(24),
 });
 export type CatalogListQuery = z.infer<typeof catalogListSchema>;
+
+export const highlightsSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(24).default(12),
+});
+export type HighlightsQuery = z.infer<typeof highlightsSchema>;
 
 export const importQuerySchema = z.object({
   dryRun: z

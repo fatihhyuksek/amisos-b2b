@@ -92,6 +92,13 @@
       "when": 1794983620745,
       "tag": "0012_seo_fiyat",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794990600767,
+      "tag": "0013_analitik",
+      "breakpoints": true
     }
   ]
 }

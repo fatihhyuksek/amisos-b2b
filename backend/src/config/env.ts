@@ -11,6 +11,8 @@ export interface Env {
   MAIL_FROM: string;
   /** Giriş ve şifre sıfırlama uçlarında IP başına dakikadaki istek sınırı (GR-BAYI-007). */
   AUTH_RATE_LIMIT_PER_MINUTE: number;
+  /** K-84: olay toplama ucunda IP başına dakikadaki istek sınırı (varsayılan 120). */
+  EVENTS_RATE_LIMIT_PER_MINUTE: number;
   /**
    * Express `trust proxy` ayarı. Varsayılan kapalı: X-Forwarded-For dikkate alınmaz, hız sınırı
    * gerçek bağlantı IP'sine göre çalışır. Ters vekil arkasında: atlama sayısı (ör. 1) veya
@@ -84,8 +86,14 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     throw new Error(`Geçersiz EXPORT_MAX_ORDERS: ${String(raw.EXPORT_MAX_ORDERS)}`);
   }
 
+  const eventsLimit = Number(raw.EVENTS_RATE_LIMIT_PER_MINUTE ?? 120);
+  if (!Number.isInteger(eventsLimit) || eventsLimit <= 0) {
+    throw new Error(`Geçersiz EVENTS_RATE_LIMIT_PER_MINUTE: ${String(raw.EVENTS_RATE_LIMIT_PER_MINUTE)}`);
+  }
+
   return {
     NODE_ENV: nodeEnv,
+    EVENTS_RATE_LIMIT_PER_MINUTE: eventsLimit,
     EXPORT_MAX_ORDERS: exportMax,
     PORT: port,
     DATABASE_URL: databaseUrl,

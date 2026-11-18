@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from '../analytics/analytics.module.js';
 import { AdminAuditModule } from '../audit/admin-audit.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DealersModule } from '../dealers/dealers.module.js';
@@ -13,7 +14,7 @@ import { NotificationFeedService } from './notification-feed.service.js';
 import { SearchService } from './search.service.js';
 
 @Module({
-  imports: [AuthModule, DealersModule, ReportsModule, AdminAuditModule],
+  imports: [AuthModule, AnalyticsModule, DealersModule, ReportsModule, AdminAuditModule],
   controllers: [AdminSearchController, AdminDashboardController, AdminNotificationFeedController],
   providers: [DashboardService, SearchService, NotificationFeedService],
 })

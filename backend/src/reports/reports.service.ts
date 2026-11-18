@@ -29,21 +29,13 @@ import type {
   TrendQuery,
 } from './reports.schemas.js';
 
-export const TZ = 'Europe/Istanbul';
+// Istanbul günü / dönem SQL yardımcıları ve "iptal hariç" koşulu rapor, panel ve analitik arasında ortaktır.
+export { TZ, startOf, endOf, inPeriod, isoSql, SOLD_ORDERS } from '../common/day-sql.js';
+import { endOf, inPeriod, isoSql, SOLD_ORDERS, startOf, TZ } from '../common/day-sql.js';
+
 const DAY_MS = 86_400_000;
 
-export const startOf = (d: string): SQL => sql`((${d}::date)::timestamp at time zone ${TZ})`;
-export const endOf = (d: string): SQL => sql`(((${d}::date + 1))::timestamp at time zone ${TZ})`;
-/** `col` bu dönemde mi (Istanbul günleri, iki uç dahil). */
-export const inPeriod = (col: SQL, p: DayPeriod): SQL => sql`(${col} >= ${startOf(p.from)} and ${col} < ${endOf(p.to)})`;
-
-/** timestamptz -> ISO-8601 metni (sürücü ham sorgularda tarihi metin döndürür). */
-export const isoSql = (col: SQL): SQL => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-
 export const money = (v: string | null | undefined): string => new Money(v ?? 0).toFixed(2);
-
-/** Satış metriklerinde iptal edilen siparişler sayılmaz (K-46); `orders o` takma adıyla. */
-export const SOLD_ORDERS: SQL = sql`o.status <> 'cancelled'`;
 
 export interface Change {
   amount: string | number;

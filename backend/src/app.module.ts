@@ -19,6 +19,8 @@ import { OrdersModule } from './orders/orders.module.js';
 import { MediaModule } from './media/media.module.js';
 import { DealersModule } from './dealers/dealers.module.js';
 import { AdminPanelModule } from './admin-panel/admin-panel.module.js';
+import { AnalyticsCoreModule } from './analytics/analytics-recorder.service.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { HealthController } from './health/health.controller.js';
 
 @Module({
@@ -26,6 +28,7 @@ import { HealthController } from './health/health.controller.js';
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     DatabaseModule,
     ClockModule,
+    AnalyticsCoreModule,
     AuditModule,
     MailModule,
     NotificationsModule,
@@ -41,6 +44,7 @@ import { HealthController } from './health/health.controller.js';
     SeoModule,
     AdminAuditModule,
     AdminPanelModule,
+    AnalyticsModule,
     // K-04 hatırlatma zamanlayıcısı; test ortamında çalışmaz (mantık servis metoduyla test edilir).
     ...(process.env.NODE_ENV === 'test' ? [] : [ScheduleModule.forRoot()]),
   ],
