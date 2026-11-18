@@ -1,6 +1,7 @@
 // K-87: yönetilebilir vitrin ayarları (home, navigation, announcements) şemaları ve varsayılanları.
 // Depolama: site_settings anahtarları `home`, `navigation`, `announcements`.
 import { z } from 'zod';
+import { hasControlOrBackslash } from '../common/control-chars.js';
 
 export const MAX_SECTIONS = 20;
 export const MAX_NAV_ITEMS = 12;
@@ -21,7 +22,7 @@ const text = (max: number) =>
 
 /** Uygulama içi yol ("/" ile başlar, "//" hariç) veya https adresi; `javascript:` vb. reddedilir. */
 const isSafeLink = (v: string): boolean => {
-  if (/[\u0000-\u001f\u007f\\]/.test(v)) return false;
+  if (hasControlOrBackslash(v)) return false;
   if (/^\/(?!\/)/.test(v)) return true;
   try {
     return new URL(v).protocol === 'https:';
@@ -29,7 +30,7 @@ const isSafeLink = (v: string): boolean => {
     return false;
   }
 };
-const internalPath = (v: string): boolean => /^\/(?!\/)/.test(v) && !/[\u0000-\u001f\u007f\\]/.test(v);
+const internalPath = (v: string): boolean => /^\/(?!\/)/.test(v) && !hasControlOrBackslash(v);
 
 const link = (max = 300) =>
   z

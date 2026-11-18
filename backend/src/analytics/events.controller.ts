@@ -32,10 +32,10 @@ import { normalizeSearchQuery, splitPath } from './client-info.js';
 @Injectable()
 export class EventsRateLimitGuard implements CanActivate {
   private readonly hits = new Map<string, { count: number; resetAt: number }>();
-  private readonly limit: number;
+  constructor(@Inject(ConfigService) private readonly config: ConfigService<Env, true>) {}
 
-  constructor(@Inject(ConfigService) config: ConfigService<Env, true>) {
-    this.limit = config.get('EVENTS_RATE_LIMIT_PER_MINUTE', { infer: true }) ?? 120;
+  private get limit(): number {
+    return this.config.get('EVENTS_RATE_LIMIT_PER_MINUTE', { infer: true }) ?? 120;
   }
 
   canActivate(context: ExecutionContext): boolean {

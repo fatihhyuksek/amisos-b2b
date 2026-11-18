@@ -25,7 +25,8 @@
     "admin:create": "nest build && node dist/cli/create-admin.js",
     "db:seed": "nest build && node dist/cli/seed-dev.js",
     "db:demo": "nest build && node dist/cli/demo-data.js",
-    "db:urunler": "nest build && node dist/cli/import-products.js"
+    "db:urunler": "nest build && node dist/cli/import-products.js",
+    "db:analitik-ornek": "nest build && node dist/cli/analytics-sample.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

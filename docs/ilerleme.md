@@ -1,6 +1,6 @@
 # Proje İlerlemesi
 
-Son güncelleme: 2026-11-17
+Son güncelleme: 2026-11-18
 
 ## Tamamlananlar
 
@@ -120,6 +120,13 @@ Son güncelleme: 2026-11-17
    - K-85: Admin "Analitik" grubu: Trafik (canlı kart 30 sn, huni, saat/cihaz/kaynak/sayfa), Ürün ilgisi, Aramalar, Bayi etkinliği; bayi detayı "Etkinlik" sekmesi; ana sayfada trafik kartı ve en çok satanlar.
    - K-86: "Çok satan" rozeti, katalog "En çok satanlar" sıralaması (`sirala=cok-satan`), ana sayfa rafları `GET /api/site/home` + `ids=`.
    - K-87: "Görünüm" grubu: Ana sayfa düzeni, Menü, Duyurular (eski tek duyuru alanı Site ayarlarından kalktı); vitrin bu ayarlara göre çizilir, ayar yoksa varsayılan görünüm. Kaydedilmemiş değişiklik uyarısı (`router.setNavigationBlocker`).
+
+21. Analitik, veriye dayalı öne çıkarma, yönetilebilir vitrin — backend (K-84 – K-87, sözleşme `docs/api/analitik-vitrin-api.md`, "Uygulama notları"):
+   - Migration `0013_analitik`: `analytics_events` (4 indeks), `analytics_daily_salts`. `POST /api/events` (json + sendBeacon text/plain, aynı köken, hız sınırı, bot/Admin süzgeci, IP saklanmaz, günlük tuz),
+     sunucu tarafı `login`/`order_submitted`, 400 gün temizleme işi.
+   - K-85: `/api/admin/analytics/{overview,live,products,searches,dealers}`, `/api/admin/dealers/:id/activity`, dashboard `traffic`. Gün ve iptal-hariç yardımcıları `common/day-sql.ts` (rapor servisiyle ortak).
+   - K-86: `isBestSeller`, `sort=popular`, `ids=`, `GET /api/catalog/highlights`. K-87: site `home`/`navigation`/`announcements` (varsayılanlar, eski duyuru taşıma), `GET /api/site/home` çözülmüş `productIds`.
+   - KVKK varsayılan metnine ziyaret istatistiği paragrafı. Dev örnek verisi: `npm run db:analitik-ornek`. Testler: `backend/test/analytics.e2e-spec.ts`, birim testleri.
 
 ## Sıradaki adım
 

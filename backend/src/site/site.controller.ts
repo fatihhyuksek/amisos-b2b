@@ -52,6 +52,11 @@ export class AdminSiteController {
     return this.site.adminUpdate(body, admin.id);
   }
 
+  @Get('home/default')
+  defaultHome() {
+    return this.site.adminDefaultHome();
+  }
+
   @Get('home')
   getHome() {
     return this.site.adminGetHome();

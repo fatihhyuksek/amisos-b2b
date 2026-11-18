@@ -114,7 +114,8 @@ export const seoSchema = z.object({
 
 export const updateSiteSchema = z.object({
   seo: seoSchema.optional(),
-  announcement: nullableText(160),
+  // Verilmezse duyuruya dokunulmaz (K-87); null kaldırır.
+  announcement: nullableText(160).optional(),
   contact: contactSchema,
   social: socialSchema.optional(),
   pages: z

@@ -342,6 +342,7 @@ export class AnalyticsService {
       dealerId: string;
       companyTitle: string;
       city: string | null;
+      phone: string | null;
       sessions: number;
       lastSeenAt: string | null;
       productViews: number;
@@ -364,7 +365,7 @@ export class AnalyticsService {
         select o.dealer_id, count(*)::int as orders, sum(o.net_total)::text as net_total
         from orders o where ${SOLD_ORDERS} and ${inPeriod(sql`o.submitted_at`, period)}
         group by o.dealer_id)
-      select d.id as "dealerId", d.company_title as "companyTitle", d.city,
+      select d.id as "dealerId", d.company_title as "companyTitle", d.city, d.phone,
              coalesce(ev.sessions, 0) as sessions, ${isoSql(sql`ev.last_seen`)} as "lastSeenAt",
              coalesce(ev.product_views, 0) as "productViews", coalesce(ev.add_to_carts, 0) as "addToCarts",
              coalesce(ev.interest_products, 0) as "interestProducts",
@@ -379,6 +380,7 @@ export class AnalyticsService {
       dealerId: r.dealerId,
       companyTitle: r.companyTitle,
       city: r.city,
+      phone: r.phone,
       sessions: r.sessions,
       lastSeenAt: r.lastSeenAt,
       productViews: r.productViews,

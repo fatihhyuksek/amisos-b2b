@@ -873,7 +873,7 @@ describe('Katalog (e2e)', () => {
         [
           'id', 'name', 'barcode', 'code', 'description', 'groupId', 'groupName', 'groupSlug', 'slug', 'seoTitle', 'seoDescription', 'priceOnRequest', 'caseQuantity',
           'stock', 'listPrice', 'price', 'discountPercent', 'vatRate', 'images',
-          'isFeatured', 'isNew', 'isFavorite', 'priceVisible',
+          'isFeatured', 'isNew', 'isBestSeller', 'isFavorite', 'priceVisible',
         ].sort(),
       );
     });

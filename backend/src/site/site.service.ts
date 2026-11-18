@@ -82,7 +82,7 @@ export class SiteService {
       : DEFAULT_ANNOUNCEMENT;
     const announcementsStored = byKey.has('announcements');
     const announcements = announcementsStored
-      ? ((byKey.get('announcements')?.value as AnnouncementsSettings).items ?? [])
+      ? (((byKey.get('announcements')?.value ?? {}) as Partial<AnnouncementsSettings>).items ?? [])
       : legacy
         ? [{ text: legacy.slice(0, 120) }]
         : [];
@@ -184,6 +184,11 @@ export class SiteService {
         tx,
       );
     });
+  }
+
+  /** "Varsayılana dön" için sunucunun varsayılan ana sayfa düzeni (kaydedilmez). */
+  adminDefaultHome(): HomeSettings {
+    return DEFAULT_HOME;
   }
 
   async adminGetHome(): Promise<HomeSettings> {
@@ -388,7 +393,7 @@ export class SiteService {
     const before = await this.load();
     // Yalnızca değişen anahtarlar yazılır ve audit'e önceki/sonraki değerleriyle girer (K-73).
     const changed: { key: string; previous: unknown; next: unknown; value: unknown }[] = [];
-    if (!isDeepStrictEqual(before.announcement, input.announcement)) {
+    if (input.announcement !== undefined && !isDeepStrictEqual(before.announcement, input.announcement)) {
       changed.push({ key: 'announcement', previous: before.announcement, next: input.announcement, value: input.announcement });
       // K-87: yeni duyuru listesi yazılmışsa eski alandaki değişiklik ilk öğeye de yansır (geriye uyumlu).
       if (before.announcementsStored) {

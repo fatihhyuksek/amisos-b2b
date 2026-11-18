@@ -1,12 +1,13 @@
 // K-84, K-85 girdileri.
 import { z } from 'zod';
+import { hasControlOrBackslash } from '../common/control-chars.js';
 import { CLIENT_EVENT_TYPES, MAX_EVENTS_PER_REQUEST, SESSION_KEY_PATTERN } from './analytics.constants.js';
 
 /** Uygulama içi yol: "/" ile başlar ("//" hariç), kontrol karakteri yok, ≤300. */
 const appPath = z
   .string()
   .max(300)
-  .refine((v) => /^\/(?!\/)/.test(v) && !/[\u0000-\u001f\u007f\\]/.test(v), {
+  .refine((v) => /^\/(?!\/)/.test(v) && !hasControlOrBackslash(v), {
     message: 'Uygulama içi bir yol olmalı ("/" ile başlar).',
   });
 
