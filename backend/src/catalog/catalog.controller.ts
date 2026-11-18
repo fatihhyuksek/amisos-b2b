@@ -20,7 +20,8 @@ import { CurrentUser, DealerGuard, OptionalAuthGuard } from '../auth/auth.guards
 import { JsonOnlyGuard } from '../auth/json-only.guard.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
 import { createValidationPipe } from '../common/validation.js';
-import { catalogListSchema, type CatalogListQuery } from './catalog.schemas.js';
+import { catalogListSchema, highlightsSchema, type CatalogListQuery, type HighlightsQuery } from './catalog.schemas.js';
+import { PopularityService } from './popularity.service.js';
 import { CatalogService } from './catalog.service.js';
 import { PriceListService } from './price-list.service.js';
 
@@ -34,7 +35,14 @@ export class CatalogController {
   constructor(
     @Inject(CatalogService) private readonly catalog: CatalogService,
     @Inject(PriceListService) private readonly priceList: PriceListService,
+    @Inject(PopularityService) private readonly popularity: PopularityService,
   ) {}
+
+  // K-86: herkese açık; yalnızca ürün kimlikleri döner (ürün verisi/fiyat `products?ids=` ile, katalog kurallarıyla).
+  @Get('highlights')
+  highlights(@Query({ schema: highlightsSchema }) query: HighlightsQuery) {
+    return this.popularity.highlights(query.limit);
+  }
 
   @Get('groups')
   groups() {

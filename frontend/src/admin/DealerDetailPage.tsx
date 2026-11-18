@@ -23,6 +23,7 @@ import { historyLabel } from '../ui/dealerStatus'
 import { formatDateTime, formatInt, formatPercent, formatTRY } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { AdminLayout } from './AdminLayout'
+import { DealerActivityTab } from './analytics/DealerActivityTab'
 import { DealerEditDialog } from './DealerEditDialog'
 import { DealerNotes } from './DealerNotes'
 import { GroupDiscounts } from './GroupDiscounts'
@@ -181,8 +182,8 @@ function DiscountForm({
   )
 }
 
-type TabId = 'genel' | 'siparisler' | 'iskonto' | 'notlar' | 'gecmis'
-const TAB_IDS: TabId[] = ['genel', 'siparisler', 'iskonto', 'notlar', 'gecmis']
+type TabId = 'genel' | 'siparisler' | 'etkinlik' | 'iskonto' | 'notlar' | 'gecmis'
+const TAB_IDS: TabId[] = ['genel', 'siparisler', 'etkinlik', 'iskonto', 'notlar', 'gecmis']
 
 function Dl({ items }: { items: [string, React.ReactNode][] }) {
   return (
@@ -444,6 +445,7 @@ function Detail({
         tabs={[
           { value: 'genel', label: 'Genel bilgiler' },
           { value: 'siparisler', label: 'Siparişler', count: total ?? undefined },
+          { value: 'etkinlik', label: 'Etkinlik' },
           { value: 'iskonto', label: 'İskontolar' },
           { value: 'notlar', label: 'İç notlar' },
           { value: 'gecmis', label: 'Onaylar ve geçmiş' },
@@ -482,6 +484,12 @@ function Detail({
       {tab === 'siparisler' && (
         <TabPanel idBase="dealer" value="siparisler">
           <DealerOrders dealerId={d.id} orders={orders} />
+        </TabPanel>
+      )}
+
+      {tab === 'etkinlik' && (
+        <TabPanel idBase="dealer" value="etkinlik">
+          <DealerActivityTab dealerId={d.id} />
         </TabPanel>
       )}
 

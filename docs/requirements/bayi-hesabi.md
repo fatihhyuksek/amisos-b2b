@@ -99,6 +99,10 @@ kullanıcılara dağıtılabilmesi için süreç adımı olarak korunmuştur.
 | K-81 | Gerçek ürünler | İş sahibinin stok listesindeki stoğu 0'dan büyük ürünler içe aktarılır; demo/deneme ürünleri ve demo verisi kaldırılır. Barkodu olmayan ürünlere geçici `BH-…` barkodu verilir; iş sahibi gerçeğiyle değiştirir. |
 | K-82 | SEO | Vitrin adresleri `#` içermez (ör. `/urun/<slug>`); Admin'de site geneli SEO (başlık, açıklama, paylaşım görseli, Google Analytics ve Search Console doğrulama, arama motorlarına açık/kapalı), ürün ve grup için adres (slug), başlık ve açıklama. `sitemap.xml`, `robots.txt`, sayfa başına meta ve yapılandırılmış veri (fiyat içermez). |
 | K-83 | Bildirimler | Zil ve "Bildirimler" sayfası tek yerde birleşir: Etkinlikler ve E-posta gönderimleri sekmeleri. |
+| K-84 | Ziyaret ve davranış takibi | Vitrinde sayfa görüntüleme, ürün inceleme, arama, sepete ekleme olayları çerezsiz ve IP saklamadan (günlük tuzlu özet) kaydedilir; giriş yapmış bayinin olayları bayiye bağlanır. Yönetim paneli ve bot trafiği sayılmaz. Ham olaylar 13 ay tutulur. KVKK aydınlatma metnine eklenir (iş sahibi, 2026-11-18). |
+| K-85 | Analitik ekranları | Admin'de günlük trafik, canlı ziyaretçi, dönüşüm hunisi, cihaz, kaynak, en çok incelenen ürünler, aramalar (sonuçsuz aramalar dahil), bayi etkinliği ve bayi bazında zaman çizelgesi. |
+| K-86 | Veriye dayalı öne çıkarma | "En çok satanlar" (son 90 gün sipariş adedi, iptal hariç) ve "En çok incelenenler" (son 30 gün) otomatik hesaplanır; en çok satan ilk 20 ürüne "Çok satan" rozeti; katalogda "En çok satanlar" sıralaması. |
+| K-87 | Yönetilebilir vitrin | Ana sayfa bölümleri (sıra, açık/kapalı, başlık, içerik kaynağı), üst menü ve üst şerit duyuruları Admin panelinden düzenlenir. |
 | K-51 | Reddedilen bayi | Reddedilen bayi aynı e-posta ve firma unvanıyla yeniden başvurabilir. |
 | K-39 | Süreler ve kurallar | Ön sipariş e-postası en geç 5 dk; BizimHesap aktarımı en geç 15 dk; şifre sıfırlama bağlantısı 1 saat geçerli; satır tutarı 2 basamağa standart yuvarlanır; 360 px ve üzeri ekranda yatay kaydırma olmaz. |
 

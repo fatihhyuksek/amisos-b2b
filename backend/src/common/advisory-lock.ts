@@ -41,3 +41,5 @@ export async function runExclusive<T>(
 export async function lockDealerCart(tx: Tx, dealerId: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`dealer-cart:${dealerId}`}, 0))`);
 }
+/** K-84: 400 günlük olay temizliği. */
+export const LOCK_ANALYTICS_RETENTION = 7_301_006;

@@ -3,6 +3,13 @@ import { BrandLogo } from './shop/brand'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { AdminHome } from './admin/AdminHome'
+import { DealerActivityPage } from './admin/analytics/DealerActivityPage'
+import { ProductInterestPage } from './admin/analytics/ProductInterestPage'
+import { SearchesPage } from './admin/analytics/SearchesPage'
+import { TrafficPage } from './admin/analytics/TrafficPage'
+import { AnnouncementsPage } from './admin/appearance/AnnouncementsPage'
+import { HomeLayoutPage } from './admin/appearance/HomeLayoutPage'
+import { MenuPage } from './admin/appearance/MenuPage'
 import { BannerListPage } from './admin/BannerListPage'
 import { OrderSummaryProvider } from './admin/OrderSummaryProvider'
 import { ReportsPage } from './admin/ReportsPage'
@@ -42,6 +49,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { safeReturnPath, currentPath } from './shop/returnTo'
 import { matchPath, replace, useRoute } from './router'
+import { setTrackingEnabled, trackPageView } from './shop/analytics'
 import { Alert, AuthCard, Button } from './ui/components'
 
 function LoadingScreen() {
@@ -314,6 +322,48 @@ function Routes() {
           <AdminAccountPage />
         </Protected>
       )
+    case '/yonetim/analitik':
+      return (
+        <Protected area="admin">
+          <TrafficPage />
+        </Protected>
+      )
+    case '/yonetim/analitik/urunler':
+      return (
+        <Protected area="admin">
+          <ProductInterestPage />
+        </Protected>
+      )
+    case '/yonetim/analitik/aramalar':
+      return (
+        <Protected area="admin">
+          <SearchesPage />
+        </Protected>
+      )
+    case '/yonetim/analitik/bayiler':
+      return (
+        <Protected area="admin">
+          <DealerActivityPage />
+        </Protected>
+      )
+    case '/yonetim/gorunum/ana-sayfa':
+      return (
+        <Protected area="admin">
+          <HomeLayoutPage />
+        </Protected>
+      )
+    case '/yonetim/gorunum/menu':
+      return (
+        <Protected area="admin">
+          <MenuPage />
+        </Protected>
+      )
+    case '/yonetim/gorunum/duyurular':
+      return (
+        <Protected area="admin">
+          <AnnouncementsPage />
+        </Protected>
+      )
     case '/yonetim/bannerlar':
       return (
         <Protected area="admin">
@@ -368,6 +418,25 @@ function Routes() {
   }
 }
 
+/**
+ * K-84: Vitrin sayfa görüntülemelerini izler. Oturum durumu belli olana kadar ve admin oturumunda kapalıdır;
+ * /yonetim yolları hiç izlenmez. Aynı yol art arda iki kez sayılmaz.
+ */
+function AnalyticsTracker() {
+  const { state } = useAuth()
+  const { path } = useRoute()
+  const ready = state.status === 'authenticated' || state.status === 'anonymous'
+  const admin = state.status === 'authenticated' && state.user.type === 'admin'
+  const on = ready && !admin
+  useEffect(() => {
+    setTrackingEnabled(on)
+  }, [on])
+  useEffect(() => {
+    if (on) trackPageView(path)
+  }, [on, path])
+  return null
+}
+
 /** Sepet bayiye aittir: oturum sahibi değişince sepet durumu sıfırlanır. */
 function DealerCart({ children }: { children: ReactNode }) {
   const { state } = useAuth()
@@ -387,6 +456,7 @@ function App() {
   }, [])
   return (
     <AuthProvider>
+      <AnalyticsTracker />
       <DealerCart>
         <OrderSummaryProvider>
           <Routes />

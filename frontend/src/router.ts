@@ -72,9 +72,20 @@ export function replace(to: string): void {
   notify()
 }
 
+let blocker: (() => boolean) | null = null
+
+/**
+ * Kaydedilmemiş değişiklik uyarısı: ayarlanırsa `navigate` (bağlantı tıklamaları) önce bunu sorar;
+ * false dönerse yönlendirme yapılmaz. Sayfa yenileme/kapatma için ayrıca `beforeunload` kullanılır.
+ */
+export function setNavigationBlocker(fn: (() => boolean) | null): void {
+  blocker = fn
+}
+
 /** Geçmişe kayıt ekleyerek yönlendirir (arama gönderme gibi kullanıcı eylemleri). */
 export function navigate(to: string): void {
   if (same(to)) return
+  if (blocker && !blocker()) return
   history.pushState(null, '', to)
   notify()
   window.scrollTo(0, 0)

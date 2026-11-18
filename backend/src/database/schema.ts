@@ -3,6 +3,8 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  bigserial,
+  date,
   boolean,
   check,
   index,
@@ -741,3 +743,47 @@ export const orderNotes = pgTable(
     check('order_notes_body_not_blank', sql`length(trim(${t.body})) > 0`),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Analitik (K-84 – K-87). API: docs/api/analitik-vitrin-api.md
+// ---------------------------------------------------------------------------
+
+/**
+ * K-84: çerezsiz ziyaret ve işlem olayları. IP ve ham User-Agent ASLA saklanmaz; `visitor_key` günlük tuzla
+ * üretilmiş tek yönlü özettir. Sunucu olayları: `login`, `order_submitted`. 400 günden eskisi silinir.
+ * `product_id`, `group_id`, `order_id` bilerek yumuşak referanstır (FK yok): yazma yükü ve silme bağımsızlığı.
+ */
+export const analyticsEvents = pgTable(
+  'analytics_events',
+  {
+    id: bigserial({ mode: 'number' }).primaryKey(),
+    occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    type: text().notNull(),
+    sessionKey: text().notNull(),
+    visitorKey: text().notNull(),
+    dealerId: uuid().references(() => dealers.id, { onDelete: 'cascade' }),
+    path: text().notNull(),
+    productId: uuid(),
+    groupId: uuid(),
+    query: text(),
+    resultCount: integer(),
+    quantity: integer(),
+    orderId: uuid(),
+    referrerHost: text(),
+    device: text().notNull(),
+    utmSource: text(),
+  },
+  (t) => [
+    index('analytics_events_occurred_idx').on(t.occurredAt),
+    index('analytics_events_type_occurred_idx').on(t.type, t.occurredAt),
+    index('analytics_events_dealer_occurred_idx').on(t.dealerId, t.occurredAt),
+    index('analytics_events_product_occurred_idx').on(t.productId, t.occurredAt),
+  ],
+);
+
+/** K-84: günlük gizli tuz (yalnızca bugün/dün tutulur, eskisi silinir → günler arası iz yok). */
+export const analyticsDailySalts = pgTable('analytics_daily_salts', {
+  day: date({ mode: 'string' }).primaryKey(),
+  salt: text().notNull(),
+  createdAt: createdAt(),
+});

@@ -2,6 +2,7 @@
 // (düzenleyici, önizleme, yayımla anahtarı).
 // PUT /api/admin/site tüm bölümü birlikte kaydeder.
 import { useState, type FormEvent } from 'react'
+import { Link } from '../Link'
 import {
   ApiError,
   fetchAdminSite,
@@ -27,7 +28,6 @@ import { CharCount, SearchPreview } from './seoKit'
 import { SEO_DESC_MAX, SEO_TITLE_MAX } from './seoUtils'
 import { useLoad } from './useLoad'
 
-const ANNOUNCEMENT_MAX = 160
 const TITLE_MAX = 80
 const BODY_MAX = 20000
 
@@ -114,7 +114,6 @@ function socialError(value: string, domain: string, label: string): string | und
 }
 
 interface FormState {
-  announcement: string
   contact: Omit<SiteContact, 'mapUrl' | 'phoneE164' | 'whatsappE164'> & {
     mapUrl: string
     phoneE164: string
@@ -128,7 +127,6 @@ interface FormState {
 
 function toForm(s: AdminSite): FormState {
   return {
-    announcement: s.announcement ?? '',
     contact: {
       ...s.contact,
       mapUrl: s.contact.mapUrl ?? '',
@@ -162,7 +160,6 @@ function toForm(s: AdminSite): FormState {
 function toPayload(f: FormState): AdminSiteInput {
   const { phoneE164, whatsappE164, whatsappOn, ...rest } = f.contact
   return {
-    announcement: f.announcement.trim() || null,
     contact: {
       ...rest,
       phone: f.contact.phone.trim(),
@@ -211,7 +208,6 @@ type Errors = Record<string, string>
 
 function validate(f: FormState): Errors {
   const e: Errors = {}
-  if (f.announcement.length > ANNOUNCEMENT_MAX) e.announcement = `En fazla ${ANNOUNCEMENT_MAX} karakter.`
   if (!f.contact.phone.trim()) e.phone = 'Telefon zorunludur.'
   if (!f.contact.email.trim()) e.email = 'E-posta zorunludur.'
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.email.trim())) e.email = 'Geçerli bir e-posta girin.'
@@ -367,27 +363,11 @@ function Editor({ initial, onSaved }: { initial: AdminSite; onSaved: (s: AdminSi
         <TabPanel idBase="site" value="genel">
           <section className="ui-card ui-card__body ui-section" aria-labelledby="site-ann">
             <h2 id="site-ann">Duyuru şeridi</h2>
-            <Field
-              label="Duyuru metni"
-              htmlFor="site-announcement"
-              help={`${form.announcement.length} / ${ANNOUNCEMENT_MAX}. Boş bırakırsanız şerit gizlenir.`}
-              error={errors.announcement}
-            >
-              <input
-                id="site-announcement"
-                className="ui-input"
-                value={form.announcement}
-                aria-invalid={errors.announcement ? true : undefined}
-                onChange={(e) => setForm((f) => ({ ...f, announcement: e.target.value }))}
-              />
-            </Field>
-            {form.announcement.trim() && (
-              <div className="ui-strip ui-strip--preview" aria-label="Önizleme">
-                <p>
-                  {form.announcement.trim()} <span aria-hidden="true">·</span> {c.phone}
-                </p>
-              </div>
-            )}
+            <p className="muted">
+              Duyurular artık <Link to="/yonetim/gorunum/duyurular">Görünüm &gt; Duyurular</Link> sayfasından
+              yönetilir: en çok 5 mesaj, sıralama ve bağlantı desteğiyle. Eski tek duyuru metni orada ilk
+              mesaj olarak görünür.
+            </p>
           </section>
 
           <section className="ui-card ui-card__body ui-section" aria-labelledby="site-contact">

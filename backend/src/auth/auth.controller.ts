@@ -14,6 +14,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { AnalyticsRecorder } from '../analytics/analytics-recorder.service.js';
 import { createValidationPipe } from '../common/validation.js';
 import { isProductionLike, type Env } from '../config/env.js';
 import { SESSION_COOKIE } from './auth.constants.js';
@@ -42,6 +43,7 @@ export class AuthController {
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(SessionsService) private readonly sessions: SessionsService,
     @Inject(ConfigService) private readonly config: ConfigService<Env, true>,
+    @Inject(AnalyticsRecorder) private readonly analytics: AnalyticsRecorder,
   ) {}
 
   @Post('dealer/login')
@@ -54,6 +56,8 @@ export class AuthController {
   ): Promise<AuthIdentity> {
     const result = await this.auth.loginDealer(body.email, body.password);
     await this.dropPreviousSession(req); // oturum sabitlemeyi önler: her girişte yeni token
+    // K-84: sunucu tarafı `login` olayı (hata girişi bozmaz).
+    await this.analytics.recordServer(req, result.identity.id, { type: 'login', path: '/giris' });
     return this.startSession(res, result);
   }
 

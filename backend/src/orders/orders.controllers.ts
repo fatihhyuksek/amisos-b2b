@@ -12,16 +12,18 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
+import { AnalyticsRecorder } from '../analytics/analytics-recorder.service.js';
 import { AdminGuard, CurrentUser, DealerGuard } from '../auth/auth.guards.js';
 import { JsonOnlyGuard } from '../auth/json-only.guard.js';
 import type { AuthIdentity } from '../auth/sessions.service.js';
 import { createValidationPipe } from '../common/validation.js';
 import { CartService } from './cart.service.js';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AdminOrdersService } from './admin-orders.service.js';
 import { createNoteSchema, type CreateNoteInput } from '../dealers/dealers.schemas.js';
 import { OrdersService } from './orders.service.js';
@@ -90,11 +92,17 @@ export class CartController {
 @UseGuards(JsonOnlyGuard, DealerGuard)
 @UsePipes(createValidationPipe())
 export class OrdersController {
-  constructor(@Inject(OrdersService) private readonly orders: OrdersService) {}
+  constructor(
+    @Inject(OrdersService) private readonly orders: OrdersService,
+    @Inject(AnalyticsRecorder) private readonly analytics: AnalyticsRecorder,
+  ) {}
 
   @Post()
-  submit(@Body({ schema: submitOrderSchema }) body: SubmitOrderInput, @CurrentUser() dealer: AuthIdentity) {
-    return this.orders.submit(dealer.id, body);
+  async submit(@Body({ schema: submitOrderSchema }) body: SubmitOrderInput, @CurrentUser() dealer: AuthIdentity, @Req() req: Request) {
+    const order = await this.orders.submit(dealer.id, body);
+    // K-84: sunucu tarafı `order_submitted` olayı (net tutar siparişten okunur; hata siparişi bozmaz).
+    await this.analytics.recordServer(req, dealer.id, { type: 'order_submitted', path: '/sepet', orderId: order.id });
+    return order;
   }
 
   @Get()

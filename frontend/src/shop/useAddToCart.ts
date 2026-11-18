@@ -2,6 +2,7 @@
 // Koli katı kontrolü yalnızca erken uyarıdır; asıl kontrol backend'dedir (400 CASE_MULTIPLE).
 import { useCallback } from 'react'
 import { ApiError, type CatalogProduct } from '../api'
+import { trackAddToCart } from './analytics'
 import { useCart } from './cart'
 
 const PRICE_NOT_SET_TEXT = 'Bu ürünün fiyatı henüz girilmedi. Fiyat için bize ulaşın.'
@@ -21,6 +22,7 @@ export function useAddToCart() {
           quantity !== undefined ? quantity : (current) => current + p.caseQuantity,
         )
         const target = quantity ?? p.caseQuantity
+        if (mode === 'add') trackAddToCart(p.id, quantity ?? p.caseQuantity, p.groupId)
         const line = cart.lines.find((l) => l.productId === p.id)
         notify({
           tone: 'success',

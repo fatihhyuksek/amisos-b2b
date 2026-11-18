@@ -1,7 +1,15 @@
 // Açık vitrin ana sayfası (K-66): kampanya karuseli, kategori şeridi, geniş kampanya şeridi, koleksiyon kartları,
-// yeni ürünler (K-74), simge kutucukları, öne çıkan ürünler tanıtım bloğu. Bayide hesap özeti. GR-URN-003, GR-FIY-003, K-40, K-65.
-import { useRef, useState } from 'react'
-import { ApiError, fetchCatalogProducts, type CatalogGroup, type CatalogProduct } from '../api'
+// ürün rafları (K-74, K-86), simge kutucukları, tanıtım paneli. Bayide hesap özeti. GR-URN-003, GR-FIY-003, K-40, K-65.
+// K-87: bölümlerin sırası, açık/kapalı durumu ve içeriği yönetim panelinden gelir (shop/homeLayout.ts);
+// ayar yoksa mevcut varsayılan görünüm çizilir.
+import { Fragment, useRef, useState } from 'react'
+import {
+  ApiError,
+  fetchCatalogProducts,
+  type CatalogGroup,
+  type CatalogProduct,
+  type HomeSection,
+} from '../api'
 import { useAuth } from '../auth/useAuth'
 import { useLoad } from '../admin/useLoad'
 import { Link } from '../Link'
@@ -18,10 +26,12 @@ import { catalogHref } from '../shop/catalogHref'
 import { ErrorAlert, ProductCard, ProductCardSkeleton } from '../ui/catalog'
 import { Icon, type IconName } from '../ui/Icon'
 import { DealerQuick } from './home/DealerQuick'
-import { ShopLayout } from './ShopLayout'
+import { audienceOk, SHELF_TITLES, useHomeLayout } from '../shop/homeLayout'
+import { ShopLayout, TrustStrip } from './ShopLayout'
 
 const FEATURED_HREF = '/katalog?one-cikan=1'
 const NEW_HREF = '/katalog?yeni=1&sirala=yeni'
+const BEST_HREF = '/katalog?sirala=cok-satan'
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'store', title: 'Başvurun', text: 'Firma bilgilerinizle bayi başvurusunu doldurun.' },
@@ -84,8 +94,27 @@ function CatStripItem({ group }: { group: CatalogGroup }) {
 }
 
 /** (c) Geniş kampanya şeridi: CSS ile krem zemin ve ince altın süs çizgileri. */
-function CampaignBand({ mode }: { mode: ShopMode }) {
-  if (mode === 'admin') return null
+function CampaignBand({ mode, section }: { mode: ShopMode; section: HomeSection }) {
+  const c = section.config
+  const custom = Boolean(c.title?.trim())
+  if (mode === 'admin' && !custom) return null
+  if (custom)
+    return (
+      <section className="ui-wideband" aria-labelledby={`${section.id}-title`}>
+        <div className="ui-wideband__text">
+          <h2 id={`${section.id}-title`}>{c.title}</h2>
+          {c.text && <p>{c.text}</p>}
+        </div>
+        {c.buttonLabel && c.buttonLink && isAppPath(c.buttonLink) && (
+          <div className="ui-wideband__actions">
+            <Link to={c.buttonLink} className="ui-button ui-button--primary">
+              {c.buttonLabel}
+              <Icon name="arrowRight" />
+            </Link>
+          </div>
+        )}
+      </section>
+    )
   return (
     <section className="ui-wideband" aria-labelledby="band-title">
       <div className="ui-wideband__text">
@@ -127,11 +156,17 @@ function CampaignBand({ mode }: { mode: ShopMode }) {
 }
 
 /** (d) Koleksiyon kartları: ürün sayısı en çok 4 grup; dikey 3:4, sol üstte serif başlık. */
-function CollectionCards({ groups }: { groups: CatalogGroup[] }) {
-  const top = [...groups]
-    .filter((g) => g.thumbUrl)
-    .sort((a, b) => b.productCount - a.productCount)
-    .slice(0, 4)
+function CollectionCards({ groups, groupIds }: { groups: CatalogGroup[]; groupIds?: string[] }) {
+  const chosen = (groupIds ?? [])
+    .map((id) => groups.find((g) => g.id === id))
+    .filter((g): g is CatalogGroup => Boolean(g?.thumbUrl))
+  const top =
+    chosen.length > 0
+      ? chosen.slice(0, 4)
+      : [...groups]
+          .filter((g) => g.thumbUrl)
+          .sort((a, b) => b.productCount - a.productCount)
+          .slice(0, 4)
   if (top.length === 0) return null
   return (
     <section aria-label="Koleksiyonlar">
@@ -152,47 +187,99 @@ function CollectionCards({ groups }: { groups: CatalogGroup[] }) {
   )
 }
 
-function useShelf(id: string, load: Parameters<typeof fetchCatalogProducts>[0]) {
+function isAppPath(p: string): boolean {
+  return /^\/(?!\/)[^\\\s]*$/.test(p)
+}
+
+type ShelfLoad = Parameters<typeof fetchCatalogProducts>[0]
+
+/**
+ * Raf/panel ürünleri. Sunucu kaynağı çözdüyse (`productIds`) `ids=` ile alınır (sıra korunur);
+ * çözülmediyse kaynağa göre sorgulanır. Çözülemeyen kaynak (örn. incelenenler) ürün döndürmezse bölüm gizlenir.
+ */
+function loadFor(section: HomeSection): ShelfLoad | null {
+  const c = section.config
+  const limit = Math.min(24, Math.max(1, c.limit ?? 5))
+  const ids = section.productIds ?? (c.source === 'manual' ? c.productIds : undefined)
+  if (ids) return ids.length > 0 ? { ids: ids.slice(0, limit), page: 1, pageSize: limit } : null
+  switch (c.source) {
+    case 'new':
+      return { isNew: true, sort: 'newest', page: 1, pageSize: limit }
+    case 'featured':
+      return { featured: true, page: 1, pageSize: limit }
+    case 'bestSellers':
+      return { sort: 'popular', page: 1, pageSize: limit }
+    case 'group':
+      return c.groupId ? { groupId: c.groupId, page: 1, pageSize: limit } : null
+    default:
+      return null
+  }
+}
+
+function useShelf(section: HomeSection) {
   const { refresh } = useAuth()
+  const load = loadFor(section)
   const products = useLoad<CatalogProduct[]>(
     (s) =>
-      fetchCatalogProducts(load, s)
-        .then((r) => r.items)
-        .catch((err: unknown) => {
-          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) void refresh()
-          throw err
-        }),
-    `home-${id}`,
+      load
+        ? fetchCatalogProducts(load, s)
+            .then((r) => r.items)
+            .catch((err: unknown) => {
+              if (err instanceof ApiError && (err.status === 401 || err.status === 403)) void refresh()
+              throw err
+            })
+        : Promise.resolve([]),
+    `home-${section.id}-${JSON.stringify(load)}`,
   )
   return products
 }
 
-/** (e) Ürün rafı: ortalanmış büyük harf başlık + 5 sütun; yükleniyor iskeleti, hata, boşsa gizlenir. */
-function Shelf({
-  id,
-  title,
-  load,
-  moreHref,
-}: {
-  id: string
-  title: string
-  load: Parameters<typeof fetchCatalogProducts>[0]
-  moreHref: string
-}) {
+function moreHref(section: HomeSection, groups: CatalogGroup[]): string {
+  const c = section.config
+  switch (c.source) {
+    case 'new':
+      return NEW_HREF
+    case 'featured':
+      return FEATURED_HREF
+    case 'bestSellers':
+      return BEST_HREF
+    case 'group': {
+      const g = groups.find((x) => x.id === c.groupId)
+      return g ? catalogHref({ grup: g.id, slug: g.slug }) : '/katalog'
+    }
+    default:
+      return '/katalog'
+  }
+}
+
+/** (e) Ürün rafı: ortalanmış büyük harf başlık + ızgara ya da kaydırmalı şerit; yükleniyor iskeleti, hata, boşsa gizlenir. */
+function Shelf({ section, groups }: { section: HomeSection; groups: CatalogGroup[] }) {
   const addToCart = useAddToCart()
-  const products = useShelf(id, load)
+  const products = useShelf(section)
+  const scroller = useRef<HTMLUListElement>(null)
+  const c = section.config
+  const source = c.source ?? 'new'
+  const group = groups.find((g) => g.id === c.groupId)
+  const title = section.title?.trim() || (source === 'group' && group ? group.name : SHELF_TITLES[source])
+  const carousel = c.layout === 'carousel'
+  const skeletons = Math.min(c.limit ?? 5, 5)
   if (products.state.status === 'ready' && products.state.data.length === 0) return null
+  const scroll = (dir: 1 | -1) => {
+    const el = scroller.current
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' })
+  }
   return (
-    <section aria-labelledby={`${id}-title`} className="ui-home__section">
+    <section aria-labelledby={`${section.id}-title`} className="ui-home__section">
       <div className="ui-bigtitle">
-        <h2 id={`${id}-title`}>{title}</h2>
-        <Link to={moreHref} className="ui-bigtitle__more">
+        <h2 id={`${section.id}-title`}>{title}</h2>
+        <Link to={moreHref(section, groups)} className="ui-bigtitle__more">
           Tümünü gör
         </Link>
       </div>
+      {section.subtitle && <p className="muted ui-home__sub">{section.subtitle}</p>}
       {products.state.status === 'loading' && (
         <ul className="ui-pgrid ui-pgrid--home" aria-hidden="true">
-          {Array.from({ length: 5 }, (_, i) => (
+          {Array.from({ length: skeletons }, (_, i) => (
             <ProductCardSkeleton key={i} />
           ))}
         </ul>
@@ -200,7 +287,34 @@ function Shelf({
       {products.state.status === 'error' && (
         <ErrorAlert onRetry={products.reload}>Ürünler alınamadı.</ErrorAlert>
       )}
-      {products.state.status === 'ready' && (
+      {products.state.status === 'ready' && carousel && (
+        <div className="ui-home__carousel">
+          <ul className="ui-pgrid ui-pgrid--strip" ref={scroller}>
+            {products.state.data.map((p) => (
+              <ProductCard key={p.id} product={p} onAdd={(prod) => void addToCart(prod)} />
+            ))}
+          </ul>
+          <div className="ui-strip-nav">
+            <button
+              type="button"
+              className="ui-roundbtn"
+              aria-label="Önceki ürünler"
+              onClick={() => scroll(-1)}
+            >
+              <Icon name="chevronLeft" />
+            </button>
+            <button
+              type="button"
+              className="ui-roundbtn"
+              aria-label="Sonraki ürünler"
+              onClick={() => scroll(1)}
+            >
+              <Icon name="chevronRight" />
+            </button>
+          </div>
+        </div>
+      )}
+      {products.state.status === 'ready' && !carousel && (
         <ul className="ui-pgrid ui-pgrid--home">
           {products.state.data.map((p) => (
             <ProductCard key={p.id} product={p} onAdd={(prod) => void addToCart(prod)} />
@@ -252,23 +366,27 @@ function IconTiles({ mode }: { mode: ShopMode }) {
   )
 }
 
-/** (g) Tanıtım bloğu: solda koyu dikey panel, sağda öne çıkan ürünlerin kaydırmalı şeridi. */
-function FeaturedBlock() {
+/** (g) Tanıtım paneli: solda koyu dikey panel, sağda ürünlerin kaydırmalı şeridi. */
+function PromoPanel({ section, groups }: { section: HomeSection; groups: CatalogGroup[] }) {
   const addToCart = useAddToCart()
-  const products = useShelf('featured', { featured: true, page: 1, pageSize: 8 })
+  const products = useShelf(section)
   const scroller = useRef<HTMLUListElement>(null)
+  const c = section.config
+  const title = c.panelTitle?.trim() || section.title?.trim() || 'Öne çıkan ürünler'
+  const text = c.panelText?.trim() ?? 'Bu dönem öne çıkardığımız ürünler.'
+  const link = c.buttonLink && isAppPath(c.buttonLink) ? c.buttonLink : moreHref(section, groups)
   if (products.state.status === 'ready' && products.state.data.length === 0) return null
   const scroll = (dir: 1 | -1) => {
     const el = scroller.current
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' })
   }
   return (
-    <section className="ui-featblock" aria-labelledby="featured-title">
+    <section className="ui-featblock" aria-labelledby={`${section.id}-title`}>
       <div className="ui-featblock__panel">
-        <h2 id="featured-title">Öne çıkan ürünler</h2>
-        <p>Bu dönem öne çıkardığımız ürünler.</p>
-        <Link to={FEATURED_HREF} className="ui-featblock__btn">
-          Tümünü gör
+        <h2 id={`${section.id}-title`}>{title}</h2>
+        {text && <p>{text}</p>}
+        <Link to={link} className="ui-featblock__btn">
+          {c.buttonLabel?.trim() || 'Tümünü gör'}
           <Icon name="arrowRight" />
         </Link>
       </div>
@@ -317,53 +435,75 @@ function FeaturedBlock() {
   )
 }
 
+function HowItWorks() {
+  return (
+    <section aria-labelledby="steps-title" className="ui-howstrip">
+      <h2 id="steps-title">Nasıl çalışır?</h2>
+      <ol>
+        {STEPS.map((st, i) => (
+          <li key={st.title}>
+            <span className="ui-howstrip__no num" aria-hidden="true">
+              {i + 1}
+            </span>
+            <span>
+              <strong>{st.title}</strong>
+              <span className="muted">{st.text}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 export function HomePage() {
   const mode = useShopMode()
   usePageTitle('Züccaciye toptan ön sipariş portalı')
   const banners = useBanners()
   const groups = useCatalogGroups()
+  const layout = useHomeLayout()
   const groupList = groups.state.status === 'ready' ? groups.state.data : []
 
+  function render(s: HomeSection) {
+    switch (s.type) {
+      case 'hero':
+        return banners.status === 'ready' ? <PromoCarousel key={s.id} banners={banners.items} /> : null
+      case 'categoryStrip':
+        return <CategoryStrip key={s.id} groups={groupList} loading={groups.state.status === 'loading'} />
+      case 'campaignStrip':
+        if (!audienceOk(s.config.audience, mode)) return null
+        return (
+          <Fragment key={s.id}>
+            <CampaignBand mode={mode} section={s} />
+            {mode === 'dealer' && <DealerQuick />}
+          </Fragment>
+        )
+      case 'collections':
+        return <CollectionCards key={s.id} groups={groupList} groupIds={s.config.groupIds} />
+      case 'productShelf':
+        return <Shelf key={s.id} section={s} groups={groupList} />
+      case 'iconTiles':
+        return <IconTiles key={s.id} mode={mode} />
+      case 'promoPanel':
+        return <PromoPanel key={s.id} section={s} groups={groupList} />
+      case 'howItWorks':
+        return audienceOk(s.config.audience ?? 'guest', mode) ? <HowItWorks key={s.id} /> : null
+      case 'trustStrip':
+        return (
+          <section key={s.id} aria-label="Neden AMİSOS B2B" className="ui-home__section">
+            <TrustStrip />
+          </section>
+        )
+    }
+  }
+
   return (
-    <ShopLayout>
+    <ShopLayout footerTrust={false}>
       <h1 className="visually-hidden">AMİSOS B2B: züccaciye toptan ön sipariş portalı</h1>
-      {banners.status === 'ready' && <PromoCarousel banners={banners.items} />}
-
-      <CategoryStrip groups={groupList} loading={groups.state.status === 'loading'} />
-
-      <CampaignBand mode={mode} />
-      {mode === 'dealer' && <DealerQuick />}
-
-      <CollectionCards groups={groupList} />
-
-      <Shelf
-        id="new"
-        title="Yeni ürünler"
-        load={{ isNew: true, sort: 'newest', page: 1, pageSize: 5 }}
-        moreHref={NEW_HREF}
-      />
-
-      <IconTiles mode={mode} />
-
-      <FeaturedBlock />
-
-      {mode === 'guest' && (
-        <section aria-labelledby="steps-title" className="ui-howstrip">
-          <h2 id="steps-title">Nasıl çalışır?</h2>
-          <ol>
-            {STEPS.map((st, i) => (
-              <li key={st.title}>
-                <span className="ui-howstrip__no num" aria-hidden="true">
-                  {i + 1}
-                </span>
-                <span>
-                  <strong>{st.title}</strong>
-                  <span className="muted">{st.text}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
+      {layout.status === 'loading' ? (
+        <div className="ui-skeleton" style={{ height: '16rem' }} aria-hidden="true" />
+      ) : (
+        layout.sections.filter((s) => s.enabled).map(render)
       )}
     </ShopLayout>
   )
