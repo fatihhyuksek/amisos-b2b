@@ -1,4 +1,5 @@
 // Backend istemcisi. Oturum httpOnly çerezle tutulur (GR-BAYI-007, K-29).
+import { sessionKey } from './shop/analytics'
 
 export type UserType = 'admin' | 'dealer'
 
@@ -37,11 +38,20 @@ async function toError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, fields)
 }
 
+/** K-84: vitrin isteklerinde (admin uçları hariç) oturum anahtarı; giriş ve sipariş olayları doğru oturuma bağlanır. */
+function analyticsHeaders(path: string): Record<string, string> {
+  if (path.startsWith('/admin') || path.startsWith('/auth/admin')) return {}
+  return { 'X-Analytics-Session': sessionKey() }
+}
+
 async function send(method: string, path: string, body?: unknown): Promise<Response> {
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: {
+      ...analyticsHeaders(path),
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) throw await toError(res)
@@ -1764,6 +1774,7 @@ export interface AnalyticsSearches {
 }
 
 export interface AnalyticsDealerRow {
+  phone?: string | null
   dealerId: string
   companyTitle: string
   city: string | null
@@ -1912,6 +1923,10 @@ export interface AnnouncementSettings {
 
 export function fetchSiteHome(signal?: AbortSignal): Promise<HomeLayout> {
   return getJson('/site/home', signal)
+}
+
+export function fetchAdminHomeDefault(signal?: AbortSignal): Promise<HomeLayout> {
+  return getJson('/admin/site/home/default', signal)
 }
 
 export function fetchAdminHome(signal?: AbortSignal): Promise<HomeLayout> {

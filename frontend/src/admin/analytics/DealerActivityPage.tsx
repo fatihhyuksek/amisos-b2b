@@ -1,6 +1,5 @@
 // K-85: Admin > Analitik > Bayi etkinliği (/yonetim/analitik/bayiler). Bayi tablosu ve "ilgileniyor ama sipariş vermedi" kartı.
-import { useEffect, useState } from 'react'
-import { fetchAnalyticsDealers, fetchDealer, type AnalyticsDealerRow } from '../../api'
+import { fetchAnalyticsDealers, type AnalyticsDealerRow } from '../../api'
 import { Link } from '../../Link'
 import { ErrorAlert } from '../../ui/catalog'
 import { EmptyState } from '../../ui/components'
@@ -17,36 +16,7 @@ import { usePeriod } from './lib'
 
 const dealerTo = (id: string) => `/yonetim/bayiler/${encodeURIComponent(id)}`
 
-/** WhatsApp bağlantıları için ilk 12 bayinin telefonu bayi detayından alınır (analitik yanıtında telefon yok). */
-function usePhones(ids: string[]): Record<string, string | null> {
-  const [phones, setPhones] = useState<Record<string, string | null>>({})
-  const key = ids.join(',')
-  useEffect(() => {
-    let alive = true
-    const c = new AbortController()
-    void Promise.all(
-      key
-        .split(',')
-        .filter(Boolean)
-        .slice(0, 12)
-        .map((id) =>
-          fetchDealer(id, c.signal)
-            .then((d) => [id, whatsappHref(d.phone)] as const)
-            .catch(() => [id, null] as const),
-        ),
-    ).then((pairs) => {
-      if (alive) setPhones(Object.fromEntries(pairs))
-    })
-    return () => {
-      alive = false
-      c.abort()
-    }
-  }, [key])
-  return phones
-}
-
 function Interested({ rows }: { rows: AnalyticsDealerRow[] }) {
-  const phones = usePhones(rows.map((r) => r.dealerId))
   return (
     <Panel title="İlgileniyor ama sipariş vermedi" flush>
       <p className="muted an-panelnote an-padded">
@@ -58,7 +28,7 @@ function Interested({ rows }: { rows: AnalyticsDealerRow[] }) {
       ) : (
         <ul className="an-interest">
           {rows.map((r) => {
-            const wa = phones[r.dealerId]
+            const wa = r.phone ? whatsappHref(r.phone) : null
             return (
               <li key={r.dealerId}>
                 <span className="an-interest__main">

@@ -4,6 +4,7 @@
 import { useId, useState } from 'react'
 import {
   fetchAdminHome,
+  fetchAdminHomeDefault,
   saveAdminHome,
   type Audience,
   type CatalogGroup,
@@ -230,6 +231,27 @@ function Editor({ initial, groups }: { initial: HomeSection[]; groups: CatalogGr
     }
   }
 
+  /** Sunucunun varsayılan düzenini forma doldurur; kaydedilmez, kullanıcı Kaydet'e basar. */
+  async function resetToDefault() {
+    if (
+      !window.confirm(
+        'Form varsayılan ana sayfa düzeniyle doldurulacak (kaydedene kadar vitrin değişmez). Devam edilsin mi?',
+      )
+    )
+      return
+    setError(null)
+    try {
+      const d = await fetchAdminHomeDefault()
+      setSections(d.sections.map(({ productIds: _ids, ...rest }) => rest))
+      setErrors({})
+      setOpen(null)
+      setSaved(false)
+      setLive('Varsayılan düzen forma yüklendi; kaydetmeniz gerekir')
+    } catch (e) {
+      setError(e)
+    }
+  }
+
   const enabledCount = sections.filter((s) => s.enabled).length
 
   return (
@@ -395,6 +417,11 @@ function Editor({ initial, groups }: { initial: HomeSection[]; groups: CatalogGr
           setSections(base)
           setErrors({})
         }}
+        extra={
+          <Button variant="ghost" disabled={busy} onClick={resetToDefault}>
+            Varsayılana dön
+          </Button>
+        }
       />
     </div>
   )
