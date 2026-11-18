@@ -2,8 +2,9 @@
 // Fiyat sepette saklanmaz: her görünümde güncel iskontoyla hesaplanır. Pasif ürünler sepetten düşer,
 // koli içi adedi değişen satırlar yeni koli katına yukarı yuvarlanır (ikisi de yanıtta bildirilir).
 import { createHash } from 'node:crypto';
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { isPriceOnRequest } from '../catalog/catalog.service.js';
 import { catalogImageDto, loadImages } from '../catalog/product-images.js';
 import { lockDealerCart, type Tx } from '../common/advisory-lock.js';
 import { DB, type Database } from '../database/database.module.js';
@@ -23,7 +24,18 @@ export interface CartLine extends LinePricing {
   quantity: number;
   caseQuantity: number;
   stock: 'in_stock' | 'out_of_stock';
+  /** K-79: liste fiyatı 0; satır sipariş verilemez (gönderim 409 PRICE_NOT_SET). */
+  priceOnRequest: boolean;
 }
+
+/** K-79: fiyatı girilmemiş ürün sepete eklenemez / sipariş verilemez. */
+export const priceNotSet = (extra: Record<string, unknown> = {}) =>
+  new ConflictException({
+    statusCode: 409,
+    code: 'PRICE_NOT_SET',
+    message: 'Bu ürünün fiyatı henüz girilmemiş; fiyat için bizimle iletişime geçin.',
+    ...extra,
+  });
 
 export interface CartView {
   /** Satırların (productId, quantity, unitPrice) özeti; sipariş gönderiminde `expectedVersion` ile doğrulanır. */
@@ -61,7 +73,7 @@ export class CartService {
         return (await this.snapshot(tx, dealerId)).view;
       }
       const [row] = await tx
-        .select({ caseQuantity: products.caseQuantity })
+        .select({ caseQuantity: products.caseQuantity, listPrice: products.listPrice, name: products.name })
         .from(products)
         .innerJoin(productGroups, eq(productGroups.id, products.groupId))
         .where(and(eq(products.id, productId), eq(products.isActive, true), eq(productGroups.isActive, true)));
@@ -72,6 +84,8 @@ export class CartService {
           message: 'Ürün bulunamadı.',
         });
       }
+      // K-79: fiyatı girilmemiş ürün sepete eklenemez.
+      if (isPriceOnRequest(row.listPrice)) throw priceNotSet({ productId, name: row.name });
       // GR-SIP-004: koli katı değilse sepet kaydedilmez.
       if (quantity % row.caseQuantity !== 0) {
         throw new BadRequestException({
@@ -142,7 +156,7 @@ export class CartService {
         return { error: barcodes.length + codes.length > 0 ? 'INACTIVE' : 'NOT_FOUND' };
       };
 
-      const errors: { index: number; query: string; code: 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY' | 'AMBIGUOUS' }[] = [];
+      const errors: { index: number; query: string; code: 'NOT_FOUND' | 'INACTIVE' | 'INVALID_QUANTITY' | 'AMBIGUOUS' | 'PRICE_NOT_SET' }[] = [];
       const grouped = new Map<string, { product: ProductRow; firstIndex: number; requested: number }>();
       for (const [index, line] of input.lines.entries()) {
         const resolved = line.query ? resolve(line.query) : ({ error: 'NOT_FOUND' } as const);
@@ -151,6 +165,11 @@ export class CartService {
           continue;
         }
         const match = resolved.match;
+        // K-79: satır hatası PRICE_NOT_SET; diğer satırlar eklenmeye devam eder.
+        if (isPriceOnRequest(match.product.listPrice)) {
+          errors.push({ index, query: line.query, code: 'PRICE_NOT_SET' });
+          continue;
+        }
         if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_QUANTITY) {
           errors.push({ index, query: line.query, code: 'INVALID_QUANTITY' });
           continue;
@@ -305,6 +324,7 @@ export class CartService {
         quantity,
         caseQuantity: product.caseQuantity,
         stock: product.stockStatus,
+        priceOnRequest: isPriceOnRequest(product.listPrice),
         ...priceLine(quantity, product.listPrice, product.vatRate, rates.general, rates.byGroup.get(product.groupId)),
       };
       return { product, line };

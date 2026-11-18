@@ -59,6 +59,33 @@ export const DEFAULT_SOCIAL: SiteSocial = {
   linkedin: null,
 };
 
+/** K-82: site geneli SEO ayarları (`site_settings` anahtarı `seo`). */
+export interface SiteSeo {
+  siteTitle: string;
+  /** "%s" içermeli; sayfa başlığı buraya yerleşir. */
+  titleTemplate: string;
+  description: string;
+  keywords: string | null;
+  ogImageMediaId: string | null;
+  indexable: boolean;
+  googleAnalyticsId: string | null;
+  googleSiteVerification: string | null;
+  /** https taban adres (sonda / yok); yoksa APP_URL kullanılır. */
+  canonicalBaseUrl: string | null;
+}
+export const DEFAULT_SEO: SiteSeo = {
+  siteTitle: 'AMİSOS B2B Toptan Züccaciye',
+  titleTemplate: '%s | AMİSOS B2B',
+  description:
+    'Amisos Züccaciye toptan sipariş portalı: mutfak eşyaları ve dekorasyon ürünlerini inceleyin, bayi olarak size özel fiyatlarla ön sipariş verin.',
+  keywords: null,
+  ogImageMediaId: null,
+  indexable: true,
+  googleAnalyticsId: null,
+  googleSiteVerification: null,
+  canonicalBaseUrl: null,
+};
+
 const DRAFT_NOTE =
   'TASLAK — hukuk onayı bekliyor. Bu metin bilgilendirme amaçlı bir taslaktır; yayın öncesinde hukuk danışmanı tarafından gözden geçirilecektir.';
 

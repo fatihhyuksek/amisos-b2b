@@ -67,7 +67,53 @@ export const socialSchema = z.object({
   linkedin: socialUrl('linkedin').optional(),
 });
 
+/** K-82: kısmi güncelleme; verilmeyen alan mevcut değerini korur, null (isteğe bağlı alanlar) kaldırır. */
+export const seoSchema = z.object({
+  siteTitle: z.string().trim().min(1).max(70).optional(),
+  titleTemplate: z
+    .string()
+    .trim()
+    .min(2)
+    .max(100)
+    .refine((v) => v.includes('%s'), { message: 'Şablon sayfa başlığı için "%s" içermeli.' })
+    .optional(),
+  description: z.string().trim().min(1).max(170).optional(),
+  keywords: nullableText(255).optional(),
+  ogImageMediaId: z.uuid().nullable().optional(),
+  indexable: z.boolean().optional(),
+  googleAnalyticsId: z
+    .string()
+    .trim()
+    .nullable()
+    .transform((v) => (v === null || v === '' ? null : v))
+    .refine((v) => v === null || /^G-[A-Z0-9]{4,12}$/.test(v), { message: 'Geçerli bir GA4 ölçüm kimliği girin (G-XXXXXXXXXX).' })
+    .optional(),
+  googleSiteVerification: nullableText(100)
+    .refine((v) => v === null || /^[A-Za-z0-9_-]+$/.test(v), { message: 'Doğrulama kodu yalnızca harf, rakam, tire ve alt çizgi içerebilir.' })
+    .optional(),
+  canonicalBaseUrl: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .transform((v) => (v === null || v === '' ? null : v.replace(/\/+$/, '')))
+    .refine(
+      (v) => {
+        if (v === null) return true;
+        try {
+          const u = new URL(v);
+          return u.protocol === 'https:' && !u.search && !u.hash && u.pathname === '/';
+        } catch {
+          return false;
+        }
+      },
+      { message: 'Taban adres https ile başlayan bir alan adı olmalı (ör. https://b2b.amisos.com).' },
+    )
+    .optional(),
+});
+
 export const updateSiteSchema = z.object({
+  seo: seoSchema.optional(),
   announcement: nullableText(160),
   contact: contactSchema,
   social: socialSchema.optional(),

@@ -14,7 +14,7 @@ import type { Tx } from '../common/advisory-lock.js';
 import { escapeLike, foldSql, foldTr } from '../common/like.js';
 import { isForeignKeyViolation, isUniqueViolation, violatedConstraint } from '../common/pg-errors.js';
 import { DB, type Database } from '../database/database.module.js';
-import { media, productGroups, productImages, products } from '../database/schema.js';
+import { media, productGroups, productImages, productSlugRedirects, products } from '../database/schema.js';
 import type {
   AdminProductListQuery,
   BulkProductsInput,
@@ -23,6 +23,7 @@ import type {
   UpdateProductInput,
 } from './catalog.schemas.js';
 import { adminImageDto, loadImages } from './product-images.js';
+import { allocateProductSlug } from './slugs.js';
 
 type ProductRow = typeof products.$inferSelect;
 
@@ -46,6 +47,20 @@ export function mapProductConflict(error: unknown): never {
         statusCode: 409,
         code: 'DUPLICATE_CODE',
         message: 'Bu ürün kodu başka bir üründe kullanılıyor.',
+      });
+    }
+    if (constraint === 'products_slug_uq') {
+      throw new ConflictException({
+        statusCode: 409,
+        code: 'DUPLICATE_SLUG',
+        message: 'Bu adres başka bir üründe kullanılıyor.',
+      });
+    }
+    if (constraint === 'products_bizimhesap_id_uq') {
+      throw new ConflictException({
+        statusCode: 409,
+        code: 'DUPLICATE_BIZIMHESAP_ID',
+        message: 'Bu BizimHesap ID başka bir üründe kullanılıyor.',
       });
     }
     if (constraint === 'products_barcode_uq') {
@@ -92,6 +107,8 @@ export class ProductsService {
     if (query.stock) filters.push(eq(products.stockStatus, query.stock));
     if (query.active !== undefined) filters.push(eq(products.isActive, query.active));
     if (query.featured) filters.push(eq(products.isFeatured, true));
+    // K-79: fiyatı girilmemiş = aktif ve liste fiyatı 0 (dashboard attention.priceMissing ile aynı tanım).
+    if (query.priceMissing) filters.push(eq(products.isActive, true), sql`${products.listPrice} = 0`);
     return and(...filters);
   }
 
@@ -177,6 +194,9 @@ export class ProductsService {
             groupId: source.groupId,
             barcode: input.barcode,
             code: input.code ?? null,
+            slug: await allocateProductSlug(tx, name),
+            seoTitle: source.seoTitle,
+            seoDescription: source.seoDescription,
             name,
             description: source.description,
             caseQuantity: source.caseQuantity,
@@ -225,6 +245,10 @@ export class ProductsService {
             groupId: input.groupId,
             barcode: input.barcode,
             code: input.code ?? null,
+            bizimhesapId: input.bizimhesapId ?? null,
+            slug: input.slug ?? (await allocateProductSlug(tx, input.name)),
+            seoTitle: input.seoTitle ?? null,
+            seoDescription: input.seoDescription ?? null,
             name: input.name,
             description: input.description ?? null,
             caseQuantity: input.caseQuantity,
@@ -248,6 +272,8 @@ export class ProductsService {
             data: {
               barcode: input.barcode,
               name: input.name,
+              slug: input.slug ?? null,
+              bizimhesapId: input.bizimhesapId ?? null,
               listPrice: input.listPrice,
               vatRate: input.vatRate,
               stockStatus: input.stockStatus,
@@ -284,6 +310,10 @@ export class ProductsService {
         track('groupId', input.groupId);
         track('barcode', input.barcode);
         track('code', input.code);
+        track('bizimhesapId', input.bizimhesapId);
+        track('slug', input.slug);
+        track('seoTitle', input.seoTitle);
+        track('seoDescription', input.seoDescription);
         track('name', input.name);
         track('description', input.description);
         track('caseQuantity', input.caseQuantity);
@@ -309,6 +339,14 @@ export class ProductsService {
           await tx.update(products).set(set).where(eq(products.id, id));
         } else {
           await tx.update(products).set({ updatedAt: this.clock.now() }).where(eq(products.id, id));
+        }
+        if (changes.slug) {
+          // K-82: eski adres 301 için saklanır; yeni slug daha önce başka bir yönlendirmedeyse canlı slug kazanır.
+          await tx.delete(productSlugRedirects).where(eq(productSlugRedirects.slug, input.slug as string));
+          await tx
+            .insert(productSlugRedirects)
+            .values({ slug: current.slug, productId: id })
+            .onConflictDoUpdate({ target: productSlugRedirects.slug, set: { productId: id } });
         }
         await this.audit.record(
           {
@@ -424,6 +462,10 @@ export class ProductsService {
       groupName,
       barcode: row.barcode,
       code: row.code,
+      bizimhesapId: row.bizimhesapId,
+      slug: row.slug,
+      seoTitle: row.seoTitle,
+      seoDescription: row.seoDescription,
       name: row.name,
       description: row.description,
       caseQuantity: row.caseQuantity,

@@ -2,26 +2,37 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { asc, eq, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
-import { isUniqueViolation } from '../common/pg-errors.js';
+import { isUniqueViolation, violatedConstraint } from '../common/pg-errors.js';
 import { DB, type Database } from '../database/database.module.js';
 import { dealerGroupDiscounts, productGroups, products } from '../database/schema.js';
 import { companyTitleKey } from '../dealers/company-title.js';
 import type { CreateGroupInput, UpdateGroupInput } from './catalog.schemas.js';
+import { allocateGroupSlug } from './slugs.js';
 
 export interface ProductGroupDto {
   id: string;
   name: string;
+  slug: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  description: string | null;
   sortOrder: number;
   isActive: boolean;
   productCount: number;
 }
 
-const duplicate = () =>
-  new ConflictException({
-    statusCode: 409,
-    code: 'DUPLICATE_GROUP',
-    message: 'Bu adla bir ürün grubu zaten var.',
-  });
+const duplicate = (error?: unknown) =>
+  violatedConstraint(error) === 'product_groups_slug_uq'
+    ? new ConflictException({
+        statusCode: 409,
+        code: 'DUPLICATE_SLUG',
+        message: 'Bu adres başka bir grupta kullanılıyor.',
+      })
+    : new ConflictException({
+        statusCode: 409,
+        code: 'DUPLICATE_GROUP',
+        message: 'Bu adla bir ürün grubu zaten var.',
+      });
 
 @Injectable()
 export class ProductGroupsService {
@@ -35,6 +46,10 @@ export class ProductGroupsService {
       .select({
         id: productGroups.id,
         name: productGroups.name,
+        slug: productGroups.slug,
+        seoTitle: productGroups.seoTitle,
+        seoDescription: productGroups.seoDescription,
+        description: productGroups.description,
         sortOrder: productGroups.sortOrder,
         isActive: productGroups.isActive,
         productCount: sql<number>`(select count(*)::int from products p where p.group_id = product_groups.id)`,
@@ -55,7 +70,15 @@ export class ProductGroupsService {
       const id = await this.db.transaction(async (tx) => {
         const [row] = await tx
           .insert(productGroups)
-          .values({ name: input.name, nameKey: companyTitleKey(input.name), sortOrder: input.sortOrder })
+          .values({
+            name: input.name,
+            nameKey: companyTitleKey(input.name),
+            slug: input.slug ?? (await allocateGroupSlug(tx, input.name)),
+            seoTitle: input.seoTitle ?? null,
+            seoDescription: input.seoDescription ?? null,
+            description: input.description ?? null,
+            sortOrder: input.sortOrder,
+          })
           .returning({ id: productGroups.id });
         await this.audit.record(
           {
@@ -64,7 +87,7 @@ export class ProductGroupsService {
             action: 'product_group.created',
             entityType: 'product_groups',
             entityId: row.id,
-            data: { name: input.name, sortOrder: input.sortOrder },
+            data: { name: input.name, sortOrder: input.sortOrder, slug: input.slug ?? null },
           },
           tx,
         );
@@ -72,7 +95,7 @@ export class ProductGroupsService {
       });
       return await this.get(id);
     } catch (error) {
-      if (isUniqueViolation(error)) throw duplicate();
+      if (isUniqueViolation(error)) throw duplicate(error);
       throw error;
     }
   }
@@ -92,6 +115,13 @@ export class ProductGroupsService {
           set.name = input.name;
           set.nameKey = companyTitleKey(input.name);
           changes.name = { previous: current.name, next: input.name };
+        }
+        for (const key of ['slug', 'seoTitle', 'seoDescription', 'description'] as const) {
+          const next = input[key];
+          if (next !== undefined && next !== current[key]) {
+            (set as Record<string, unknown>)[key] = next;
+            changes[key] = { previous: current[key], next };
+          }
         }
         if (input.sortOrder !== undefined && input.sortOrder !== current.sortOrder) {
           set.sortOrder = input.sortOrder;
@@ -116,7 +146,7 @@ export class ProductGroupsService {
         );
       });
     } catch (error) {
-      if (isUniqueViolation(error)) throw duplicate();
+      if (isUniqueViolation(error)) throw duplicate(error);
       throw error;
     }
     return this.get(id);

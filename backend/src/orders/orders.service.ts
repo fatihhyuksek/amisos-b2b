@@ -19,7 +19,8 @@ import {
 import type { OrderMail } from '../mail/mail.service.js';
 import { NotificationsService, serializeOrderMail } from '../notifications/notifications.service.js';
 import { calculateDealerPrice } from '../pricing/pricing.service.js';
-import { CartService, type CartView } from './cart.service.js';
+import { isPriceOnRequest } from '../catalog/catalog.service.js';
+import { CartService, priceNotSet, type CartView } from './cart.service.js';
 import { Money } from '../common/money.js';
 import { roundUpToCase } from './order-math.js';
 import { buildOrderExport } from './order-export.js';
@@ -52,6 +53,11 @@ export class OrdersService {
       await lockDealerCart(tx, dealerId);
       const { view, items } = await this.cart.snapshot(tx, dealerId);
       if (items.length === 0 && view.removed.length === 0) return { kind: 'empty' as const };
+      // K-79: fiyatı girilmemiş satır varsa gönderim reddedilir (diğer uyuşmazlık kontrollerinden önce).
+      const unpriced = view.lines.filter((l) => l.priceOnRequest);
+      if (unpriced.length > 0) {
+        return { kind: 'price_not_set' as const, cart: view, products: unpriced.map((l) => ({ productId: l.productId, name: l.name })) };
+      }
       // Pasif ürün düştüyse veya koli katı düzeltildiyse bayi ekranda gördüğünden farklı bir sepete
       // sipariş vermesin: toplam tesadüfen aynı olsa da yeniden onay istenir.
       if (
@@ -161,6 +167,9 @@ export class OrdersService {
 
     if (result.kind === 'empty') {
       throw new BadRequestException({ statusCode: 400, code: 'EMPTY_CART', message: 'Sepet boş.' });
+    }
+    if (result.kind === 'price_not_set') {
+      throw priceNotSet({ cart: result.cart, products: result.products });
     }
     if (result.kind === 'changed') {
       throw new ConflictException({
@@ -302,7 +311,7 @@ export class OrdersService {
       );
 
       const added: { productId: string; name: string; quantity: number }[] = [];
-      const skipped: { productId: string; name: string; barcode: string; reason: 'INACTIVE' | 'QUANTITY_LIMIT' }[] = [];
+      const skipped: { productId: string; name: string; barcode: string; reason: 'INACTIVE' | 'QUANTITY_LIMIT' | 'PRICE_NOT_SET' }[] = [];
       const adjusted: { productId: string; name: string; from: number; to: number; caseQuantity: number }[] = [];
       for (const line of lines) {
         const c = byId.get(line.productId);
@@ -313,6 +322,11 @@ export class OrdersService {
             barcode: line.barcode,
             reason: 'INACTIVE',
           });
+          continue;
+        }
+        // K-79: fiyatı sonradan 0 yapılan ürün tekrar siparişte sepete alınmaz.
+        if (isPriceOnRequest(c.product.listPrice)) {
+          skipped.push({ productId: line.productId, name: line.productName, barcode: line.barcode, reason: 'PRICE_NOT_SET' });
           continue;
         }
         const requested = (existing.get(line.productId) ?? 0) + line.quantity;

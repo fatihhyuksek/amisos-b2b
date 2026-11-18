@@ -131,7 +131,8 @@ export class DashboardService {
              (select count(*)::int from dealers where status = 'pending_approval') as pending,
              (select count(*)::int from orders where ${notTransferredCondition()}) as not_transferred,
              (select count(*)::int from notification_outbox where status = 'failed') as failed,
-             (select count(*)::int from products where is_featured and is_active and stock_status = 'out_of_stock') as featured_oos`);
+             (select count(*)::int from products where is_featured and is_active and stock_status = 'out_of_stock') as featured_oos,
+             (select count(*)::int from products where is_active and list_price = 0) as price_missing`);
     const inactive = await this.reports.inactiveDealers({ days: 60 });
     return {
       newOrders: Number(c.new_orders),
@@ -140,6 +141,8 @@ export class DashboardService {
       notTransferred: Number(c.not_transferred),
       failedNotifications: Number(c.failed),
       featuredOutOfStock: Number(c.featured_oos),
+      // K-79: aktif ve liste fiyatı 0 olan ürün sayısı.
+      priceMissing: Number(c.price_missing),
       inactiveDealers60d: inactive.items.length,
     };
   }

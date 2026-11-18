@@ -11,7 +11,9 @@ import ExcelJS from 'exceljs';
 import { AuditService } from '../audit/audit.service.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { LOCK_PRODUCT_IMPORT, type Tx } from '../common/advisory-lock.js';
+import { pickFreeSlug, slugify } from '../common/slug.js';
 import { zipUncompressedSize } from '../common/zip-size.js';
+import { allocateGroupSlug, loadTakenProductSlugs } from './slugs.js';
 import { mapProductConflict } from './products.service.js';
 import { DB, type Database } from '../database/database.module.js';
 import { auditLog, productGroups, products } from '../database/schema.js';
@@ -76,6 +78,7 @@ export class ProductImportService {
     // Barkod ve kod metin olarak saklanır (baştaki sıfırlar korunur).
     sheet.getColumn('barcode').numFmt = '@';
     sheet.getColumn('code').numFmt = '@';
+    sheet.getColumn('bizimhesapId').numFmt = '@';
     sheet.addRow({
       barcode: 'ORNEK0000001',
       code: 'ZC-ORNEK-1',
@@ -104,6 +107,7 @@ export class ProductImportService {
     const notes: Record<string, string> = {
       barcode: 'Zorunlu. Eşleşme anahtarı: barkod sistemde varsa ürün güncellenir, yoksa eklenir.',
       code: 'İsteğe bağlı. BizimHesap ürün kodu. Boşsa mevcut üründe değişmez.',
+      bizimhesapId: 'İsteğe bağlı (K-80). BizimHesap ürün ID\'si; yalnızca yazılır/güncellenir, eşleşme yine barkodladır. Boşsa mevcut üründe değişmez.',
       name: 'Zorunlu.',
       group: 'Zorunlu. Grup yoksa otomatik oluşturulur.',
       caseQuantity: 'Zorunlu. 1 veya daha büyük tam sayı.',
@@ -157,6 +161,7 @@ export class ProductImportService {
     // Dosya içi tekrarlar (barkod; kod).
     const seenBarcode = new Map<string, number>();
     const seenCode = new Map<string, ImportRow>();
+    const seenBizimhesap = new Map<string, number>();
     const unique: ImportRow[] = [];
     for (const row of rows) {
       const firstRow = seenBarcode.get(row.barcode);
@@ -172,6 +177,14 @@ export class ProductImportService {
           continue;
         }
         seenCode.set(row.code, row);
+      }
+      if (row.bizimhesapId) {
+        const other = seenBizimhesap.get(row.bizimhesapId);
+        if (other !== undefined) {
+          errors.push({ row: row.row, column: 'BizimHesap ID', message: `Bu BizimHesap ID dosyada ${other}. satırda başka bir barkodla var.` });
+          continue;
+        }
+        seenBizimhesap.set(row.bizimhesapId, row.row);
       }
       unique.push(row);
     }
@@ -258,6 +271,15 @@ export class ProductImportService {
         .where(inArray(products.code, codes.slice(i, i + 2000)));
       for (const o of owners) if (o.code) codeOwner.set(o.code, o.barcode);
     }
+    const bhIds = rows.flatMap((r) => (r.bizimhesapId ? [r.bizimhesapId] : []));
+    const bhOwner = new Map<string, string>();
+    for (let i = 0; i < bhIds.length; i += 2000) {
+      const owners = await tx
+        .select({ id: products.bizimhesapId, barcode: products.barcode })
+        .from(products)
+        .where(inArray(products.bizimhesapId, bhIds.slice(i, i + 2000)));
+      for (const o of owners) if (o.id) bhOwner.set(o.id, o.barcode);
+    }
     const groups = await tx.select().from(productGroups);
     const groupByKey = new Map(groups.map((g) => [g.nameKey, g]));
 
@@ -284,6 +306,17 @@ export class ProductImportService {
           continue;
         }
       }
+      if (row.bizimhesapId) {
+        const owner = bhOwner.get(row.bizimhesapId);
+        if (owner !== undefined && owner !== row.barcode) {
+          errors.push({
+            row: row.row,
+            column: 'BizimHesap ID',
+            message: `Bu BizimHesap ID başka bir üründe (barkod ${owner}) kullanılıyor.`,
+          });
+          continue;
+        }
+      }
       const groupKey = companyTitleKey(row.groupName);
       const group = groupByKey.get(groupKey);
       if (!group && !groupsToCreate.has(groupKey)) {
@@ -305,6 +338,7 @@ export class ProductImportService {
       // Boş Ürün kodu / Açıklama / KDV / Stok / Aktif mevcut üründe değişmez.
       if (row.vatRate !== null) next.vatRate = row.vatRate;
       if (row.code !== null) next.code = row.code;
+      if (row.bizimhesapId !== null) next.bizimhesapId = row.bizimhesapId;
       if (row.description !== null) next.description = row.description;
       if (row.stock !== null) next.stockStatus = row.stock;
       if (row.active !== null) next.isActive = row.active;
@@ -337,7 +371,7 @@ export class ProductImportService {
     for (const g of plan.groupsToCreate) {
       const [created] = await tx
         .insert(productGroups)
-        .values({ name: g.name, nameKey: g.key })
+        .values({ name: g.name, nameKey: g.key, slug: await allocateGroupSlug(tx, g.name) })
         .returning({ id: productGroups.id });
       groupIds.set(g.key, created.id);
       await this.audit.record(
@@ -353,9 +387,18 @@ export class ProductImportService {
       );
     }
 
+    // K-82: yeni ürünlerin slug'ı addan üretilir; tahsis bellekte (ürün başına sorgu yok).
+    const takenSlugs = await loadTakenProductSlugs(tx);
+    const slugFor = (name: string) => {
+      const slug = pickFreeSlug(slugify(name, 'urun'), takenSlugs);
+      takenSlugs.add(slug);
+      return slug;
+    };
     for (let i = 0; i < plan.toCreate.length; i += CHUNK) {
       await tx.insert(products).values(
         plan.toCreate.slice(i, i + CHUNK).map(({ row, groupKey }) => ({
+          bizimhesapId: row.bizimhesapId,
+          slug: slugFor(row.name),
           groupId: groupIds.get(groupKey)!,
           barcode: row.barcode,
           code: row.code,

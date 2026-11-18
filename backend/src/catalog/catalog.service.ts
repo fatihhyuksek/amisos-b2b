@@ -4,7 +4,15 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { DB, type Database } from '../database/database.module.js';
-import { dealerFavorites, dealerGroupDiscounts, dealers, productGroups, products } from '../database/schema.js';
+import {
+  dealerFavorites,
+  dealerGroupDiscounts,
+  dealers,
+  productGroups,
+  productSlugRedirects,
+  products,
+} from '../database/schema.js';
+import { Money } from '../common/money.js';
 import { calculateDealerPrice } from '../pricing/pricing.service.js';
 import type { CatalogListQuery } from './catalog.schemas.js';
 import { catalogImageDto, loadImages } from './product-images.js';
@@ -37,6 +45,10 @@ export class CatalogService {
       .select({
         id: productGroups.id,
         name: productGroups.name,
+        slug: productGroups.slug,
+        description: productGroups.description,
+        seoTitle: productGroups.seoTitle,
+        seoDescription: productGroups.seoDescription,
         productCount: sql<number>`count(${products.id})::int`,
         thumbMediaId,
       })
@@ -49,6 +61,52 @@ export class CatalogService {
       ...g,
       thumbUrl: thumbMediaId ? mediaThumbUrl(thumbMediaId) : null,
     }));
+  }
+
+  /** K-82: grup sayfası; yalnızca aktif grup (içinde ürün olmasa da). Bilinmeyen/pasif 404. */
+  async groupBySlug(slug: string) {
+    const [g] = await this.db
+      .select({
+        id: productGroups.id,
+        name: productGroups.name,
+        slug: productGroups.slug,
+        description: productGroups.description,
+        seoTitle: productGroups.seoTitle,
+        seoDescription: productGroups.seoDescription,
+        productCount: sql<number>`(select count(*)::int from products p where p.group_id = product_groups.id and p.is_active)`,
+        thumbMediaId: sql<string | null>`(
+          select pi.media_id from product_images pi
+          join products tp on tp.id = pi.product_id
+          where tp.group_id = product_groups.id and tp.is_active
+          order by lower(tp.name), tp.id, pi.sort_order, pi.created_at, pi.id
+          limit 1)`,
+      })
+      .from(productGroups)
+      .where(and(eq(productGroups.slug, slug), eq(productGroups.isActive, true)));
+    if (!g) throw new NotFoundException('Ürün grubu bulunamadı.');
+    const { thumbMediaId, ...rest } = g;
+    return { ...rest, thumbUrl: thumbMediaId ? mediaThumbUrl(thumbMediaId) : null };
+  }
+
+  /**
+   * K-82: ürün sayfası. Eski (değiştirilmiş) slug ise `{ redirectTo }` ile 200; bilinmeyen veya pasif ürün 404.
+   * Fiyat kuralı `get` ile aynıdır (yalnızca bayi oturumunda).
+   */
+  async productBySlug(dealerId: string | null, slug: string) {
+    const [row] = await this.db
+      .select({ id: products.id })
+      .from(products)
+      .innerJoin(productGroups, eq(productGroups.id, products.groupId))
+      .where(and(eq(products.slug, slug), eq(products.isActive, true), eq(productGroups.isActive, true)));
+    if (row) return this.get(dealerId, row.id);
+    const [old] = await this.db
+      .select({ slug: products.slug })
+      .from(productSlugRedirects)
+      .innerJoin(products, eq(products.id, productSlugRedirects.productId))
+      .innerJoin(productGroups, eq(productGroups.id, products.groupId))
+      .where(and(eq(productSlugRedirects.slug, slug), eq(products.isActive, true), eq(productGroups.isActive, true)));
+    if (old) return { redirectTo: old.slug };
+    throw new NotFoundException('Ürün bulunamadı.');
   }
 
   /**
@@ -89,12 +147,13 @@ export class CatalogService {
     } else if ((query.sort === 'price_asc' || query.sort === 'price_desc') && dealerId && rates) {
       // Sıralama yalnızca bayinin kendi fiyatına göre (iskontolu birim fiyat); oturumsuzda isme göre.
       const price = dealerPriceSql(dealerId, rates.general);
-      sortBy = [query.sort === 'price_asc' ? asc(price) : desc(price), ...byName];
+      // K-79: fiyatı girilmemiş ürünler her iki yönde de sona düşer.
+      sortBy = [asc(sql`case when ${products.listPrice} = 0 then 1 else 0 end`), query.sort === 'price_asc' ? asc(price) : desc(price), ...byName];
     } else {
       sortBy = byName;
     }
     const rows = await this.db
-      .select({ product: products, groupName: productGroups.name })
+      .select({ product: products, groupName: productGroups.name, groupSlug: productGroups.slug })
       .from(products)
       .innerJoin(productGroups, eq(productGroups.id, products.groupId))
       .where(where)
@@ -113,7 +172,7 @@ export class CatalogService {
 
   async get(dealerId: string | null, id: string) {
     const [row] = await this.db
-      .select({ product: products, groupName: productGroups.name })
+      .select({ product: products, groupName: productGroups.name, groupSlug: productGroups.slug })
       .from(products)
       .innerJoin(productGroups, eq(productGroups.id, products.groupId))
       .where(and(eq(products.id, id), eq(products.isActive, true), eq(productGroups.isActive, true)));
@@ -125,7 +184,7 @@ export class CatalogService {
   /** K-70: bayinin favorileri (en son eklenen önce); pasif ürün/grup listelenmez. */
   async favorites(dealerId: string) {
     const rows = await this.db
-      .select({ product: products, groupName: productGroups.name })
+      .select({ product: products, groupName: productGroups.name, groupSlug: productGroups.slug })
       .from(dealerFavorites)
       .innerJoin(products, eq(products.id, dealerFavorites.productId))
       .innerJoin(productGroups, eq(productGroups.id, products.groupId))
@@ -157,7 +216,7 @@ export class CatalogService {
   }
 
   private async toItems(
-    rows: { product: ProductRow; groupName: string }[],
+    rows: { product: ProductRow; groupName: string; groupSlug: string }[],
     dealerId: string | null,
     rates: DealerRates | null,
   ) {
@@ -173,7 +232,7 @@ export class CatalogService {
     }
     const cutoff = this.newCutoff();
     return rows.map((r) =>
-      this.toDto(r.product, r.groupName, rates, images.get(r.product.id) ?? [], {
+      this.toDto(r.product, r.groupName, r.groupSlug, rates, images.get(r.product.id) ?? [], {
         isFavorite: favorites.has(r.product.id),
         isNew: r.product.createdAt >= cutoff,
       }),
@@ -198,6 +257,7 @@ export class CatalogService {
   private toDto(
     row: ProductRow,
     groupName: string,
+    groupSlug: string,
     rates: DealerRates | null,
     images: { mediaId: string; sortOrder: number }[],
     flags: { isFavorite: boolean; isNew: boolean },
@@ -214,6 +274,12 @@ export class CatalogService {
       description: row.description,
       groupId: row.groupId,
       groupName,
+      groupSlug,
+      slug: row.slug,
+      seoTitle: row.seoTitle,
+      seoDescription: row.seoDescription,
+      // K-79: liste fiyatı 0 = "fiyat sorunuz"; oturumsuzda da döner (fiyat gizli olsa bile).
+      priceOnRequest: isPriceOnRequest(row.listPrice),
       caseQuantity: row.caseQuantity,
       stock: rates ? row.stockStatus : null,
       listPrice: rates ? row.listPrice : null,
@@ -227,6 +293,9 @@ export class CatalogService {
     };
   }
 }
+
+/** K-79: liste fiyatı 0 olan ürün "fiyat sorunuz" ürünüdür. */
+export const isPriceOnRequest = (listPrice: string): boolean => new Money(listPrice).isZero();
 
 /** K-74: son 30 gün içinde eklenen ürünler "Yeni". */
 export const NEW_PRODUCT_DAYS = 30;

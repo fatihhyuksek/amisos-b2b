@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { Money } from '../common/money.js';
 import { normalizeCompanyTitle } from '../dealers/company-title.js';
+import { SLUG_PATTERN } from '../common/slug.js';
 import { parseDecimalText } from './decimal.js';
 
 const trimmed = (max: number) => z.string().trim().min(1).max(max);
@@ -44,15 +45,31 @@ const mediaIds = z.array(z.uuid()).max(30).refine((a) => new Set(a).size === a.l
   message: 'Aynı görsel birden çok kez seçilemez.',
 });
 
+/** K-82: vitrin adresi; küçük harf/rakam ve tire. */
+const slugText = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .regex(SLUG_PATTERN, 'Adres yalnızca küçük harf, rakam ve tire içerebilir (ör. cay-bardagi).');
+
 export const groupName = z.string().max(100).transform(normalizeCompanyTitle).pipe(z.string().min(1));
 const sortOrder = z.number().int().min(-100_000).max(100_000);
 
 export const createGroupSchema = z.object({
   name: groupName,
+  slug: slugText.optional(),
+  seoTitle: optionalText(70).optional(),
+  seoDescription: optionalText(170).optional(),
+  description: optionalText(1000).optional(),
   sortOrder: sortOrder.default(0),
 });
 export const updateGroupSchema = z.object({
   name: groupName.optional(),
+  slug: slugText.optional(),
+  seoTitle: optionalText(70).optional(),
+  seoDescription: optionalText(170).optional(),
+  description: optionalText(1000).optional(),
   sortOrder: sortOrder.optional(),
   isActive: z.boolean().optional(),
 });
@@ -63,6 +80,10 @@ export const createProductSchema = z.object({
   groupId: z.uuid(),
   barcode: trimmed(64),
   code: optionalText(64).optional(),
+  bizimhesapId: optionalText(100).optional(),
+  slug: slugText.optional(),
+  seoTitle: optionalText(70).optional(),
+  seoDescription: optionalText(170).optional(),
   name: trimmed(300),
   description: optionalText(4000).optional(),
   caseQuantity: z.number().int().min(1).max(1_000_000),
@@ -86,6 +107,10 @@ export const updateProductSchema = z.object({
   groupId: z.uuid().optional(),
   barcode: trimmed(64).optional(),
   code: optionalText(64).optional(),
+  bizimhesapId: optionalText(100).optional(),
+  slug: slugText.optional(),
+  seoTitle: optionalText(70).optional(),
+  seoDescription: optionalText(170).optional(),
   name: trimmed(300).optional(),
   description: optionalText(4000).optional(),
   caseQuantity: z.number().int().min(1).max(1_000_000).optional(),
@@ -117,6 +142,8 @@ export const adminProductListSchema = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   featured: boolFlag,
+  /** K-79: aktif ve liste fiyatı 0 olan ürünler. */
+  priceMissing: boolFlag,
   ...paging,
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
