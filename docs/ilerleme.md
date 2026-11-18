@@ -115,6 +115,12 @@ Son güncelleme: 2026-11-17
    - K-80: `bizimhesapId` (admin gövde/yanıt, içe aktarma "BizimHesap ID", dışa aktarma sütunu). K-82: site `seo` ayarları, ürün/grup slug + SEO alanları, by-slug uçları, 301 yönlendirme tablosu,
      `/sitemap.xml`, `/robots.txt`, `SERVE_FRONTEND_DIR` ile sayfaya özel meta/JSON-LD enjeksiyonu (HTML/JSON-LD kaçışı, fiyat yok). Testler: `test/seo-fiyat.e2e-spec.ts`.
 
+20. Analitik, veriye dayalı öne çıkarma, yönetilebilir vitrin — frontend (K-84 – K-87, sözleşme `docs/api/analitik-vitrin-api.md`):
+   - K-84: `shop/analytics.ts` olay izleyici (sessionStorage anahtarı, 5 sn / 10 olay kuyruğu, `sendBeacon` text/plain; page_view, product_view, search, add_to_cart; admin oturumunda ve /yonetim'de gönderilmez).
+   - K-85: Admin "Analitik" grubu: Trafik (canlı kart 30 sn, huni, saat/cihaz/kaynak/sayfa), Ürün ilgisi, Aramalar, Bayi etkinliği; bayi detayı "Etkinlik" sekmesi; ana sayfada trafik kartı ve en çok satanlar.
+   - K-86: "Çok satan" rozeti, katalog "En çok satanlar" sıralaması (`sirala=cok-satan`), ana sayfa rafları `GET /api/site/home` + `ids=`.
+   - K-87: "Görünüm" grubu: Ana sayfa düzeni, Menü, Duyurular (eski tek duyuru alanı Site ayarlarından kalktı); vitrin bu ayarlara göre çizilir, ayar yoksa varsayılan görünüm. Kaydedilmemiş değişiklik uyarısı (`router.setNavigationBlocker`).
+
 ## Sıradaki adım
 
 **Canlıya hazırlık** (iş sahibiyle karar gerekiyor):
