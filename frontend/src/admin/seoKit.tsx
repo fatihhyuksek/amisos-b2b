@@ -1,33 +1,7 @@
 // K-82: Admin SEO bileşenleri: karakter sayacı, Google arama sonucu önizlemesi, ortak SEO alanları.
 import { useId } from 'react'
 import { Field } from '../ui/components'
-
-export const SEO_TITLE_MAX = 70
-export const SEO_DESC_MAX = 170
-
-/** Türkçe karakterleri sadeleştirip küçük harf, tireli adres parçası üretir (sunucu ile aynı kural). */
-export function slugify(text: string): string {
-  return text
-    .replace(/İ/g, 'i')
-    .replace(/I/g, 'i')
-    .toLocaleLowerCase('tr')
-    .replace(/ı/g, 'i')
-    .replace(/ş/g, 's')
-    .replace(/ğ/g, 'g')
-    .replace(/ü/g, 'u')
-    .replace(/ö/g, 'o')
-    .replace(/ç/g, 'c')
-    .replace(/&/g, ' ve ')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80)
-}
-
-export function isValidSlug(slug: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && slug.length <= 100
-}
+import { SEO_DESC_MAX, SEO_TITLE_MAX } from './seoUtils'
 
 /** "42 / 70" sayacı; önerilen uzunluğu aşınca uyarı rengi. */
 export function CharCount({ value, max }: { value: number; max: number }) {

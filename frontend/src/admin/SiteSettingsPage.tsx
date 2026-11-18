@@ -23,7 +23,8 @@ import { RichText } from '../ui/RichText'
 import { AdminLayout } from './AdminLayout'
 import { SkeletonRows, TabPanel, Tabs } from './kit'
 import { MediaPicker } from './MediaPicker'
-import { CharCount, SEO_DESC_MAX, SEO_TITLE_MAX, SearchPreview } from './seoKit'
+import { CharCount, SearchPreview } from './seoKit'
+import { SEO_DESC_MAX, SEO_TITLE_MAX } from './seoUtils'
 import { useLoad } from './useLoad'
 
 const ANNOUNCEMENT_MAX = 160

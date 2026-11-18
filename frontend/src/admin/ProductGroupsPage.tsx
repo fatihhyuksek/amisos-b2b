@@ -12,7 +12,8 @@ import { Alert, Badge, Button, EmptyState, Field, Modal } from '../ui/components
 import { ErrorAlert, LoadingCard } from '../ui/catalog'
 import { networkMessage } from '../ui/networkMessage'
 import { AdminLayout } from './AdminLayout'
-import { isValidSlug, SEO_DESC_MAX, SearchPreview, SeoTextFields, slugify, CharCount } from './seoKit'
+import { SearchPreview, SeoTextFields, CharCount } from './seoKit'
+import { isValidSlug, SEO_DESC_MAX, slugify } from './seoUtils'
 import { useLoad } from './useLoad'
 
 const DUPLICATE = 'Bu adla bir ürün grubu zaten var.'
