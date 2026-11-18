@@ -36,6 +36,7 @@ const toCatalog = (i: number): CatalogProduct => {
     images: [],
     isFavorite: false,
     isFeatured: false,
+    isBestSeller: false,
     isNew: false,
     priceOnRequest: false,
     slug: null,

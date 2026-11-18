@@ -7,6 +7,7 @@ import { useShopMode } from '../shop/mode'
 import { AskPriceButton, PriceOnRequest } from '../shop/PriceOnRequest'
 import { PriceLock } from '../shop/PriceLock'
 import { loginHref } from '../shop/returnTo'
+import { trackProductView } from '../shop/analytics'
 import { useAddToCart } from '../shop/useAddToCart'
 import { fetchCatalogProductByRef, fetchCatalogProducts, type CatalogProduct } from '../api'
 import { replace } from '../router'
@@ -296,6 +297,11 @@ export function ProductDetailPage({ id }: { id: string }) {
     image: p?.images[0]?.url ?? null,
   })
   const dealer = useShopMode() === 'dealer'
+  const viewedId = p?.id
+  const viewedGroup = p?.groupId
+  useEffect(() => {
+    if (viewedId) trackProductView(viewedId, viewedGroup)
+  }, [viewedId, viewedGroup])
 
   function showSpecs() {
     setSpecsOpen(true)
@@ -364,6 +370,7 @@ export function ProductDetailPage({ id }: { id: string }) {
                 <div className="ui-detail__tags">
                   {p.isNew && <span className="ui-pill ui-pill--soft">Yeni</span>}
                   {p.isFeatured && <span className="ui-pill ui-pill--soft">Öne çıkan</span>}
+                  {p.isBestSeller && <span className="ui-pill ui-pill--soft">Çok satan</span>}
                   <FavoriteButton
                     key={p.id}
                     productId={p.id}

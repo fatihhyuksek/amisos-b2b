@@ -7,6 +7,7 @@ import { ApiError, fetchCatalogProducts, type CatalogGroup, type CatalogProduct 
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
 import { navigate, replace, useRoute } from '../router'
+import { trackSearch } from '../shop/analytics'
 import { catalogHref } from '../shop/catalogHref'
 import { useShopMode } from '../shop/mode'
 import { usePageTitle } from '../shop/pageTitle'
@@ -21,12 +22,13 @@ import { Icon } from '../ui/Icon'
 import { ShopLayout } from './ShopLayout'
 
 const PAGE_SIZE = 24
-type Sort = 'name' | 'newest'
+type Sort = 'name' | 'newest' | 'popular'
 type Cols = '3' | '4'
 
 const SORTS: { id: Sort; label: string }[] = [
   { id: 'name', label: 'Ada göre (A-Z)' },
   { id: 'newest', label: 'En yeni' },
+  { id: 'popular', label: 'En çok satanlar' },
 ]
 
 interface Result {
@@ -48,7 +50,7 @@ type GroupRef = { id: string; slug?: string | null } | null
 function hrefWith(p: { q: string; grup: GroupRef; sort: Sort } & Flags): string {
   const base = catalogHref({ q: p.q, grup: p.grup?.id, slug: p.grup?.slug })
   const extra = [
-    p.sort === 'newest' ? 'sirala=yeni' : '',
+    p.sort === 'newest' ? 'sirala=yeni' : p.sort === 'popular' ? 'sirala=cok-satan' : '',
     p.stock ? 'stok=var' : '',
     p.isNew ? 'yeni=1' : '',
     p.featured ? 'one-cikan=1' : '',
@@ -221,7 +223,8 @@ export function CatalogPage({ groupSlug }: { groupSlug?: string }) {
   const { query } = useRoute()
   const q = (query.get('q') ?? '').trim()
   const legacyGroupId = query.get('grup') ?? ''
-  const sort: Sort = query.get('sirala') === 'yeni' ? 'newest' : 'name'
+  const sortParam = query.get('sirala')
+  const sort: Sort = sortParam === 'yeni' ? 'newest' : sortParam === 'cok-satan' ? 'popular' : 'name'
   const mode = useShopMode()
   const dealer = mode === 'dealer'
   const stock = dealer && query.get('stok') === 'var'
@@ -282,7 +285,7 @@ export function CatalogPage({ groupSlug }: { groupSlug?: string }) {
       {
         q,
         groupId,
-        sort: sort === 'newest' ? 'newest' : undefined,
+        sort: sort === 'name' ? undefined : sort,
         stock: stock ? 'in_stock' : undefined,
         featured,
         isNew,
@@ -315,7 +318,7 @@ export function CatalogPage({ groupSlug }: { groupSlug?: string }) {
       const r = await fetchCatalogProducts({
         q,
         groupId,
-        sort: sort === 'newest' ? 'newest' : undefined,
+        sort: sort === 'name' ? undefined : sort,
         stock: stock ? 'in_stock' : undefined,
         featured,
         isNew,
@@ -339,6 +342,16 @@ export function CatalogPage({ groupSlug }: { groupSlug?: string }) {
       setMore(false)
     }
   }, [q, groupId, sort, stock, isNew, featured, key, list.page])
+
+  // K-84: arama izleme (sonuç sayısıyla); aynı sorgu için bir kez, sorgu temizlenince sıfırlanır.
+  const searchedRef = useRef('')
+  useEffect(() => {
+    if (!q) searchedRef.current = ''
+    else if (current && !current.failed && searchedRef.current !== q) {
+      searchedRef.current = q
+      trackSearch(q, current.total)
+    }
+  }, [q, current])
 
   const title = q ? `“${q}” için sonuçlar` : (group?.name ?? 'Tüm ürünler')
   usePageTitle(title)

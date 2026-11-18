@@ -495,6 +495,8 @@ export interface CatalogProduct {
   isFavorite: boolean
   isFeatured: boolean
   isNew: boolean
+  /** K-86: son 90 günde en çok satan ilk 20 ürün; eski sunucuda olmayabilir. */
+  isBestSeller: boolean
   /** K-79: liste fiyatı girilmemiş; fiyat yerine "Fiyat için bize ulaşın" gösterilir. */
   priceOnRequest: boolean
   /** Adres parçası (K-82); eski sunucuda olmayabilir. */
@@ -540,6 +542,7 @@ function normalizeProduct(raw: Record<string, unknown>): CatalogProduct {
     isFavorite: r.isFavorite ?? false,
     isFeatured: r.isFeatured ?? false,
     isNew: r.isNew ?? false,
+    isBestSeller: r.isBestSeller ?? false,
     priceOnRequest: r.priceOnRequest ?? false,
     slug: r.slug ?? null,
     seoTitle: r.seoTitle ?? null,
@@ -555,18 +558,20 @@ export async function fetchCatalogProducts(
   params: {
     q?: string
     groupId?: string
-    sort?: 'newest'
+    sort?: 'newest' | 'popular'
     stock?: 'in_stock'
     featured?: boolean
     isNew?: boolean
+    /** K-86: verilen ürün kimlikleri, verilen sırayla (en çok 24). */
+    ids?: string[]
     page: number
     pageSize: number
   },
   signal?: AbortSignal,
 ): Promise<CatalogList> {
-  const { featured, isNew, ...rest } = params
+  const { featured, isNew, ids, ...rest } = params
   const body = await getJson<Paged<Record<string, unknown>> & { priceVisible?: boolean }>(
-    `/catalog/products${qsOf({ ...rest, featured: featured ? 'true' : undefined, new: isNew ? 'true' : undefined })}`,
+    `/catalog/products${qsOf({ ...rest, ids: ids?.join(','), featured: featured ? 'true' : undefined, new: isNew ? 'true' : undefined })}`,
     signal,
   )
   const items = body.items.map(normalizeProduct)
@@ -1253,6 +1258,10 @@ export interface SiteInfo {
   pages: { slug: string; title: string }[]
   /** Eski sunucu yanıtında olmayabilir. */
   social?: SocialLinks
+  /** K-87: yönetilebilir vitrin; ayar yoksa/eski sunucuda olmayabilir. */
+  home?: HomeLayout
+  navigation?: NavigationSettings
+  announcements?: AnnouncementSettings
 }
 
 export function fetchSite(signal?: AbortSignal): Promise<SiteInfo> {
@@ -1283,7 +1292,8 @@ export interface AdminSite {
 
 /** Kayıt gövdesi: E.164 alanları verilmezse sunucu telefondan türetir, null verilirse gizler. */
 export interface AdminSiteInput {
-  announcement: string | null
+  /** K-87: duyurular artık `/admin/site/announcements` ile yönetilir; gönderilmezse dokunulmaz. */
+  announcement?: string | null
   seo?: SeoSettings
   contact: Omit<SiteContact, 'phoneE164' | 'whatsappE164'> & {
     phoneE164?: string | null
@@ -1595,6 +1605,8 @@ export interface Dashboard {
     submittedAt: string
   }[]
   topDealersMonth: { dealerId: string; companyTitle: string; orderCount: number; netTotal: string }[]
+  /** K-85: bugünkü trafik; eski sunucuda olmayabilir. */
+  traffic?: { todayVisitors: number; todayPageViews: number; activeNow: number; yesterdayVisitors: number }
   recentActivity: {
     id: string
     createdAt: string
@@ -1672,4 +1684,253 @@ export function downloadDealersExcel(params: {
   q?: string
 }): Promise<{ blob: Blob; filename: string | null }> {
   return downloadFile(`/admin/dealers/export.xlsx${qsOf(params)}`)
+}
+
+// ---------- Analitik (K-84, K-85; docs/api/analitik-vitrin-api.md) ----------
+
+/** Karşılaştırmalı metrik: önceki eşit uzunlukta dönemle. */
+export interface Compared {
+  current: number
+  previous: number
+  percent: number | null
+}
+
+export interface AnalyticsOverview {
+  period: { from: string; to: string }
+  previous: { from: string; to: string }
+  totals: {
+    visitors: Compared
+    sessions: Compared
+    pageViews: Compared
+    dealerVisitors: Compared
+    productViews: Compared
+    searches: Compared
+    addToCarts: Compared
+    orders: Compared
+    conversionRate: Compared
+  }
+  daily: {
+    date: string
+    visitors: number
+    sessions: number
+    pageViews: number
+    dealerVisitors: number
+    orders: number
+  }[]
+  funnel: { step: 'sessions' | 'productView' | 'addToCart' | 'order'; sessions: number }[]
+  devices: { device: string; sessions: number; share: number }[]
+  referrers: { host: string; sessions: number }[]
+  topPages: { path: string; pageViews: number; visitors: number }[]
+  hours: { hour: number; pageViews: number }[]
+}
+
+export type LiveEventType =
+  | 'page_view'
+  | 'product_view'
+  | 'search'
+  | 'add_to_cart'
+  | 'login'
+  | 'order_submitted'
+
+export interface AnalyticsLive {
+  activeVisitors: number
+  activeDealers: { dealerId: string; companyTitle: string; path: string; lastSeenAt: string }[]
+  recent: {
+    type: LiveEventType
+    path: string
+    productName?: string | null
+    query?: string | null
+    dealerName?: string | null
+    at: string
+  }[]
+}
+
+export interface AnalyticsProductRow {
+  productId: string
+  name: string
+  barcode: string
+  thumbUrl: string | null
+  views: number
+  uniqueViewers: number
+  addToCarts: number
+  orderedQuantity: number
+  orderCount: number
+  viewToCartRate: number
+}
+
+export interface AnalyticsSearches {
+  top: { query: string; count: number; avgResults: number }[]
+  zeroResults: { query: string; count: number; lastAt: string }[]
+}
+
+export interface AnalyticsDealerRow {
+  dealerId: string
+  companyTitle: string
+  city: string | null
+  sessions: number
+  lastSeenAt: string | null
+  productViews: number
+  addToCarts: number
+  orders: number
+  netTotal: string
+}
+
+export interface AnalyticsDealers {
+  items: AnalyticsDealerRow[]
+  interestedNoOrder: AnalyticsDealerRow[]
+}
+
+export interface DealerActivityItem {
+  id: number | string
+  at: string
+  type: LiveEventType
+  path: string | null
+  productId: string | null
+  productName: string | null
+  query: string | null
+  resultCount: number | null
+  quantity: number | null
+  orderId: string | null
+  orderNo: number | null
+}
+
+const range = (r: { from: string; to: string }) => ({ from: r.from, to: r.to })
+
+export function fetchAnalyticsOverview(
+  r: { from: string; to: string },
+  signal?: AbortSignal,
+): Promise<AnalyticsOverview> {
+  return getJson(`/admin/analytics/overview${qsOf(range(r))}`, signal)
+}
+
+export function fetchAnalyticsLive(signal?: AbortSignal): Promise<AnalyticsLive> {
+  return getJson('/admin/analytics/live', signal)
+}
+
+export function fetchAnalyticsProducts(
+  r: { from: string; to: string },
+  sort: 'views' | 'addToCart' | 'ordered',
+  signal?: AbortSignal,
+): Promise<{ items: AnalyticsProductRow[] }> {
+  return getJson(`/admin/analytics/products${qsOf({ ...range(r), sort, limit: 50 })}`, signal)
+}
+
+export function fetchAnalyticsSearches(
+  r: { from: string; to: string },
+  signal?: AbortSignal,
+): Promise<AnalyticsSearches> {
+  return getJson(`/admin/analytics/searches${qsOf(range(r))}`, signal)
+}
+
+export function fetchAnalyticsDealers(
+  r: { from: string; to: string },
+  signal?: AbortSignal,
+): Promise<AnalyticsDealers> {
+  return getJson(`/admin/analytics/dealers${qsOf(range(r))}`, signal)
+}
+
+export function fetchDealerActivity(
+  dealerId: string,
+  before: number | string | null,
+  signal?: AbortSignal,
+): Promise<{ items: DealerActivityItem[]; nextBefore: number | string | null }> {
+  return getJson(
+    `/admin/dealers/${encodeURIComponent(dealerId)}/activity${qsOf({ before: before ?? undefined, limit: 50 })}`,
+    signal,
+  )
+}
+
+// ---------- Yönetilebilir vitrin (K-87) ----------
+
+export type HomeSectionType =
+  | 'hero'
+  | 'categoryStrip'
+  | 'trustStrip'
+  | 'howItWorks'
+  | 'campaignStrip'
+  | 'collections'
+  | 'productShelf'
+  | 'promoPanel'
+  | 'iconTiles'
+
+export type ShelfSource = 'bestSellers' | 'mostViewed' | 'trending' | 'new' | 'featured' | 'group' | 'manual'
+export type Audience = 'all' | 'guest' | 'dealer'
+
+/** Bölüm ayarı; hangi alanların anlamlı olduğu `type`a bağlıdır. */
+export interface HomeSectionConfig {
+  audience?: Audience
+  title?: string
+  text?: string
+  buttonLabel?: string
+  buttonLink?: string
+  groupIds?: string[]
+  source?: ShelfSource
+  groupId?: string
+  productIds?: string[]
+  limit?: number
+  layout?: 'grid' | 'carousel'
+  panelTitle?: string
+  panelText?: string
+}
+
+export interface HomeSection {
+  id: string
+  type: HomeSectionType
+  enabled: boolean
+  title?: string
+  subtitle?: string
+  config: HomeSectionConfig
+  /** `GET /site/home` yanıtında: sunucunun çözdüğü ürün kimlikleri (raf ve vitrin paneli). */
+  productIds?: string[]
+}
+
+export interface HomeLayout {
+  sections: HomeSection[]
+}
+
+export type NavItemType = 'group' | 'featured' | 'new' | 'bestSellers' | 'link'
+
+export interface NavigationItem {
+  type: NavItemType
+  groupId?: string
+  label?: string
+  href?: string
+}
+
+export interface NavigationSettings {
+  items: NavigationItem[]
+}
+
+export interface AnnouncementItem {
+  text: string
+  link?: string
+}
+
+export interface AnnouncementSettings {
+  items: AnnouncementItem[]
+}
+
+export function fetchSiteHome(signal?: AbortSignal): Promise<HomeLayout> {
+  return getJson('/site/home', signal)
+}
+
+export function fetchAdminHome(signal?: AbortSignal): Promise<HomeLayout> {
+  return getJson('/admin/site/home', signal)
+}
+export async function saveAdminHome(input: HomeLayout): Promise<HomeLayout> {
+  return (await (await put('/admin/site/home', input)).json()) as HomeLayout
+}
+
+export function fetchAdminNavigation(signal?: AbortSignal): Promise<NavigationSettings> {
+  return getJson('/admin/site/navigation', signal)
+}
+export async function saveAdminNavigation(input: NavigationSettings): Promise<NavigationSettings> {
+  return (await (await put('/admin/site/navigation', input)).json()) as NavigationSettings
+}
+
+export function fetchAdminAnnouncements(signal?: AbortSignal): Promise<AnnouncementSettings> {
+  return getJson('/admin/site/announcements', signal)
+}
+export async function saveAdminAnnouncements(input: AnnouncementSettings): Promise<AnnouncementSettings> {
+  return (await (await put('/admin/site/announcements', input)).json()) as AnnouncementSettings
 }

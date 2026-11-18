@@ -27,6 +27,10 @@ function load(): Promise<SiteInfo | null> {
         pages: Array.isArray(data.pages) ? data.pages : DEFAULT_PAGES,
         // Eski sunucu yanıtında social yoksa varsayılan hesap gösterilir (K-77).
         social: data.social ?? DEFAULT_SOCIAL,
+        // K-87: yönetilebilir vitrin; eski sunucuda yoksa mevcut varsayılan görünüm kullanılır.
+        home: data.home,
+        navigation: data.navigation,
+        announcements: data.announcements,
       }
       cache = { at: Date.now(), data: merged }
       return merged

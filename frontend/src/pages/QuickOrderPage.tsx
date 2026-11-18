@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ApiError, quickAdd, type QuickAddResult } from '../api'
 import { Link } from '../Link'
+import { trackAddToCart } from '../shop/analytics'
 import { useCart } from '../shop/cart'
 import { usePageTitle } from '../shop/pageTitle'
 import { Alert, Button, Field } from '../ui/components'
@@ -141,6 +142,7 @@ export function QuickOrderPage() {
     try {
       const data = await quickAdd(lines.map(({ query, quantity }) => ({ query, quantity })))
       applyCart(data.cart)
+      for (const a of data.added) trackAddToCart(a.productId, a.quantity)
       setResult({ data, queries: lines.map((l) => l.query) })
       // Eklenen satırlar listeden kalkar; hatalı satırlar düzeltilmek üzere kalır.
       const failed = new Set(data.errors.map((e) => lines[e.index]?.rowId))

@@ -1,7 +1,7 @@
 // Bayi mağaza kabuğu: duyuru şeridi, başlık (logo, arama, Siparişlerim / Hesabım / Sepetim),
 // kategori menüsü, mobil çekmece ve alt bilgi. GR-BAYI-007 (Çıkış), GR-URN-003 (arama, gruplar), K-11.
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import type { CatalogGroup } from '../api'
+import type { CatalogGroup, NavigationItem } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
 import { matchPath, navigate, replace, useRoute } from '../router'
@@ -36,9 +36,15 @@ function TopStrip({ mode }: { mode: ShopMode }) {
   const c = site.contact
   const wa = whatsappLink(c)
   const social = socialLinks(site.social)
-  const messages = [site.announcement, 'Fiyatlar KDV hariçtir', `Sipariş ve destek: ${c.phone}`].filter(
-    (m): m is string => Boolean(m),
-  )
+  // K-87: duyurular listesi (≤5, bağlantılı olabilir); yoksa eski tek duyuru alanı.
+  const managed = site.announcements?.items?.filter((a) => a.text.trim()) ?? null
+  const lead: { text: string; link?: string }[] =
+    managed !== null ? managed : site.announcement ? [{ text: site.announcement }] : []
+  const messages: { text: string; link?: string }[] = [
+    ...lead,
+    { text: 'Fiyatlar KDV hariçtir' },
+    { text: `Sipariş ve destek: ${c.phone}` },
+  ]
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -114,7 +120,16 @@ function TopStrip({ mode }: { mode: ShopMode }) {
             </button>
           )}
           <p className="ui-strip__msg" aria-live={paused ? 'polite' : 'off'}>
-            {messages[current]}
+            {messages[current].link && /^\/(?!\/)/.test(messages[current].link as string) ? (
+              <Link to={messages[current].link as string}>{messages[current].text}</Link>
+            ) : messages[current].link && /^https:\/\/\S+$/.test(messages[current].link as string) ? (
+              <a href={messages[current].link} target="_blank" rel="noopener noreferrer">
+                {messages[current].text}
+                <span className="visually-hidden"> (yeni sekmede açılır)</span>
+              </a>
+            ) : (
+              messages[current].text
+            )}
           </p>
           {count > 1 && (
             <button
@@ -304,6 +319,7 @@ function CartLink({ guest }: { guest?: boolean }) {
 // ---------- Kategori menüsü (masaüstü): "Kategoriler" mega menüsü, sığan gruplar, Öne Çıkanlar, Yeni Ürünler ----------
 const FEATURED_HREF = '/katalog?one-cikan=1'
 const NEW_HREF = '/katalog?yeni=1&sirala=yeni'
+const BEST_HREF = '/katalog?sirala=cok-satan'
 
 function AllCategories({
   groups,
@@ -404,25 +420,67 @@ function AllCategories({
   )
 }
 
+interface NavEntry {
+  key: string
+  label: string
+  to: string
+  groupId?: string
+}
+
+/** Menü öğelerini bağlantılara çevirir; K-87 menü ayarı yoksa varsayılan: gruplar + Öne Çıkanlar + Yeni Ürünler. */
+function navEntries(groups: CatalogGroup[], items: NavigationItem[] | undefined) {
+  const group = (g: CatalogGroup): NavEntry => ({
+    key: `g-${g.id}`,
+    label: g.name,
+    to: catalogHref({ grup: g.id, slug: g.slug }),
+    groupId: g.id,
+  })
+  if (!items || items.length === 0)
+    return {
+      list: groups.map(group),
+      tail: [
+        { key: 'featured', label: 'Öne Çıkanlar', to: FEATURED_HREF },
+        { key: 'new', label: 'Yeni Ürünler', to: NEW_HREF },
+      ] as NavEntry[],
+    }
+  const list: NavEntry[] = []
+  items.forEach((it, i) => {
+    if (it.type === 'group') {
+      const g = groups.find((x) => x.id === it.groupId)
+      if (g) list.push({ ...group(g), key: `g-${g.id}-${i}` })
+    } else if (it.type === 'featured')
+      list.push({ key: `f-${i}`, label: it.label || 'Öne Çıkanlar', to: FEATURED_HREF })
+    else if (it.type === 'new') list.push({ key: `n-${i}`, label: it.label || 'Yeni Ürünler', to: NEW_HREF })
+    else if (it.type === 'bestSellers')
+      list.push({ key: `b-${i}`, label: it.label || 'Çok Satanlar', to: BEST_HREF })
+    else if (it.href && it.label && /^\/(?!\/)/.test(it.href))
+      list.push({ key: `l-${i}`, label: it.label, to: it.href })
+  })
+  return { list, tail: [] as NavEntry[] }
+}
+
 function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: string | null }) {
   const innerRef = useRef<HTMLDivElement>(null)
   const allRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLUListElement>(null)
   const measureRef = useRef<HTMLUListElement>(null)
-  const [fit, setFit] = useState(groups.length)
+  const site = useSite()
+  const { list, tail } = navEntries(groups, site.navigation?.items)
+  const [fit, setFit] = useState(list.length)
+  const sig = list.map((e) => e.key + e.label).join('|')
 
-  // Önce ölçülür, sonra sığan kadar grup gösterilir; kalan boşluk öğeler arasında eşit dağılır (space-between).
+  // Önce ölçülür, sonra sığan kadar öğe gösterilir; kalan boşluk öğeler arasında eşit dağılır (space-between).
   useLayoutEffect(() => {
     const box = innerRef.current
     const all = allRef.current
-    const tail = tailRef.current
+    const tailEl = tailRef.current
     const measure = measureRef.current
-    if (!box || !all || !tail || !measure) return
+    if (!box || !all || !tailEl || !measure) return
     const calc = () => {
       const cs = getComputedStyle(box)
       const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
       const gap = 24 // öğeler arası en az boşluk
-      const tailW = (Array.from(tail.children) as HTMLElement[]).reduce(
+      const tailW = (Array.from(tailEl.children) as HTMLElement[]).reduce(
         (sum, li) => sum + li.offsetWidth + gap,
         0,
       )
@@ -440,41 +498,38 @@ function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: s
     const ro = new ResizeObserver(calc)
     ro.observe(box)
     return () => ro.disconnect()
-  }, [groups])
+  }, [sig])
 
   return (
     <nav className="ui-catnav" aria-label="Kategoriler">
       <div className="ui-catnav__inner" ref={innerRef}>
         <AllCategories groups={groups} activeId={activeId} rootRef={allRef} />
         <ul className="ui-catnav__list">
-          {groups.slice(0, fit).map((g) => (
-            <li key={g.id}>
+          {list.slice(0, fit).map((e) => (
+            <li key={e.key}>
               <Link
-                to={catalogHref({ grup: g.id, slug: g.slug })}
+                to={e.to}
                 className="ui-catnav__link"
-                aria-current={activeId === g.id ? 'page' : undefined}
+                aria-current={e.groupId && activeId === e.groupId ? 'page' : undefined}
               >
-                {g.name}
+                {e.label}
               </Link>
             </li>
           ))}
         </ul>
         <ul className="ui-catnav__tail" ref={tailRef}>
-          <li>
-            <Link to={FEATURED_HREF} className="ui-catnav__link">
-              Öne Çıkanlar
-            </Link>
-          </li>
-          <li>
-            <Link to={NEW_HREF} className="ui-catnav__link">
-              Yeni Ürünler
-            </Link>
-          </li>
+          {tail.map((e) => (
+            <li key={e.key}>
+              <Link to={e.to} className="ui-catnav__link">
+                {e.label}
+              </Link>
+            </li>
+          ))}
         </ul>
         <ul className="ui-catnav__measure" ref={measureRef} aria-hidden="true">
-          {groups.map((g) => (
-            <li key={g.id}>
-              <span className="ui-catnav__link">{g.name}</span>
+          {list.map((e) => (
+            <li key={e.key}>
+              <span className="ui-catnav__link">{e.label}</span>
             </li>
           ))}
         </ul>
@@ -596,6 +651,15 @@ function Drawer({
               </Link>
             </li>
           ))}
+          {navEntries(groups, site.navigation?.items)
+            .list.filter((e) => !e.groupId)
+            .map((e) => (
+              <li key={e.key}>
+                <Link to={e.to} className="ui-drawer__item" onClick={onClose}>
+                  <span className="ui-popover__grow">{e.label}</span>
+                </Link>
+              </li>
+            ))}
         </ul>
         <h2 className="ui-drawer__title">Kurumsal</h2>
         <ul className="ui-drawer__list">
@@ -634,6 +698,25 @@ const TRUST: { icon: IconName; title: string; text: string }[] = [
   { icon: 'headset', title: 'Hızlı destek', text: 'Telefon ve WhatsApp ile yanınızdayız' },
 ]
 
+/** Güven şeridi (KDV hariç fiyat, koli bazlı sipariş…): alt bilgide ya da ana sayfa bölümü olarak. */
+export function TrustStrip() {
+  return (
+    <ul className="ui-trust">
+      {TRUST.map((t) => (
+        <li key={t.title} className="ui-trust__item">
+          <span className="ui-trust__icon">
+            <Icon name={t.icon} />
+          </span>
+          <span>
+            <strong>{t.title}</strong>
+            <span className="muted">{t.text}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /** Alt bilgi sütunu: telefonda akordeon (<details>), geniş ekranda açık liste. */
 function FooterColumn({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   const wide = useMediaQuery('(min-width: 40rem)')
@@ -655,7 +738,7 @@ function FooterColumn({ id, title, children }: { id: string; title: string; chil
   )
 }
 
-function Footer({ mode }: { mode: ShopMode }) {
+function Footer({ mode, trust }: { mode: ShopMode; trust: boolean }) {
   const site = useSite()
   const groups = useCatalogGroups()
   const c = site.contact
@@ -676,21 +759,11 @@ function Footer({ mode }: { mode: ShopMode }) {
   )
   return (
     <footer className="ui-footer">
-      <div className="ui-shop__container">
-        <ul className="ui-trust">
-          {TRUST.map((t) => (
-            <li key={t.title} className="ui-trust__item">
-              <span className="ui-trust__icon">
-                <Icon name={t.icon} />
-              </span>
-              <span>
-                <strong>{t.title}</strong>
-                <span className="muted">{t.text}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {trust && (
+        <div className="ui-shop__container">
+          <TrustStrip />
+        </div>
+      )}
       <div className="ui-footer__main">
         <div className="ui-shop__container ui-footer__cols">
           <FooterColumn id="f-kurumsal" title="Kurumsal">
@@ -811,7 +884,14 @@ function Footer({ mode }: { mode: ShopMode }) {
 }
 
 // ---------- Kabuk ----------
-export function ShopLayout({ children }: { children: ReactNode }) {
+export function ShopLayout({
+  children,
+  footerTrust = true,
+}: {
+  children: ReactNode
+  /** Ana sayfada güven şeridi yönetilebilir bölümdür; alt bilgide tekrarlanmaz. */
+  footerTrust?: boolean
+}) {
   const { state } = useAuth()
   const mode = useShopMode()
   const site = useSite()
@@ -904,7 +984,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
       <main id="icerik" tabIndex={-1} className="ui-shop__main">
         <div className="ui-shop__container ui-shop__content">{children}</div>
       </main>
-      <Footer mode={mode} />
+      <Footer mode={mode} trust={footerTrust} />
       {wa && (
         <a
           href={wa}

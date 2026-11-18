@@ -101,7 +101,7 @@ export function ProductCard({
   const priced = p.price !== null && !onRequest
   const H = headingLevel === 2 ? 'h2' : 'h3'
   const addLabel = `Sepete ekle: ${p.name}`
-  const hasBadges = out || p.discountPercent || p.isNew || p.isFeatured
+  const hasBadges = out || p.discountPercent || p.isNew || p.isFeatured || p.isBestSeller
   return (
     <li className="ui-pcard">
       <div className="ui-pcard__media">
@@ -110,6 +110,7 @@ export function ProductCard({
           <div className="ui-pcard__badges">
             {p.isNew && <span className="ui-pill ui-pill--soft">Yeni</span>}
             {p.isFeatured && <span className="ui-pill ui-pill--soft">Öne çıkan</span>}
+            {p.isBestSeller && <span className="ui-pill ui-pill--soft">Çok satan</span>}
             {out && <span className="ui-pill ui-pill--warning">Stokta yok</span>}
             {p.discountPercent && (
               <span className="ui-pill ui-pill--accent">{formatPercent(p.discountPercent)} iskonto</span>

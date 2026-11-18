@@ -1,7 +1,7 @@
 // GR-BAYI-002, GR-RAP-001, K-04, K-78: Admin ana sayfası. KPI kartları, 30 günlük satış grafiği, açık sipariş hattı,
 // "ilgilenilmesi gerekenler", son siparişler, ayın en iyi bayileri ve son işlemler. Tutarlar sunucudan gelir.
 import { useState } from 'react'
-import { fetchDashboard, type Dashboard } from '../api'
+import { fetchDashboard, fetchReportList, type Dashboard, type ReportProductRow } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
 import { ErrorAlert } from '../ui/catalog'
@@ -10,8 +10,9 @@ import { formatDateTime, formatInt, formatTRY } from '../ui/format'
 import { Icon } from '../ui/Icon'
 import { orderStatusLabel } from '../ui/orderStatus'
 import { AdminLayout } from './AdminLayout'
-import { Delta, Panel } from './kit'
+import { Delta, Panel, SkeletonRows } from './kit'
 import { SalesAreaChart } from './reports/charts'
+import { presetRange } from './reports/periods'
 import { timeAgo } from './time'
 import { useLoad } from './useLoad'
 
@@ -155,6 +156,74 @@ export function AdminHome() {
   )
 }
 
+/** K-85: bugünkü trafik; ayrıntı Analitik > Trafik'te. Eski sunucuda `traffic` yoksa kart çizilmez. */
+function TrafficCard({ t }: { t: NonNullable<Dashboard['traffic']> }) {
+  const percent =
+    t.yesterdayVisitors > 0 ? ((t.todayVisitors - t.yesterdayVisitors) / t.yesterdayVisitors) * 100 : null
+  return (
+    <Panel title="Bugünkü trafik" action={<Link to="/yonetim/analitik">Analitik</Link>}>
+      <dl className="an-today">
+        <div>
+          <dt>Ziyaretçi</dt>
+          <dd className="num">{formatInt(t.todayVisitors)}</dd>
+        </div>
+        <div>
+          <dt>Sayfa görüntüleme</dt>
+          <dd className="num">{formatInt(t.todayPageViews)}</dd>
+        </div>
+        <div>
+          <dt>Şu an aktif</dt>
+          <dd className="num an-today__live">
+            <span className="an-live__dot" aria-hidden="true" />
+            {formatInt(t.activeNow)}
+          </dd>
+        </div>
+      </dl>
+      <p className="an-today__cmp">
+        <Delta percent={percent} label={`düne göre (dün ${formatInt(t.yesterdayVisitors)} ziyaretçi)`} />
+      </p>
+    </Panel>
+  )
+}
+
+/** Son 30 günün en çok satan ürünleri (sipariş adedi; iptal hariç). Gerçek sipariş verisi, rapor ucundan. */
+function BestSellers() {
+  const range = presetRange('last-30')
+  const { state } = useLoad<ReportProductRow[]>(
+    (s) => fetchReportList('products', { ...range, sort: 'quantity', limit: 5 }, s),
+    `best-${range.from}`,
+  )
+  if (state.status === 'error') return null
+  return (
+    <Panel
+      title="En çok satanlar (son 30 gün)"
+      flush
+      action={<Link to="/yonetim/raporlar?sekme=urunler">Rapor</Link>}
+    >
+      {state.status === 'loading' ? (
+        <SkeletonRows rows={3} />
+      ) : state.data.length === 0 ? (
+        <p className="adm-empty">Bu dönemde satış yok.</p>
+      ) : (
+        <ol className="adm-list">
+          {state.data.map((p, i) => (
+            <li key={p.productId}>
+              <span className="adm-list__main">
+                <Link to={`/yonetim/urunler/${encodeURIComponent(p.productId)}`}>
+                  <span className="muted num">{i + 1}. </span>
+                  {p.name}
+                </Link>
+                <span className="adm-list__sub num">{formatInt(p.orderCount)} sipariş</span>
+              </span>
+              <strong className="num">{formatInt(p.quantity)} adet</strong>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Panel>
+  )
+}
+
 function Content({ d }: { d: Dashboard }) {
   const k = d.kpis
   const rows = attentionRows(d.attention)
@@ -265,6 +334,7 @@ function Content({ d }: { d: Dashboard }) {
         </div>
 
         <div className="adm-stack">
+          {d.traffic && <TrafficCard t={d.traffic} />}
           <Panel title="İlgilenilmesi gerekenler" flush>
             {active.length === 0 ? (
               <p className="adm-attn__ok">
@@ -306,6 +376,8 @@ function Content({ d }: { d: Dashboard }) {
               ))}
             </ul>
           </Panel>
+
+          <BestSellers />
 
           <Panel
             title="Bu ayın en iyi bayileri"
