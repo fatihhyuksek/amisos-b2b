@@ -1,4 +1,4 @@
-// GR-URN-001, K-14, K-16, K-30, K-32, K-11, K-62: Ürün ekleme / düzenleme ve görsel seçimi.
+// GR-URN-001, K-14, K-16, K-30, K-32, K-11, K-62, K-79, K-80, K-82: Ürün ekleme / düzenleme ve görsel seçimi.
 import { useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
@@ -20,6 +20,8 @@ import { networkMessage } from '../ui/networkMessage'
 import { AdminLayout } from './AdminLayout'
 import { DuplicateProductDialog } from './DuplicateProductDialog'
 import { MediaPicker } from './MediaPicker'
+import { isValidSlug, SEO_DESC_MAX, SEO_TITLE_MAX, SearchPreview, SeoTextFields, slugify } from './seoKit'
+import { fetchSite } from '../api'
 import { useLoad } from './useLoad'
 
 interface SelImage {
@@ -41,6 +43,10 @@ interface Values {
   stockStatus: StockStatus
   isActive: boolean
   isFeatured: boolean
+  slug: string
+  seoTitle: string
+  seoDescription: string
+  bizimhesapId: string
 }
 
 type Errors = Partial<Record<keyof Values, string>>
@@ -57,6 +63,10 @@ const EMPTY: Values = {
   stockStatus: 'in_stock',
   isActive: true,
   isFeatured: false,
+  slug: '',
+  seoTitle: '',
+  seoDescription: '',
+  bizimhesapId: '',
 }
 
 /** "19,99" ve "19.99" kabul edilir; gönderirken noktalı biçime çevrilir. */
@@ -78,6 +88,10 @@ function fromProduct(p: AdminProduct): Values {
     stockStatus: p.stockStatus,
     isActive: p.isActive,
     isFeatured: p.isFeatured ?? false,
+    slug: p.slug ?? '',
+    seoTitle: p.seoTitle ?? '',
+    seoDescription: p.seoDescription ?? '',
+    bizimhesapId: p.bizimhesapId ?? '',
   }
 }
 
@@ -91,6 +105,11 @@ function validate(v: Values): Errors {
   if (normalizeDecimal(v.listPrice) === null) e.listPrice = 'Fiyatı 19,99 biçiminde girin.'
   const vat = normalizeDecimal(v.vatRate)
   if (vat === null || Number(vat) > 99.99) e.vatRate = '0 ile 99,99 arasında bir oran girin.'
+  const slug = v.slug.trim()
+  if (slug && !isValidSlug(slug))
+    e.slug = 'Adres yalnızca küçük harf, rakam ve tire içerebilir (ör. cay-bardagi).'
+  if (v.seoTitle.length > SEO_TITLE_MAX) e.seoTitle = `En fazla ${SEO_TITLE_MAX} karakter.`
+  if (v.seoDescription.length > SEO_DESC_MAX) e.seoDescription = `En fazla ${SEO_DESC_MAX} karakter.`
   return e
 }
 
@@ -167,10 +186,21 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
   const [picking, setPicking] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
 
+  // Yeni üründe slug, kullanıcı elle değiştirene kadar addan türetilir.
+  const [slugTouched, setSlugTouched] = useState(Boolean(product))
   const set = <K extends keyof Values>(k: K, v: Values[K]) => {
-    setValues((s) => ({ ...s, [k]: v }))
+    setValues((s) => ({
+      ...s,
+      [k]: v,
+      ...(k === 'name' && !slugTouched ? { slug: slugify(String(v)) } : {}),
+    }))
     setSaved(false)
   }
+  const site = useLoad((s) => fetchSite(s), 'seo-site-preview')
+  const base = (
+    (site.state.status === 'ready' && site.state.data.seo?.canonicalBaseUrl) ||
+    location.origin
+  ).replace(/\/+$/, '')
 
   function focusFirstError() {
     requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
@@ -220,6 +250,11 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
       stockStatus: values.stockStatus,
       isActive: values.isActive,
       isFeatured: values.isFeatured,
+      // Boş slug: yeni üründe sunucu addan üretir; düzenlemede mevcut adres korunur.
+      ...(values.slug.trim() ? { slug: values.slug.trim() } : {}),
+      seoTitle: values.seoTitle.trim() || null,
+      seoDescription: values.seoDescription.trim() || null,
+      bizimhesapId: values.bizimhesapId.trim() || null,
       mediaIds: images.map((i) => i.mediaId),
     }
     setBusy(true)
@@ -237,6 +272,12 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
         focusFirstError()
       } else if (err instanceof ApiError && err.status === 409 && err.code === 'DUPLICATE_CODE') {
         setErrors({ code: 'Bu ürün koduyla kayıtlı başka bir ürün var.' })
+        focusFirstError()
+      } else if (err instanceof ApiError && err.status === 409 && err.code === 'DUPLICATE_SLUG') {
+        setErrors({ slug: 'Bu adres başka bir üründe kullanılıyor.' })
+        focusFirstError()
+      } else if (err instanceof ApiError && err.status === 409 && err.code === 'DUPLICATE_BIZIMHESAP_ID') {
+        setErrors({ bizimhesapId: 'Bu BizimHesap ID başka bir üründe kayıtlı.' })
         focusFirstError()
       } else if (err instanceof ApiError && err.status === 400 && err.code === 'VALIDATION') {
         const mapped: Errors = {}
@@ -325,7 +366,7 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
               label="Liste fiyatı (KDV hariç, ₺)"
               htmlFor="p-price"
               error={errors.listPrice}
-              help="Örn. 19,99"
+              help="Örn. 19,99. Fiyatı bilmiyorsanız 0 girin: ürün vitrinde “Fiyat için bize ulaşın” ile görünür, sepete eklenemez."
             >
               <input
                 id="p-price"
@@ -426,6 +467,71 @@ function ProductForm({ product, groups }: { product: AdminProduct | null; groups
               Kütüphaneden seç
             </Button>
           </div>
+        </section>
+
+        <section className="ui-card ui-card__body ui-form-section" aria-labelledby="sec-seo">
+          <h2 id="sec-seo">SEO (arama motorları)</h2>
+          <Field
+            label="Adres (slug)"
+            htmlFor="p-slug"
+            error={errors.slug}
+            help="Ürün sayfasının adresi. Değiştirirseniz eski adres yeni adrese yönlendirilir."
+          >
+            <div className="adm-slugrow">
+              <input
+                id="p-slug"
+                className="ui-input"
+                {...text('slug', values.slug)}
+                onChange={(e) => {
+                  setSlugTouched(true)
+                  set('slug', e.target.value.toLocaleLowerCase('tr'))
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="zap"
+                disabled={!values.name.trim()}
+                onClick={() => {
+                  setSlugTouched(true)
+                  set('slug', slugify(values.name))
+                }}
+              >
+                Addan üret
+              </Button>
+            </div>
+          </Field>
+          <SeoTextFields
+            title={values.seoTitle}
+            description={values.seoDescription}
+            onTitle={(v) => set('seoTitle', v)}
+            onDescription={(v) => set('seoDescription', v)}
+            titlePlaceholder={values.name}
+            errorTitle={errors.seoTitle}
+            errorDescription={errors.seoDescription}
+          />
+          <SearchPreview
+            title={values.seoTitle || values.name}
+            url={`${base.replace(/^https?:\/\//, '')} › urun › ${values.slug || '…'}`}
+            description={values.seoDescription || values.description}
+          />
+        </section>
+
+        <section className="ui-card ui-card__body ui-form-section" aria-labelledby="sec-int">
+          <h2 id="sec-int">Entegrasyon</h2>
+          <Field
+            label="BizimHesap ID (isteğe bağlı)"
+            htmlFor="p-bh"
+            error={errors.bizimhesapId}
+            help="BizimHesap’taki ürün kimliği (GUID). Entegrasyonda eşleştirme anahtarıdır; boş bırakılabilir."
+          >
+            <input
+              id="p-bh"
+              className="ui-input"
+              autoComplete="off"
+              {...text('bizimhesapId', values.bizimhesapId)}
+            />
+          </Field>
         </section>
 
         <div className="ui-form-actions">

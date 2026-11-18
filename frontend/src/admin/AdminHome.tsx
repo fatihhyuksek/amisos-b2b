@@ -92,6 +92,13 @@ function attentionRows(a: Dashboard['attention']): AttentionRow[] {
       to: '/yonetim/urunler?oneCikan=true&stok=out_of_stock',
     },
     {
+      key: 'priceMissing',
+      count: a.priceMissing ?? 0,
+      text: 'aktif ürünün fiyatı girilmemiş',
+      short: 'fiyatı girilmemiş ürün',
+      to: '/yonetim/urunler?fiyatsiz=true&aktif=true',
+    },
+    {
       key: 'inactive',
       count: a.inactiveDealers60d,
       text: 'bayi 60 günden uzun süredir sipariş vermedi',

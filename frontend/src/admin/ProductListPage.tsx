@@ -35,6 +35,7 @@ interface Filters {
   stok: string
   aktif: string
   oneCikan: string
+  fiyatsiz: string
 }
 
 function listPath(f: Filters, page: number, size = 20): string {
@@ -44,10 +45,16 @@ function listPath(f: Filters, page: number, size = 20): string {
   if (f.stok) qs.set('stok', f.stok)
   if (f.aktif) qs.set('aktif', f.aktif)
   if (f.oneCikan) qs.set('oneCikan', f.oneCikan)
+  if (f.fiyatsiz) qs.set('fiyatsiz', f.fiyatsiz)
   if (size !== 20) qs.set('adet', String(size))
   if (page > 1) qs.set('sayfa', String(page))
   const s = qs.toString()
   return `/yonetim/urunler${s ? `?${s}` : ''}`
+}
+
+/** K-79: liste fiyatı 0 olan ürün "fiyat sorunuz" ürünüdür. */
+function isUnpriced(p: AdminProduct): boolean {
+  return Number(p.listPrice) === 0
 }
 
 function Thumb({ p }: { p: AdminProduct }) {
@@ -66,6 +73,7 @@ export function ProductListPage() {
     stok: query.get('stok') ?? '',
     aktif: query.get('aktif') ?? '',
     oneCikan: query.get('oneCikan') ?? '',
+    fiyatsiz: query.get('fiyatsiz') ?? '',
   }
   const page = Math.max(1, Number(query.get('sayfa')) || 1)
   const size = parsePageSize(query.get('adet'))
@@ -82,7 +90,7 @@ export function ProductListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced])
 
-  const listKey = `${f.q}|${f.grup}|${f.stok}|${f.aktif}|${f.oneCikan}|${page}|${size}`
+  const listKey = `${f.q}|${f.grup}|${f.stok}|${f.aktif}|${f.oneCikan}|${f.fiyatsiz}|${page}|${size}`
   // Seçim yalnızca görüntülenen liste içindir: süzgeç veya sayfa değişince sıfırlanır.
   const [sel, setSel] = useState<{ key: string; ids: string[] }>({ key: listKey, ids: [] })
   const selected = sel.key === listKey ? sel.ids : []
@@ -106,6 +114,7 @@ export function ProductListPage() {
           stock: f.stok,
           active: f.aktif,
           featured: f.oneCikan,
+          priceMissing: f.fiyatsiz,
           page,
           pageSize: size,
         },
@@ -115,7 +124,7 @@ export function ProductListPage() {
   )
 
   const go = (patch: Partial<Filters>) => replace(listPath({ ...f, ...patch }, 1, size))
-  const hasFilter = !!(f.q || f.grup || f.stok || f.aktif || f.oneCikan)
+  const hasFilter = !!(f.q || f.grup || f.stok || f.aktif || f.oneCikan || f.fiyatsiz)
 
   async function runBulk(action: BulkAction, label: string, groupId?: string) {
     setBulkBusy(true)
@@ -301,6 +310,15 @@ export function ProductListPage() {
           <option value="">Öne çıkan: tümü</option>
           <option value="true">Yalnız öne çıkanlar</option>
         </select>
+        <select
+          className="ui-select"
+          aria-label="Fiyat durumu"
+          value={f.fiyatsiz}
+          onChange={(e) => go({ fiyatsiz: e.target.value })}
+        >
+          <option value="">Fiyat: tümü</option>
+          <option value="true">Fiyatı girilmemiş</option>
+        </select>
       </div>
 
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
@@ -382,7 +400,13 @@ export function ProductListPage() {
                     <td className="num ui-left">{p.barcode}</td>
                     <td>{p.groupName}</td>
                     <td className="num">{p.caseQuantity}</td>
-                    <td className="num">{formatTRY(p.listPrice)}</td>
+                    <td className="num">
+                      {isUnpriced(p) ? (
+                        <Badge tone="warning">Fiyatı girilmedi</Badge>
+                      ) : (
+                        formatTRY(p.listPrice)
+                      )}
+                    </td>
                     <td>
                       <div className="ui-stockline">
                         <StockBadge inStock={p.stockStatus === 'in_stock'} />
@@ -416,8 +440,14 @@ export function ProductListPage() {
                     {p.barcode} · {p.groupName}
                   </span>
                   <span className="ui-rowcard__meta">
-                    Koli içi: {p.caseQuantity} · <span className="num">{formatTRY(p.listPrice)}</span> KDV
-                    hariç
+                    Koli içi: {p.caseQuantity} ·{' '}
+                    {isUnpriced(p) ? (
+                      <Badge tone="warning">Fiyatı girilmedi</Badge>
+                    ) : (
+                      <>
+                        <span className="num">{formatTRY(p.listPrice)}</span> KDV hariç
+                      </>
+                    )}
                   </span>
                 </div>
                 <div className="ui-prodcard__foot">
