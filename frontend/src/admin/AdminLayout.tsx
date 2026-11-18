@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
 import { BrandLogo } from '../shop/brand'
+import { useAdminTitle } from '../shop/pageTitle'
 import { replace, useRoute } from '../router'
 import { Icon } from '../ui/Icon'
 import { CommandPalette } from './CommandPalette'
 import { MenuButton } from './kit'
 import { CREATE_ACTIONS, NAV_GROUPS, currentNav, navMatches, type NavBadge } from './nav'
 import { NotificationBell } from './NotificationBell'
+import { useNotificationFeed } from './useFeed'
 import { useOrderSummary } from './orderSummary'
 import { useFailedNotificationCount } from './useFailedNotifications'
 import { usePendingApplications } from './useShellCounts'
@@ -49,6 +51,7 @@ export function AdminLayout({
   const { state, logout } = useAuth()
   const { path } = useRoute()
   const failed = useFailedNotificationCount()
+  const feed = useNotificationFeed()
   const orders = useOrderSummary()
   const applications = usePendingApplications()
   const [collapsed, setCollapsed] = useState(readCollapsed)
@@ -58,12 +61,15 @@ export function AdminLayout({
   const name = state.status === 'authenticated' ? state.user.name : ''
   const email = state.status === 'authenticated' ? state.user.email : ''
   const nav = currentNav(path)
+  useAdminTitle(title)
 
   const badgeFor = (b?: NavBadge): { n: number; label: string } | null => {
     if (!b) return null
-    const n = b === 'orders' ? (orders?.submitted ?? 0) : b === 'applications' ? applications : failed
+    // K-83: Bildirimler rozeti = okunmamış etkinlik + başarısız e-posta.
+    const n =
+      b === 'orders' ? (orders?.submitted ?? 0) : b === 'applications' ? applications : failed + feed.unread
     const label =
-      b === 'orders' ? 'yeni sipariş' : b === 'applications' ? 'onay bekleyen başvuru' : 'başarısız e-posta'
+      b === 'orders' ? 'yeni sipariş' : b === 'applications' ? 'onay bekleyen başvuru' : 'okunmamış bildirim'
     return n > 0 ? { n, label } : null
   }
 

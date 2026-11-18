@@ -1,7 +1,7 @@
 // K-78: Yönetim menüsü tek kaynak (kenar menü, komut paleti, kırıntı yolu).
 import type { IconName } from '../ui/Icon'
 
-export type NavBadge = 'orders' | 'applications' | 'failed'
+export type NavBadge = 'orders' | 'applications' | 'notifications'
 
 export interface NavItem {
   to: string
@@ -60,8 +60,8 @@ export const NAV_GROUPS: NavGroup[] = [
         to: '/yonetim/bildirimler',
         label: 'Bildirimler',
         icon: 'bell',
-        badge: 'failed',
-        keywords: 'e-posta',
+        badge: 'notifications',
+        keywords: 'e-posta etkinlik bildirim',
       },
       { to: '/yonetim/islem-gecmisi', label: 'İşlem geçmişi', icon: 'history', keywords: 'denetim kayıt' },
     ],

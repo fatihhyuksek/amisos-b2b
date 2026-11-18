@@ -98,7 +98,7 @@ export function NotificationBell() {
           </div>
           <footer className="adm-feed__foot">
             <Link to="/yonetim/bildirimler" onClick={close}>
-              E-posta bildirimleri
+              Tüm bildirimler
             </Link>
           </footer>
         </div>

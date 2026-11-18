@@ -2327,3 +2327,108 @@ kbd {
     font-size: 0.6875rem;
   }
 }
+
+/* Bildirimler sayfası: Etkinlikler sekmesi (K-83) */
+.adm-evhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.adm-evhead p {
+  margin: 0;
+}
+
+.adm-evlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.ui-admin .adm-evitem {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--adm-border);
+  color: var(--color-text);
+}
+
+.adm-evlist li:last-child .adm-evitem {
+  border-bottom: 0;
+}
+
+.ui-admin .adm-evitem:hover {
+  background: var(--adm-hover);
+  color: var(--color-text);
+}
+
+.adm-evitem[data-unread]::before {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--color-bronze);
+}
+
+.adm-evitem[data-unread] .adm-evitem__title {
+  font-weight: var(--font-weight-bold);
+}
+
+.adm-evitem__icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--adm-hover);
+  color: var(--color-text-muted);
+}
+
+.adm-evitem__text {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.adm-evitem__title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.adm-evitem__body {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.adm-evitem__meta {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 40rem) {
+  .ui-admin .adm-evitem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .adm-evitem__meta {
+    grid-column: 2;
+    grid-auto-flow: column;
+    justify-content: start;
+    justify-items: start;
+    align-items: center;
+  }
+}
