@@ -17,7 +17,13 @@ export function escapeHtml(value: string): string {
 
 /** XML (sitemap) için; XML 1.0'da geçersiz denetim karakterleri atılır. */
 export function escapeXml(value: string): string {
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?? c);
+  let out = '';
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) continue;
+    out += HTML_ESCAPES[ch] && ch !== '`' ? HTML_ESCAPES[ch] : ch;
+  }
+  return out;
 }
 
 /**

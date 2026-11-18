@@ -639,12 +639,12 @@ describe('Yönetim paneli yenilemesi (e2e)', () => {
 
       const { sheet } = await load(admin, `/api/admin/products/export.xlsx?groupId=${g2.id}`);
       expect((sheet.getRow(1).values as ExcelJS.CellValue[]).slice(1)).toEqual([
-        'Barkod', 'Kod', 'Ad', 'Grup', 'Koli içi', 'Liste fiyatı', 'KDV %', 'Stok', 'Durum', 'Öne çıkan', 'Görsel sayısı',
+        'Barkod', 'Kod', 'Ad', 'Grup', 'Koli içi', 'Liste fiyatı', 'KDV %', 'Stok', 'Durum', 'Öne çıkan', 'Görsel sayısı', 'BizimHesap ID',
       ]);
       const rows = rowsOf(sheet);
       expect(rows).toHaveLength(2);
       // Ad sırasıyla: Ürün 1, Ürün 2. Barkod/kod baştaki sıfırlarla METİN.
-      expect(rows[0]).toEqual({ Barkod: a.barcode, Kod: a.code, Ad: a.name, Grup: `Excel Grup ${run}`, 'Koli içi': 6, 'Liste fiyatı': 48.9, 'KDV %': 10, Stok: 'Yok', Durum: 'Aktif', 'Öne çıkan': 'Evet', 'Görsel sayısı': 1 });
+      expect(rows[0]).toMatchObject({ Barkod: a.barcode, Kod: a.code, Ad: a.name, Grup: `Excel Grup ${run}`, 'Koli içi': 6, 'Liste fiyatı': 48.9, 'KDV %': 10, Stok: 'Yok', Durum: 'Aktif', 'Öne çıkan': 'Evet', 'Görsel sayısı': 1 });
       expect(typeof rows[0].Barkod).toBe('string');
       expect((rows[0].Barkod as string).startsWith('00')).toBe(true);
       expect(rows[1]).toMatchObject({ Barkod: b.barcode, Kod: null, 'Liste fiyatı': 19.99, Stok: 'Var', Durum: 'Pasif', 'Öne çıkan': 'Hayır', 'Görsel sayısı': 0 });

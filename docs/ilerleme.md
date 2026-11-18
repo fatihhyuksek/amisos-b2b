@@ -109,6 +109,12 @@ Son güncelleme: 2026-11-17
    - K-83: `/yonetim/bildirimler` Etkinlikler + E-posta gönderimleri sekmeleri; menü rozeti = okunmamış etkinlik + başarısız e-posta.
    - Raporlar/ana sayfa: büyük KPI, değişim hapları, "bin/mn" eksenler, soluk ızgara, belirgin ipucu, kesik çizgili karşılaştırma, sıralı yatay çubuklar, anlamlı boş durum, "Bu çeyrek" hazır aralığı.
 
+19. SEO, fiyatı girilmemiş ürün, BizimHesap ID — backend (K-79 – K-82, sözleşme `docs/api/seo-fiyat-api.md`, "Uygulama notları"):
+   - Migration `0012_seo_fiyat`: `products.bizimhesap_id/slug/seo_*`, `product_groups.slug/seo_*/description`, `product_slug_redirects`; mevcut kayıtlara slug üretildi; slug boş eklenirse DB tetikleyicisi üretir.
+   - K-79: `priceOnRequest`; PRICE_NOT_SET (sepet, hızlı sipariş satır hatası, gönderim 409, tekrar sipariş `skipped`), fiyat listesi Excel'i, admin `priceMissing`, dashboard `attention.priceMissing`.
+   - K-80: `bizimhesapId` (admin gövde/yanıt, içe aktarma "BizimHesap ID", dışa aktarma sütunu). K-82: site `seo` ayarları, ürün/grup slug + SEO alanları, by-slug uçları, 301 yönlendirme tablosu,
+     `/sitemap.xml`, `/robots.txt`, `SERVE_FRONTEND_DIR` ile sayfaya özel meta/JSON-LD enjeksiyonu (HTML/JSON-LD kaçışı, fiyat yok). Testler: `test/seo-fiyat.e2e-spec.ts`.
+
 ## Sıradaki adım
 
 **Canlıya hazırlık** (iş sahibiyle karar gerekiyor):

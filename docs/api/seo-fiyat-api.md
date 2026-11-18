@@ -47,3 +47,45 @@ keywords (≤255, isteğe bağlı), ogImageMediaId (uuid | null), indexable (boo
 
 ## 4. Bildirim birleştirme (K-83)
 Backend değişikliği yok; arayüz `/yonetim/bildirimler` sayfasında "Etkinlikler" (feed) ve "E-posta gönderimleri" (mevcut outbox) sekmeleri.
+
+## Uygulama notları
+
+Alan adları yukarıdaki sözleşmeyle aynıdır; aşağıdakiler belirsiz noktalarda alınan kararlardır.
+
+**Fiyatı girilmemiş ürün (K-79)**
+- Sepete ekleme `PUT /api/cart/items/:productId` 409 gövdesi: `{ statusCode, code: "PRICE_NOT_SET", message, productId, name }`. `quantity: 0` (kaldırma) serbest.
+- Hızlı sipariş (`POST /api/cart/quick-add`) satır hatası: `{ index, query, code: "PRICE_NOT_SET" }`; diğer satırlar eklenir.
+- Sipariş gönderimi 409: `{ code: "PRICE_NOT_SET", message, products: [{ productId, name }], cart }`. Bu kontrol `PRICE_CHANGED` kontrolünden önce yapılır.
+- Sepet satırında `priceOnRequest: boolean` (diğer satır alanları aynı; fiyatlar `"0.00"`). Tekrar sipariş (`POST /api/orders/:id/reorder`) fiyatı 0 olan ürünü
+  `skipped` içine `reason: "PRICE_NOT_SET"` ile koyar.
+- Katalog öğesi: `priceOnRequest`, ayrıca `slug`, `seoTitle`, `seoDescription`, `groupSlug` döner. `price_asc` / `price_desc` sıralamasında fiyatsız ürünler her iki yönde sona düşer.
+- Admin `priceMissing=true` = aktif ve liste fiyatı 0 (dashboard sayısıyla aynı tanım; pasifler dahil değil). Ürün Excel dışa aktarması aynı filtreyi kullanır.
+- Fiyat listesi Excel'inde fiyat/iskonto hücreleri boş, Stok hücresi "Fiyat sorunuz"; KDV % yazılı kalır.
+
+**BizimHesap ID (K-80)**
+- Admin ürün gövdesi/yanıtı `bizimhesapId` (≤100, boş = null). Çakışma: 409 `DUPLICATE_BIZIMHESAP_ID`. Ürün kopyalamada ID kopyalanmaz.
+- İçe aktarma başlığı "BizimHesap ID" (takma ad: "BizimHesap Ürün ID"); boşsa mevcut üründe değişmez; dosya içinde veya başka üründe kullanılan ID satır hatasıdır.
+  Dışa aktarma sütunu son sütundur (ilk 7 sütun şablonla aynı sırada kalır); şablonda "Ürün kodu"ndan sonra gelir.
+
+**Slug ve SEO (K-82)**
+- Slug biçimi `^[a-z0-9]+(-[a-z0-9]+)*$`, ≤100 (otomatik üretilen ≤80). Ürün/grup oluştururken `slug` verilmezse addan üretilir; çakışmada `-2`, `-3`. Elle verilen slug çakışırsa
+  409 `DUPLICATE_SLUG`. Ad değişince slug otomatik değişmez. Otomatik üretim, başka ürünlerin eski (yönlendirme) slug'larını da kullanmaz; elle verilen slug başka bir ürünün eski slug'ıyla
+  çakışırsa canlı slug kazanır ve o yönlendirme silinir. Slug'ı eskisine geri almak yönlendirmeyi siler.
+- Grup slug'ı değişince eski adres için yönlendirme YOKTUR (sözleşmede yalnızca ürün için tanımlı).
+- `GET /api/catalog/products/by-slug/:slug`: aktif ürün (aktif grupta) için normal katalog öğesi (fiyat kuralları `GET /api/catalog/products/:id` ile aynı); eski slug ise `200 { redirectTo }`;
+  bilinmeyen veya pasif ürün 404. `GET /api/catalog/groups/by-slug/:slug` (aktif grup; içinde ürün olmasa da): `{ id, name, slug, description, seoTitle, seoDescription, productCount, thumbUrl }`.
+  `GET /api/catalog/groups` öğelerine de `slug, description, seoTitle, seoDescription` eklendi. Admin grup listesi/yanıtı `slug, seoTitle, seoDescription, description` döner.
+- Site `seo`: `PUT /api/admin/site` içinde isteğe bağlı ve KISMİ (verilmeyen alan korunur, isteğe bağlı alanlarda `null` kaldırır). `canonicalBaseUrl` yalnızca `https://alanadi` (yol/sorgu yok, sondaki `/` atılır).
+  `ogImageMediaId` var olan bir görsel olmalı (aksi 400, `fields["seo.ogImageMediaId"]`). Yanıtlarda `ogImageMediaId` ve çözülmüş `ogImageUrl` (`/api/media/<id>/large.webp`) birlikte döner.
+  Varsayılan: siteTitle "AMİSOS B2B Toptan Züccaciye", titleTemplate "%s | AMİSOS B2B", indexable true.
+- Express katmanı (`applyPublicSeo`, `main.ts`'de çağrılır): `/sitemap.xml` ve `/robots.txt` her zaman (SERVE_FRONTEND_DIR olmasa da; `/api` önekli değil) sunulur. Sitemap'e sözleşmedekilere ek olarak
+  `/iletisim` ve `/basvuru` girer. `robots.txt` `Allow: /api/media/` içerir (ürün görselleri `/api/media` altından sunulduğundan, `Disallow: /api` görselleri engellemesin diye).
+- Vitrin sunumu (`SERVE_FRONTEND_DIR`): `/api` ve `/media` dışındaki, uzantısız GET/HEAD istekleri index.html döner; uzantılı yollar statik dosyadır (`assets/` altı 1 yıl immutable, diğerleri 1 saat). Sayfa durumu:
+  `/`, `/katalog`, `/katalog/<aktifGrup>`, `/urun/<aktifÜrün>`, yayımlı bilgi sayfaları, `/iletisim`, `/basvuru` 200 + indexlenebilir; eski ürün slug'ı 301 `/urun/<yeni>`; bilinmeyen/pasif ürün veya grup,
+  bozuk kodlama, yayımlanmamış bilgi sayfası 404 (+ noindex, canonical yok; gövde yine index.html, istemci "bulunamadı" gösterir); `/yonetim`, `/sepet`, `/hesabim`, `/siparislerim`, `/giris` ve tanımsız diğer yollar
+  200 + `noindex,nofollow` (indexlenmesi istenen yeni herkese açık yollar `backend/src/seo/seo.service.ts` içindeki `STATIC_PUBLIC` listesine eklenmeli). `indexable=false` iken her sayfa noindex.
+  Sorgu dizesi canonical'a girmez. Ana sayfa JSON-LD'si `/katalog?q={search_term_string}` arama hedefini kullanır.
+- Güvenlik: tüm dinamik değerler HTML özniteliği/metni olarak kaçışlanır; JSON-LD'de `<`, `>`, `&`, U+2028/2029 unicode kaçışına çevrilir (`</script>` kırılır); index.html'e yerleştirmede
+  `$&` gibi değiştirme dizileri yorumlanmaz. Fiyat, KDV, iskonto, stok hiçbir meta/JSON-LD alanına girmez (`offers` yok). GA kimliği yalnızca `^G-[A-Z0-9]{4,12}$` ise yazılır.
+- Veritabanı: `products.slug` / `product_groups.slug` `NOT NULL DEFAULT ''` + BEFORE INSERT tetikleyicisi (boş slug'a addan tekil slug üretir; eski betikler ve doğrudan SQL de çalışsın diye). Uygulama slug'ı açıkça yazar.
+
