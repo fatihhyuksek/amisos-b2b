@@ -245,13 +245,15 @@ export function Delta({ percent, label = 'geçen aya göre' }: { percent: number
   const dir = percent > 0 ? 'up' : percent < 0 ? 'down' : 'flat'
   return (
     <span className={`adm-delta adm-delta--${dir}`}>
-      {dir !== 'flat' && <Icon name={dir === 'up' ? 'trendUp' : 'trendDown'} />}
-      <span className="num">
-        {dir === 'up' ? '+' : dir === 'down' ? '−' : ''}
-        {formatAbsPercent(percent)}
-      </span>
-      <span className="visually-hidden">
-        {dir === 'up' ? ' artış' : dir === 'down' ? ' düşüş' : ' değişim yok'}
+      <span className="adm-delta__pill">
+        {dir !== 'flat' && <Icon name={dir === 'up' ? 'trendUp' : 'trendDown'} />}
+        <span className="num">
+          {dir === 'up' ? '+' : dir === 'down' ? '−' : ''}
+          {formatAbsPercent(percent)}
+        </span>
+        <span className="visually-hidden">
+          {dir === 'up' ? ' artış' : dir === 'down' ? ' düşüş' : ' değişim yok'}
+        </span>
       </span>
       <span className="adm-delta__label"> {label}</span>
     </span>

@@ -1,4 +1,5 @@
 // Genel bakış: KPI kartları (önceki dönem ve geçen yıl farkıyla), aylık trend, grup dağılımı, ilk 5 ürün ve bayi.
+import type { ReactNode } from 'react'
 import type {
   Comparable,
   ReportDealerRow,
@@ -10,6 +11,7 @@ import type {
 import { fetchReport, fetchReportList } from '../../api'
 import { Link } from '../../Link'
 import { ErrorAlert, LoadingCard } from '../../ui/catalog'
+import { EmptyState } from '../../ui/components'
 import { formatInt, formatTRY } from '../../ui/format'
 import { useLoad } from '../useLoad'
 import { HBarList, TrendChart } from './charts'
@@ -34,21 +36,56 @@ function Kpi({
       <span className="ui-kpi__value num">{fmt(metric.current)}</span>
       <dl className="ui-kpi__cmp">
         <div>
-          <dt>Önceki dönem ({rangeText(overview.previous)})</dt>
+          <dt>Önceki dönem · {rangeText(overview.previous)}</dt>
           <dd>
-            <span className="num muted">{fmt(metric.previous)}</span>{' '}
+            <span className="num ui-kpi__was">{fmt(metric.previous)}</span>
             <Delta change={metric.changePrev} kind={kind} />
           </dd>
         </div>
         <div>
-          <dt>Geçen yıl ({rangeText(overview.lastYear)})</dt>
+          <dt>Geçen yıl · {rangeText(overview.lastYear)}</dt>
           <dd>
-            <span className="num muted">{fmt(metric.lastYear)}</span>{' '}
+            <span className="num ui-kpi__was">{fmt(metric.lastYear)}</span>
             <Delta change={metric.changeYear} kind={kind} />
           </dd>
         </div>
       </dl>
     </div>
+  )
+}
+
+function Section({
+  id,
+  title,
+  note,
+  action,
+  children,
+}: {
+  id: string
+  title: string
+  note?: string
+  action?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className="ui-card ui-card__body ui-stack ui-rsection" aria-labelledby={id}>
+      <div className="ui-reportbar">
+        <div className="ui-rsection__head">
+          <h2 id={id}>{title}</h2>
+          {note && <p className="ui-rsection__note">{note}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function NoData({ children }: { children: ReactNode }) {
+  return (
+    <EmptyState icon="chart" title="Bu dönemde veri yok">
+      {children}
+    </EmptyState>
   )
 }
 
@@ -102,28 +139,33 @@ export function OverviewTab({
         </section>
       )}
 
-      <section className="ui-card ui-card__body ui-stack" aria-labelledby="rp-trend">
-        <div className="ui-reportbar">
-          <h2 id="rp-trend">Aylık net ciro · son 12 ay</h2>
-          <ExportButton name="trend" params={{ months: 12 }} fallbackName="rapor-trend.xlsx" />
-        </div>
+      <Section
+        id="rp-trend"
+        title="Aylık net ciro"
+        note="Son 12 ayın KDV hariç net cirosu; kesik çizgi geçen yılın aynı ayıdır. Ayrıntı için sütunun üzerine gelin."
+        action={<ExportButton name="trend" params={{ months: 12 }} fallbackName="rapor-trend.xlsx" />}
+      >
         {trend.state.status === 'loading' && <LoadingCard rows={2} />}
         {trend.state.status === 'error' && <ErrorAlert onRetry={trend.reload}>Trend alınamadı.</ErrorAlert>}
         {trend.state.status === 'ready' && <TrendChart data={trend.state.data} />}
-      </section>
+      </Section>
 
-      <section className="ui-card ui-card__body ui-stack" aria-labelledby="rp-groups">
-        <h2 id="rp-groups">Ürün grubu dağılımı (net ciro payı)</h2>
+      <Section
+        id="rp-groups"
+        title="Ürün grubu dağılımı"
+        note="Seçilen dönemde net cironun gruplara göre payı."
+      >
         {groups.state.status === 'loading' && <LoadingCard rows={2} />}
         {groups.state.status === 'error' && (
           <ErrorAlert onRetry={groups.reload}>Dağılım alınamadı.</ErrorAlert>
         )}
         {groups.state.status === 'ready' && groups.state.data.length === 0 && (
-          <p className="muted">Bu dönemde satış yok.</p>
+          <NoData>Başka bir dönem seçin; örneğin “Bu yıl” veya “Geçen yıl”.</NoData>
         )}
         {groups.state.status === 'ready' && groups.state.data.length > 0 && (
           <>
             <HBarList
+              ranked
               label="Ürün grubu net ciro payı"
               rows={[...groups.state.data]
                 .sort((a, b) => Number(b.sharePercent) - Number(a.sharePercent))
@@ -132,7 +174,7 @@ export function OverviewTab({
                   key: g.groupId,
                   label: g.name,
                   percent: Number(g.sharePercent),
-                  text: `${formatTRY(g.netTotal.current)} · Pay %${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(Number(g.sharePercent))}`,
+                  text: `${formatTRY(g.netTotal.current)} · %${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(Number(g.sharePercent))}`,
                 }))}
             />
             {groups.state.data.length > 8 && (
@@ -142,53 +184,61 @@ export function OverviewTab({
             )}
           </>
         )}
-      </section>
+      </Section>
 
       <div className="ui-minitables">
-        <section className="ui-card ui-card__body ui-stack" aria-labelledby="rp-top-products">
-          <h2 id="rp-top-products">En çok satan 5 ürün</h2>
+        <Section id="rp-top-products" title="En çok satan 5 ürün" note="Adet olarak, seçilen dönemde.">
           {products.state.status === 'loading' && <LoadingCard rows={2} />}
           {products.state.status === 'error' && (
             <ErrorAlert onRetry={products.reload}>Ürünler alınamadı.</ErrorAlert>
           )}
           {products.state.status === 'ready' && products.state.data.length === 0 && (
-            <p className="muted">Bu dönemde satış yok.</p>
+            <NoData>Bu dönemde ürün satışı olmadı.</NoData>
           )}
           {products.state.status === 'ready' && products.state.data.length > 0 && (
-            <ol className="ui-toplist">
-              {products.state.data.map((p) => (
-                <li key={p.productId}>
-                  <Link to={`/yonetim/urunler/${encodeURIComponent(p.productId)}`}>{p.name}</Link>
-                  <span className="muted num">
-                    {formatInt(p.quantity)} adet · {formatTRY(p.netTotal)}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <HBarList
+              ranked
+              label="En çok satan ürünler"
+              rows={products.state.data.map((p, _i, all) => ({
+                key: p.productId,
+                label: p.name,
+                to: `/yonetim/urunler/${encodeURIComponent(p.productId)}`,
+                percent: (p.quantity / Math.max(1, ...all.map((x) => x.quantity))) * 100,
+                text: `${formatInt(p.quantity)} adet`,
+                sub: formatTRY(p.netTotal),
+              }))}
+            />
           )}
-        </section>
-        <section className="ui-card ui-card__body ui-stack" aria-labelledby="rp-top-dealers">
-          <h2 id="rp-top-dealers">En çok sipariş veren 5 bayi</h2>
+        </Section>
+        <Section
+          id="rp-top-dealers"
+          title="En çok sipariş veren 5 bayi"
+          note="Net ciroya göre, seçilen dönemde."
+        >
           {dealers.state.status === 'loading' && <LoadingCard rows={2} />}
           {dealers.state.status === 'error' && (
             <ErrorAlert onRetry={dealers.reload}>Bayiler alınamadı.</ErrorAlert>
           )}
           {dealers.state.status === 'ready' && dealers.state.data.length === 0 && (
-            <p className="muted">Bu dönemde sipariş yok.</p>
+            <NoData>Bu dönemde sipariş veren bayi yok.</NoData>
           )}
           {dealers.state.status === 'ready' && dealers.state.data.length > 0 && (
-            <ol className="ui-toplist">
-              {dealers.state.data.slice(0, 5).map((d) => (
-                <li key={d.dealerId}>
-                  <Link to={`/yonetim/bayiler/${encodeURIComponent(d.dealerId)}`}>{d.companyTitle}</Link>
-                  <span className="muted num">
-                    {formatInt(d.orderCount)} sipariş · {formatTRY(d.netTotal.current)}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <HBarList
+              ranked
+              label="En çok sipariş veren bayiler"
+              rows={dealers.state.data.slice(0, 5).map((d, _i, all) => ({
+                key: d.dealerId,
+                label: d.companyTitle,
+                to: `/yonetim/bayiler/${encodeURIComponent(d.dealerId)}`,
+                percent:
+                  (Number(d.netTotal.current) / Math.max(1, ...all.map((x) => Number(x.netTotal.current)))) *
+                  100,
+                text: formatTRY(d.netTotal.current),
+                sub: `${formatInt(d.orderCount)} sipariş`,
+              }))}
+            />
           )}
-        </section>
+        </Section>
       </div>
     </div>
   )

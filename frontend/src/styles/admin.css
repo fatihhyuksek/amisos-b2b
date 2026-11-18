@@ -1329,8 +1329,23 @@ kbd {
   background: var(--adm-chart-line);
 }
 
-.ui-admin .ui-chart__legend .ui-chart__sw--bar {
+.ui-admin .ui-chart__legend .ui-chart__sw--bar,
+.ui-admin .ui-chart__tip .ui-chart__sw--bar {
   background: var(--adm-chart-line);
+}
+
+/* Izgara çizgileri soluk; tutar ekseni sade */
+.ui-admin .ui-chart__grid {
+  stroke: var(--adm-chart-grid);
+  opacity: 1;
+}
+
+.ui-admin .ui-chart__hl {
+  fill: var(--adm-hover);
+}
+
+.ui-admin .adm-chart__grid {
+  stroke-dasharray: 2 4;
 }
 
 /* ---------- Kartlar ---------- */
@@ -1468,11 +1483,21 @@ kbd {
   height: 0.9375rem;
 }
 
-.adm-delta--up {
+.adm-delta__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+}
+
+.adm-delta--up .adm-delta__pill {
+  background: var(--color-success-soft);
   color: var(--color-success);
 }
 
-.adm-delta--down {
+.adm-delta--down .adm-delta__pill {
+  background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
@@ -1578,13 +1603,14 @@ kbd {
 .adm-kpi__label {
   color: var(--color-text-muted);
   font-size: 0.8125rem;
+  font-weight: var(--font-weight-semibold);
 }
 
 .adm-kpi__value {
-  font-size: 1.5rem;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  font-size: 2rem;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1808,12 +1834,12 @@ kbd {
 .adm-chart__tip {
   position: absolute;
   z-index: 3;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--adm-border);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--adm-border-strong);
   border-radius: var(--radius-md);
   background: var(--adm-surface);
   box-shadow: var(--adm-pop-shadow);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
   pointer-events: none;
   white-space: nowrap;
@@ -2317,7 +2343,7 @@ kbd {
   }
 
   .adm-kpi__value {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
   }
 }
 

@@ -1,6 +1,7 @@
 // Hafif, bağımlılıksız SVG/CSS grafikler. Renkler tasarım belirteçlerinden; her grafiğin metin/tablo karşılığı var.
 import { useEffect, useRef, useState } from 'react'
 import type { ReportTrendPoint } from '../../api'
+import { Link } from '../../Link'
 import { formatCompactTRY, formatInt, formatTRY } from '../../ui/format'
 import { monthLong, monthShort } from './periods'
 
@@ -30,12 +31,13 @@ function niceScale(max: number, ticks = 4): { top: number; values: number[] } {
 }
 
 const H = 260
-const M = { top: 12, right: 12, bottom: 30, left: 60 }
+const M = { top: 12, right: 12, bottom: 30, left: 66 }
 
 /** Aylık net ciro sütunları + geçen yıl çizgisi. Altında "Tabloyu göster" ile aynı veri tablo olarak açılır. */
 export function TrendChart({ data }: { data: ReportTrendPoint[] }) {
   const { ref, width } = useWidth()
   const [table, setTable] = useState(false)
+  const [hover, setHover] = useState<number | null>(null)
   const nets = data.map((d) => Number(d.netTotal))
   const lasts = data.map((d) => Number(d.lastYearNetTotal))
   const { top, values } = niceScale(Math.max(0, ...nets, ...lasts))
@@ -47,11 +49,18 @@ export function TrendChart({ data }: { data: ReportTrendPoint[] }) {
   const skip = band < 38 ? 2 : 1
   const line = lasts.map((v, i) => `${i === 0 ? 'M' : 'L'}${cx(i)},${y(v)}`).join(' ')
 
+  function onMove(e: React.PointerEvent<SVGSVGElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const i = Math.floor((e.clientX - r.left - M.left) / (band || 1))
+    setHover(i >= 0 && i < data.length ? i : null)
+  }
+  const hd = hover !== null ? data[hover] : null
+
   return (
     <div className="ui-chart">
       <div className="ui-chart__legend" aria-hidden="true">
         <span>
-          <i className="ui-chart__sw ui-chart__sw--bar" /> Son {data.length} ay net ciro (KDV hariç)
+          <i className="ui-chart__sw ui-chart__sw--bar" /> Bu yıl · aylık net ciro (KDV hariç)
         </span>
         <span>
           <i className="ui-chart__sw ui-chart__sw--line" /> Geçen yılın aynı ayı
@@ -62,9 +71,20 @@ export function TrendChart({ data }: { data: ReportTrendPoint[] }) {
           <svg
             width={width}
             height={H}
+            onPointerMove={onMove}
+            onPointerLeave={() => setHover(null)}
             role="img"
             aria-label={`Son ${data.length} ayın aylık net ciro grafiği (sütun) ve geçen yılın aynı ayları (çizgi). Aynı veri için Tabloyu göster düğmesini kullanın.`}
           >
+            {hover !== null && (
+              <rect
+                x={M.left + band * hover}
+                y={M.top}
+                width={band}
+                height={innerH}
+                className="ui-chart__hl"
+              />
+            )}
             {values.map((v) => (
               <g key={v}>
                 <line x1={M.left} x2={width - M.right} y1={y(v)} y2={y(v)} className="ui-chart__grid" />
@@ -107,6 +127,25 @@ export function TrendChart({ data }: { data: ReportTrendPoint[] }) {
               <circle key={i} cx={cx(i)} cy={y(v)} r={3.5} className="ui-chart__dot" />
             ))}
           </svg>
+        )}
+        {hd && hover !== null && (
+          <div
+            className="ui-chart__tip"
+            style={{ left: Math.min(Math.max(cx(hover) - 80, 0), Math.max(0, width - 176)), top: 0 }}
+          >
+            <strong>{monthLong(hd.month)}</strong>
+            <span className="ui-chart__tiprow">
+              <i className="ui-chart__sw ui-chart__sw--bar" /> Net ciro
+              <b className="num">{formatTRY(hd.netTotal)}</b>
+            </span>
+            <span className="ui-chart__tiprow">
+              <i className="ui-chart__sw ui-chart__sw--line" /> Geçen yıl
+              <b className="num">{formatTRY(hd.lastYearNetTotal)}</b>
+            </span>
+            <span className="ui-chart__tiprow ui-chart__tiprow--muted">
+              {formatInt(hd.orderCount)} sipariş
+            </span>
+          </div>
         )}
       </div>
       <button
@@ -155,26 +194,42 @@ export function TrendChart({ data }: { data: ReportTrendPoint[] }) {
 export interface BarRow {
   key: string
   label: string
-  /** Çubuk uzunluğu (0–100); sunucunun verdiği pay yüzdesi. */
+  /** Çubuk uzunluğu (0–100); sunucunun verdiği pay yüzdesi ya da en büyüğe oran. */
   percent: number
   /** Çubuğun yanında gösterilen metin (tutar ve pay). */
   text: string
+  /** Etiket bağlantı olsun (ör. ürün/bayi sayfası). */
+  to?: string
+  /** Küçük ikincil metin (etiketin altında). */
+  sub?: string
 }
 
-/** Yatay çubuk listesi: her satır etiket + çubuk + metin değeri (metin zaten erişilebilir karşılıktır). */
-export function HBarList({ rows, label }: { rows: BarRow[]; label: string }) {
+/**
+ * Yatay çubuk listesi: her satır etiket + çubuk + metin değeri (metin zaten erişilebilir karşılıktır).
+ * `ranked`: satırlar sıra numarasıyla (1., 2., …) gösterilir.
+ */
+export function HBarList({ rows, label, ranked }: { rows: BarRow[]; label: string; ranked?: boolean }) {
+  const List = ranked ? 'ol' : 'ul'
   return (
-    <ul className="ui-hbars" aria-label={label}>
-      {rows.map((r) => (
+    <List className={`ui-hbars${ranked ? ' ui-hbars--ranked' : ''}`} aria-label={label}>
+      {rows.map((r, i) => (
         <li key={r.key} className="ui-hbars__row">
-          <span className="ui-hbars__label">{r.label}</span>
+          {ranked && (
+            <span className="ui-hbars__rank num" aria-hidden="true">
+              {i + 1}
+            </span>
+          )}
+          <span className="ui-hbars__label">
+            {r.to ? <Link to={r.to}>{r.label}</Link> : r.label}
+            {r.sub && <span className="ui-hbars__sub num">{r.sub}</span>}
+          </span>
           <span className="ui-hbars__track" aria-hidden="true">
             <span className="ui-hbars__fill" style={{ width: `${Math.min(100, Math.max(0, r.percent))}%` }} />
           </span>
           <span className="ui-hbars__text num">{r.text}</span>
         </li>
       ))}
-    </ul>
+    </List>
   )
 }
 
@@ -183,7 +238,7 @@ const dayLongFmt = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'lo
 const dayOf = (iso: string) => new Date(`${iso}T12:00:00`)
 
 const AH = 210
-const AM = { top: 10, right: 10, bottom: 26, left: 52 }
+const AM = { top: 10, right: 10, bottom: 26, left: 58 }
 
 /**
  * K-78: 30 günlük satış alan grafiği (net, KDV hariç). Değerler sunucudan gelir; burada yalnızca ölçeklenir.

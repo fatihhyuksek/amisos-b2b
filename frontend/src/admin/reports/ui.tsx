@@ -1,4 +1,4 @@
-// Rapor ekranlarının ortak bileşenleri: fark göstergesi, sıralanabilir tablo/kart listesi, Excel düğmesi.
+// Rapor ekranlarının ortak bileşenleri: fark hapı (yüzde + tutar), sıralanabilir tablo/kart listesi, Excel düğmesi.
 import { useId, useState, type ReactNode } from 'react'
 import { ApiError, downloadReportExcel, type ReportChange, type ReportName } from '../../api'
 import { Alert, Button } from '../../ui/components'
@@ -13,14 +13,16 @@ export function Delta({ change, kind }: { change: ReportChange<string | number>;
   const amount = kind === 'money' ? formatSignedTRY(String(change.amount)) : formatSignedInt(change.amount)
   return (
     <span className={`ui-delta ui-delta--${dir}`}>
-      {dir !== 'flat' && <Icon name={dir === 'up' ? 'arrowUp' : 'arrowDown'} />}
-      <span className="visually-hidden">
-        {dir === 'up' ? 'Artış: ' : dir === 'down' ? 'Azalış: ' : 'Değişim yok: '}
+      <span className="ui-delta__pill">
+        {dir !== 'flat' && <Icon name={dir === 'up' ? 'arrowUp' : 'arrowDown'} />}
+        <span className="visually-hidden">
+          {dir === 'up' ? 'Artış: ' : dir === 'down' ? 'Azalış: ' : 'Değişim yok: '}
+        </span>
+        <span className="num">
+          {change.percent === null ? 'Yüzde yok' : formatAbsPercent(change.percent)}
+        </span>
       </span>
-      <span className="num">{amount}</span>
-      <span className="num ui-delta__pct">
-        {change.percent === null ? '(yüzde yok)' : `(${formatAbsPercent(change.percent)})`}
-      </span>
+      <span className="num ui-delta__amt">{amount}</span>
     </span>
   )
 }
