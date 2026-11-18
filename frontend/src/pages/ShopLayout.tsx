@@ -4,8 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type Reac
 import type { CatalogGroup } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
-import { navigate, replace, useRoute } from '../router'
+import { matchPath, navigate, replace, useRoute } from '../router'
 import { BrandLogo } from '../shop/brand'
+import { useAnalytics } from '../shop/pageTitle'
 import { catalogHref } from '../shop/catalogHref'
 import { phoneHref, socialLinks, whatsappLink } from '../shop/contact'
 import { useCartCount } from '../shop/cartCount'
@@ -382,7 +383,7 @@ function AllCategories({
             {groups.map((g) => (
               <li key={g.id}>
                 <Link
-                  to={catalogHref({ grup: g.id })}
+                  to={catalogHref({ grup: g.id, slug: g.slug })}
                   className="ui-mega__item"
                   aria-current={activeId === g.id ? 'page' : undefined}
                 >
@@ -449,7 +450,7 @@ function CategoryNav({ groups, activeId }: { groups: CatalogGroup[]; activeId: s
           {groups.slice(0, fit).map((g) => (
             <li key={g.id}>
               <Link
-                to={catalogHref({ grup: g.id })}
+                to={catalogHref({ grup: g.id, slug: g.slug })}
                 className="ui-catnav__link"
                 aria-current={activeId === g.id ? 'page' : undefined}
               >
@@ -585,7 +586,7 @@ function Drawer({
           {groups.map((g) => (
             <li key={g.id}>
               <Link
-                to={catalogHref({ grup: g.id })}
+                to={catalogHref({ grup: g.id, slug: g.slug })}
                 className="ui-drawer__item"
                 aria-current={activeId === g.id ? 'page' : undefined}
                 onClick={onClose}
@@ -700,7 +701,7 @@ function Footer({ mode }: { mode: ShopMode }) {
           </FooterColumn>
           {popular.length > 0 && (
             <FooterColumn id="f-populer" title="Popüler kategoriler">
-              <ul>{popular.map((g) => li(catalogHref({ grup: g.id }), g.name))}</ul>
+              <ul>{popular.map((g) => li(catalogHref({ grup: g.id, slug: g.slug }), g.name))}</ul>
             </FooterColumn>
           )}
           <FooterColumn id="f-yasal" title="Yasal">
@@ -814,6 +815,7 @@ export function ShopLayout({ children }: { children: ReactNode }) {
   const { state } = useAuth()
   const mode = useShopMode()
   const site = useSite()
+  useAnalytics()
   const wa = whatsappLink(site.contact)
   const { path, query } = useRoute()
   const groups = useCatalogGroups()
@@ -821,10 +823,15 @@ export function ShopLayout({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false)
   const name = state.status === 'authenticated' ? state.user.name : ''
   const email = state.status === 'authenticated' ? state.user.email : ''
-  const onCatalog = path === '/katalog'
+  const slugParam = matchPath(path, '/katalog/:slug')?.slug
+  const onCatalog = path === '/katalog' || slugParam !== undefined
   const q = onCatalog ? (query.get('q') ?? '') : ''
   // null: katalog dışında (hiçbir kategori "geçerli sayfa" değil)
-  const activeGroup = onCatalog ? (query.get('grup') ?? '') : null
+  const activeGroup = onCatalog
+    ? slugParam !== undefined
+      ? (groupList.find((g) => g.slug === slugParam)?.id ?? '')
+      : (query.get('grup') ?? '')
+    : null
 
   return (
     <div className="ui-shop">

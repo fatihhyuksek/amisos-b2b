@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { ApiError, type CatalogProduct } from '../api'
 import { useCart } from './cart'
 
+const PRICE_NOT_SET_TEXT = 'Bu ürünün fiyatı henüz girilmedi. Fiyat için bize ulaşın.'
 export const OUT_OF_STOCK_NOTE = 'Stokta yok — tedarik süresi görüşülecek'
 
 export function useAddToCart() {
@@ -33,11 +34,13 @@ export function useAddToCart() {
         const text =
           err instanceof ApiError && err.code === 'CASE_MULTIPLE'
             ? `Adet, koli içi adedinin (${p.caseQuantity}) katı olmalı`
-            : err instanceof ApiError && err.code === 'PRODUCT_NOT_FOUND'
-              ? 'Bu ürün artık satışta değil'
-              : err instanceof TypeError
-                ? 'Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.'
-                : 'Sepete eklenemedi. Lütfen tekrar deneyin.'
+            : err instanceof ApiError && err.code === 'PRICE_NOT_SET'
+              ? PRICE_NOT_SET_TEXT
+              : err instanceof ApiError && err.code === 'PRODUCT_NOT_FOUND'
+                ? 'Bu ürün artık satışta değil'
+                : err instanceof TypeError
+                  ? 'Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.'
+                  : 'Sepete eklenemedi. Lütfen tekrar deneyin.'
         notify({ tone: 'danger', text, detail: p.name })
         return false
       }

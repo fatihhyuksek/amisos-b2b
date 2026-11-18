@@ -1,7 +1,9 @@
 // Katalog ve görsel yönetimi için ortak bileşenler (K-40, K-62).
 import { useState, type ReactNode } from 'react'
 import type { CatalogProduct } from '../api'
+import { productHref } from '../shop/catalogHref'
 import { Link } from '../Link'
+import { AskPriceButton, PriceOnRequest } from '../shop/PriceOnRequest'
 import { FavoriteButton } from '../shop/FavoriteButton'
 import { useShopMode } from '../shop/mode'
 import { PriceLock } from '../shop/PriceLock'
@@ -93,9 +95,10 @@ export function ProductCard({
   headingLevel?: 2 | 3
 }) {
   const mode = useShopMode()
-  const href = `/urun/${encodeURIComponent(p.id)}`
+  const href = productHref(p)
   const out = p.stock === 'out_of_stock'
-  const priced = p.price !== null
+  const onRequest = p.priceOnRequest
+  const priced = p.price !== null && !onRequest
   const H = headingLevel === 2 ? 'h2' : 'h3'
   const addLabel = `Sepete ekle: ${p.name}`
   const hasBadges = out || p.discountPercent || p.isNew || p.isFeatured
@@ -130,8 +133,10 @@ export function ProductCard({
             {p.name}
           </Link>
         </H>
-        <div className="ui-pcard__foot">
-          {priced ? (
+        <div className={`ui-pcard__foot${onRequest ? ' ui-pcard__foot--ask' : ''}`}>
+          {onRequest ? (
+            <PriceOnRequest product={p} />
+          ) : priced ? (
             <Price
               value={p.price as string}
               listValue={p.discountPercent && p.listPrice ? p.listPrice : undefined}
@@ -141,7 +146,11 @@ export function ProductCard({
           ) : (
             <PriceLock short />
           )}
+          {mode === 'dealer' && onRequest && (
+            <AskPriceButton product={p} className="ui-pcard__ask ui-button--sm" />
+          )}
           {mode === 'dealer' &&
+            !onRequest &&
             (onAdd ? (
               <button
                 type="button"

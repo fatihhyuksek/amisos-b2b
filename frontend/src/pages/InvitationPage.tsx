@@ -63,7 +63,7 @@ export function InvitationPage() {
     setBusy(true)
     try {
       await acceptInvitation(token, password, { kvkk, terms, marketing })
-      history.replaceState(null, '', '#/davet')
+      history.replaceState(null, '', '/davet')
       setDone(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.code === 'VALIDATION') {
@@ -74,7 +74,7 @@ export function InvitationPage() {
         if (!f.password && !f['consents.kvkk'] && !f['consents.terms'])
           setFormError('Formdaki bilgileri kontrol edin.')
       } else if (err instanceof ApiError && err.status === 400) {
-        history.replaceState(null, '', '#/davet')
+        history.replaceState(null, '', '/davet')
         setInvalid(true)
       } else {
         setFormError(

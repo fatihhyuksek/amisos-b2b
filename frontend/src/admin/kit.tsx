@@ -1,4 +1,5 @@
 // K-78: Yönetim paneli ortak küçük bileşenleri (açılır menü, sekmeler, liste altlığı, değişim oku).
+import { Link } from '../Link'
 import {
   useCallback,
   useEffect,
@@ -103,15 +104,9 @@ export function MenuButton({
             )
             const cls = `adm-pop__item${it.divider ? ' adm-pop__item--divider' : ''}`
             return it.to ? (
-              <a
-                key={it.label}
-                role="menuitem"
-                className={cls}
-                href={`#${it.to}`}
-                onClick={() => setOpen(false)}
-              >
+              <Link key={it.label} role="menuitem" className={cls} to={it.to} onClick={() => setOpen(false)}>
                 {inner}
-              </a>
+              </Link>
             ) : (
               <button
                 key={it.label}

@@ -64,7 +64,7 @@ function CatStripItem({ group }: { group: CatalogGroup }) {
   const [failed, setFailed] = useState(false)
   const ok = group.thumbUrl && !failed
   return (
-    <Link to={catalogHref({ grup: group.id })} className="ui-catstrip__item">
+    <Link to={catalogHref({ grup: group.id, slug: group.slug })} className="ui-catstrip__item">
       <span className={ok ? 'ui-catstrip__img' : 'ui-catstrip__img ui-catstrip__img--empty'}>
         {ok ? (
           <img
@@ -138,7 +138,7 @@ function CollectionCards({ groups }: { groups: CatalogGroup[] }) {
       <ul className="ui-collections">
         {top.map((g) => (
           <li key={g.id}>
-            <Link to={catalogHref({ grup: g.id })} className="ui-collection">
+            <Link to={catalogHref({ grup: g.id, slug: g.slug })} className="ui-collection">
               <img src={g.thumbUrl as string} alt="" loading="lazy" decoding="async" />
               <span className="ui-collection__text">
                 <span className="ui-collection__title">{g.name}</span>

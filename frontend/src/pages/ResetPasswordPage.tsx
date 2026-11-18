@@ -45,7 +45,7 @@ export function ResetPasswordPage() {
     try {
       await confirmPasswordReset(token, password)
       // Token adres çubuğunda ve geçmişte kalmasın.
-      history.replaceState(null, '', `#/sifre-sifirla?tur=${tur}`)
+      history.replaceState(null, '', `/sifre-sifirla?tur=${tur}`)
       setDone(true)
     } catch (err) {
       // Sunucu şifre kuralını reddettiyse bağlantı hâlâ geçerlidir: alan hatası göster.

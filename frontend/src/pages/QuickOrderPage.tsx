@@ -23,6 +23,7 @@ interface Row {
 const ERROR_TEXT: Record<string, string> = {
   NOT_FOUND: 'Ürün bulunamadı (barkod/kod kontrol edin)',
   INACTIVE: 'Ürün artık satışta değil',
+  PRICE_NOT_SET: 'Fiyatı girilmedi, siparişe eklenemez. Fiyat için bize ulaşın',
   INVALID_QUANTITY: 'Adet geçersiz',
   AMBIGUOUS: 'Bu kod birden çok ürüne uyuyor; barkodla girin',
 }

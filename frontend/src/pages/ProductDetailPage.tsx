@@ -1,14 +1,18 @@
 // GR-URN-003, GR-URN-002, GR-FIY-001, GR-FIY-003, K-40, K-18, K-10, K-11, K-66, K-70: Ürün detayı.
 // Sepete ekleme alanı: koli adımlı miktar, sepette varsa mevcut miktar (GR-SIP-003, GR-SIP-004, K-20, K-21).
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { useCart } from '../shop/cart'
 import { FavoriteButton } from '../shop/FavoriteButton'
 import { useShopMode } from '../shop/mode'
+import { AskPriceButton, PriceOnRequest } from '../shop/PriceOnRequest'
 import { PriceLock } from '../shop/PriceLock'
 import { loginHref } from '../shop/returnTo'
 import { useAddToCart } from '../shop/useAddToCart'
-import { fetchCatalogProduct, fetchCatalogProducts, type CatalogProduct } from '../api'
-import { useLoad } from '../admin/useLoad'
+import { fetchCatalogProductByRef, fetchCatalogProducts, type CatalogProduct } from '../api'
+import { replace } from '../router'
+import { usePageTitle } from '../shop/pageTitle'
+import { useCatalogGroups } from '../shop/useCatalogGroups'
+import { useLoad, type LoadState } from '../admin/useLoad'
 import { Link } from '../Link'
 import { Button, Price, QuantityStepper, StockBadge } from '../ui/components'
 import { ErrorAlert, ProductCard, ProductImage } from '../ui/catalog'
@@ -18,6 +22,8 @@ import { catalogHref } from '../shop/catalogHref'
 import { CONTACT, WHATSAPP_HREF } from '../shop/contact'
 import { DELIVERY_LABEL } from '../shop/delivery'
 import { ShopLayout } from './ShopLayout'
+
+type ProductRef = { product: CatalogProduct } | { redirectTo: string }
 
 // ---------- Galeri: masaüstünde solda dikey küçük resim şeridi; telefonda tam genişlik + noktalar ----------
 function Gallery({ product }: { product: CatalogProduct }) {
@@ -263,9 +269,32 @@ function SimilarProducts({ product }: { product: CatalogProduct }) {
 }
 
 export function ProductDetailPage({ id }: { id: string }) {
-  const { state, reload } = useLoad<CatalogProduct>((s) => fetchCatalogProduct(id, s), id)
+  // Adres parçası slug'dır; eski bağlantılarda kimlik olabilir (K-82). Eski slug yeni slug'a taşınır.
+  const { state: raw, reload } = useLoad<ProductRef>((s) => fetchCatalogProductByRef(id, s), id)
+  const groups = useCatalogGroups()
   const [specsOpen, setSpecsOpen] = useState(true)
+  const redirectTo = raw.status === 'ready' && 'redirectTo' in raw.data ? raw.data.redirectTo : null
+  useEffect(() => {
+    if (redirectTo) replace(`/urun/${encodeURIComponent(redirectTo)}`)
+  }, [redirectTo])
+  const state: LoadState<CatalogProduct> =
+    raw.status === 'ready'
+      ? 'product' in raw.data
+        ? { status: 'ready', data: raw.data.product }
+        : { status: 'loading' }
+      : raw
   const p = state.status === 'ready' ? state.data : null
+  // Kimlikle açıldıysa adres, ürünün slug'ına düzeltilir (paylaşılan bağlantı temiz olsun).
+  useEffect(() => {
+    if (p?.slug && p.slug !== id) replace(`/urun/${encodeURIComponent(p.slug)}`)
+  }, [p, id])
+  const groupSlug =
+    groups.state.status === 'ready' ? groups.state.data.find((g) => g.id === p?.groupId)?.slug : null
+  const groupTo = p ? catalogHref({ grup: p.groupId, slug: groupSlug }) : '/katalog'
+  usePageTitle(p ? p.seoTitle || p.name : null, {
+    description: p?.seoDescription || p?.description?.slice(0, 160) || null,
+    image: p?.images[0]?.url ?? null,
+  })
   const dealer = useShopMode() === 'dealer'
 
   function showSpecs() {
@@ -292,7 +321,7 @@ export function ProductDetailPage({ id }: { id: string }) {
           </li>
           {p && (
             <li>
-              <Link to={catalogHref({ grup: p.groupId })}>{p.groupName}</Link>
+              <Link to={groupTo}>{p.groupName}</Link>
             </li>
           )}
           {p && (
@@ -349,13 +378,24 @@ export function ProductDetailPage({ id }: { id: string }) {
                   </button>
                   <span>
                     Kategorideki{' '}
-                    <Link to={catalogHref({ grup: p.groupId })} className="ui-linkbtn">
+                    <Link to={groupTo} className="ui-linkbtn">
                       diğer ürünler
                     </Link>
                   </span>
                 </div>
               </div>
-              {dealer && p.price !== null ? (
+              {p.priceOnRequest ? (
+                <div className="ui-lockbox">
+                  <PriceOnRequest product={p} size="lg" />
+                  <p className="muted">
+                    Bu ürünün fiyatı henüz girilmedi; sepete eklenemez. Fiyat öğrenmek için bize yazın veya
+                    arayın.
+                  </p>
+                  <div className="ui-lockbox__actions">
+                    <AskPriceButton product={p} variant="primary" />
+                  </div>
+                </div>
+              ) : dealer && p.price !== null ? (
                 <>
                   <div className="ui-detail__pricerow">
                     <Price
@@ -445,7 +485,7 @@ export function ProductDetailPage({ id }: { id: string }) {
                     <tr>
                       <th scope="row">Grup</th>
                       <td>
-                        <Link to={catalogHref({ grup: p.groupId })}>{p.groupName}</Link>
+                        <Link to={groupTo}>{p.groupName}</Link>
                       </td>
                     </tr>
                   </tbody>

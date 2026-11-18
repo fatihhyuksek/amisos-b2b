@@ -153,6 +153,11 @@ export function CheckoutPage() {
       if (err instanceof PriceChangedError) {
         applyCart(err.cart)
         setChanged(true)
+      } else if (err instanceof ApiError && err.status === 409 && err.code === 'PRICE_NOT_SET') {
+        setFormError(
+          'Sepetinizde fiyatı girilmemiş ürün var. Sepete dönüp bu ürünleri çıkarın veya fiyat için bize ulaşın.',
+        )
+        void reload()
       } else if (err instanceof ApiError && err.status === 400 && err.code === 'EMPTY_CART') {
         void reload()
         navigate('/siparislerim?bilgi=sepet-bos')

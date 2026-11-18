@@ -1101,3 +1101,14 @@
     margin-right: var(--space-1);
   }
 }
+
+/* K-79: fiyatı girilmemiş ürün */
+.ui-onrequest {
+  color: var(--color-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ui-onrequest:hover {
+  color: var(--color-bronze);
+}

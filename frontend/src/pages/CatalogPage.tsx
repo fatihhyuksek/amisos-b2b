@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { ApiError, fetchCatalogProducts, type CatalogGroup, type CatalogProduct } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { Link } from '../Link'
-import { navigate, useRoute } from '../router'
+import { navigate, replace, useRoute } from '../router'
 import { catalogHref } from '../shop/catalogHref'
 import { useShopMode } from '../shop/mode'
 import { usePageTitle } from '../shop/pageTitle'
@@ -43,8 +43,10 @@ interface Flags {
   featured: boolean
 }
 
-function hrefWith(p: { q: string; grup: string; sort: Sort } & Flags): string {
-  const base = catalogHref({ q: p.q, grup: p.grup })
+type GroupRef = { id: string; slug?: string | null } | null
+
+function hrefWith(p: { q: string; grup: GroupRef; sort: Sort } & Flags): string {
+  const base = catalogHref({ q: p.q, grup: p.grup?.id, slug: p.grup?.slug })
   const extra = [
     p.sort === 'newest' ? 'sirala=yeni' : '',
     p.stock ? 'stok=var' : '',
@@ -102,7 +104,7 @@ function GroupFilter({
         {!t && (
           <li>
             <Link
-              to={hrefWith({ q, grup: '', sort, ...flags })}
+              to={hrefWith({ q, grup: null, sort, ...flags })}
               className="ui-filter__option"
               aria-current={active === '' ? 'page' : undefined}
             >
@@ -114,7 +116,7 @@ function GroupFilter({
         {shown.map((g) => (
           <li key={g.id}>
             <Link
-              to={hrefWith({ q, grup: g.id, sort, ...flags })}
+              to={hrefWith({ q, grup: g, sort, ...flags })}
               className="ui-filter__option"
               aria-current={active === g.id ? 'page' : undefined}
             >
@@ -214,11 +216,11 @@ function Sheet({
   )
 }
 
-export function CatalogPage() {
+export function CatalogPage({ groupSlug }: { groupSlug?: string }) {
   const { refresh } = useAuth()
   const { query } = useRoute()
   const q = (query.get('q') ?? '').trim()
-  const groupId = query.get('grup') ?? ''
+  const legacyGroupId = query.get('grup') ?? ''
   const sort: Sort = query.get('sirala') === 'yeni' ? 'newest' : 'name'
   const mode = useShopMode()
   const dealer = mode === 'dealer'
@@ -229,7 +231,20 @@ export function CatalogPage() {
   const addToCart = useAddToCart()
   const groups = useCatalogGroups()
   const groupList = groups.state.status === 'ready' ? groups.state.data : []
-  const group = groupList.find((g) => g.id === groupId)
+  const groupsReady = groups.state.status === 'ready'
+  const group = groupSlug
+    ? groupList.find((g) => g.slug === groupSlug)
+    : groupList.find((g) => g.id === legacyGroupId)
+  // Slug bilinmiyorsa (grup yok / yüklenmedi) süzgeç uygulanmaz; yüklenince çözülür.
+  const groupId = group?.id ?? (groupSlug ? '' : legacyGroupId)
+  const groupMissing = groupsReady && ((groupSlug && !group) || (!groupSlug && legacyGroupId && !group))
+  const waitingGroup = Boolean(groupSlug) && !groupsReady && groups.state.status === 'loading'
+  const curGroup: GroupRef = group ?? (groupId ? { id: groupId } : null)
+  // Eski "?grup=<id>" adresi, grubun slug'ı bilinince "/katalog/<slug>" adresine taşınır (K-82).
+  useEffect(() => {
+    if (groupSlug || !group?.slug) return
+    replace(hrefWith({ q, grup: group, sort, stock, isNew, featured }))
+  }, [groupSlug, group, q, sort, stock, isNew, featured])
   const [cols, setColsState] = useState<Cols>(readCols)
   const [sheet, setSheet] = useState<'filter' | 'sort' | null>(null)
   const [filterOpen, setFilterOpen] = useState(true)
@@ -247,9 +262,9 @@ export function CatalogPage() {
       /* depolama kapalı olabilir */
     }
   }
-  const setSort = (s: Sort) => navigate(hrefWith({ q, grup: groupId, sort: s, ...flags }))
+  const setSort = (s: Sort) => navigate(hrefWith({ q, grup: curGroup, sort: s, ...flags }))
   const setFlag = (patch: Partial<Flags>) =>
-    navigate(hrefWith({ q, grup: groupId, sort, ...flags, ...patch }))
+    navigate(hrefWith({ q, grup: curGroup, sort, ...flags, ...patch }))
 
   // Seçili alt kategori kutucuğunu yatay şeritte görünür alana getirir (sayfayı kaydırmadan).
   useEffect(() => {
@@ -261,6 +276,7 @@ export function CatalogPage() {
 
   // Süzgeç değişince ilk sayfadan başlar; sonuç anahtarı eşleşmiyorsa "yükleniyor" sayılır.
   useEffect(() => {
+    if (waitingGroup || groupMissing) return
     const c = new AbortController()
     fetchCatalogProducts(
       {
@@ -282,7 +298,7 @@ export function CatalogPage() {
         setResult({ key, items: [], total: 0, page: 0, failed: true })
       })
     return () => c.abort()
-  }, [q, groupId, sort, stock, isNew, featured, key, refresh])
+  }, [q, groupId, sort, stock, isNew, featured, key, refresh, waitingGroup, groupMissing])
 
   const current = result && result.key === key ? result : null
   const list = {
@@ -361,6 +377,7 @@ export function CatalogPage() {
 
       <header className="ui-cathead">
         <h1>{title}</h1>
+        {!q && group?.description && <p className="ui-cathead__desc">{group.description}</p>}
         <p className="muted" aria-live="polite">
           {list.status === 'ready' ? `${formatInt(list.total)} ürün · ` : ''}
           {dealer ? (
@@ -374,7 +391,7 @@ export function CatalogPage() {
         {dealer && <PriceListButton size="sm" />}
         {q && (
           <Link
-            to={hrefWith({ q: '', grup: groupId, sort, ...flags })}
+            to={hrefWith({ q: '', grup: curGroup, sort, ...flags })}
             className="ui-button ui-button--secondary ui-button--sm"
           >
             <Icon name="close" />
@@ -388,7 +405,7 @@ export function CatalogPage() {
           <ul className="ui-subcats" ref={tilesRef}>
             <li>
               <Link
-                to={hrefWith({ q, grup: '', sort, ...flags })}
+                to={hrefWith({ q, grup: null, sort, ...flags })}
                 className="ui-subcat"
                 aria-current={groupId === '' ? 'page' : undefined}
               >
@@ -401,7 +418,7 @@ export function CatalogPage() {
             {groupList.map((g) => (
               <li key={g.id}>
                 <Link
-                  to={hrefWith({ q, grup: g.id, sort, ...flags })}
+                  to={hrefWith({ q, grup: g, sort, ...flags })}
                   className="ui-subcat"
                   aria-current={groupId === g.id ? 'page' : undefined}
                 >
@@ -479,7 +496,21 @@ export function CatalogPage() {
             </div>
           </div>
 
-          {list.status === 'loading' && (
+          {groupMissing && (
+            <div className="ui-card">
+              <EmptyState
+                title="Kategori bulunamadı"
+                action={
+                  <Link to="/katalog" className="ui-button ui-button--secondary">
+                    Tüm ürünlere dön
+                  </Link>
+                }
+              >
+                Bu adreste bir kategori yok. Tüm ürünlere göz atabilirsiniz.
+              </EmptyState>
+            </div>
+          )}
+          {!groupMissing && list.status === 'loading' && (
             <>
               <ul className="ui-pgrid ui-pgrid--catalog" data-cols={cols} aria-hidden="true">
                 {Array.from({ length: 8 }, (_, i) => (
@@ -491,10 +522,10 @@ export function CatalogPage() {
               </span>
             </>
           )}
-          {list.status === 'error' && list.items.length === 0 && (
+          {!groupMissing && list.status === 'error' && list.items.length === 0 && (
             <ErrorAlert onRetry={() => setTick((t) => t + 1)}>Ürünler alınamadı.</ErrorAlert>
           )}
-          {list.status === 'ready' && list.items.length === 0 && (
+          {!groupMissing && list.status === 'ready' && list.items.length === 0 && (
             <div className="ui-card">
               <EmptyState
                 title="Ürün bulunamadı"
