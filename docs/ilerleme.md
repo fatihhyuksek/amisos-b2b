@@ -100,6 +100,14 @@ Son güncelleme: 2026-11-17
    - Ana sayfa: KPI'lar, 30 günlük satış grafiği, açık sipariş hattı, "ilgilenilmesi gerekenler", son siparişler, en iyi bayiler, son işlemler.
    - Listeler: tek satır filtre çubuğu, tüm satır tıklanabilir, sayfa başına adet (`adet`), ürün/bayi Excel'i; sipariş detayı: durum adımları, iç notlar, yazdır;
      bayi detayı: sekmeler + mini göstergeler; ürün kopyalama; site ayarları sekmeli + sosyal medya; vitrin üst şerit ve footer sosyal simgeleri; yeni giriş sayfası.
+18. SEO, fiyatı girilmemiş ürün, bildirim birleştirme, rapor okunabilirliği — frontend (K-79 – K-83, sözleşme `docs/api/seo-fiyat-api.md`):
+   - Yönlendirme History API'ye geçti (`router.ts`, `Link.tsx`): `/katalog`, `/katalog/<grupSlug>`, `/urun/<slug>`, `/yonetim/...`. Eski `#/...` adresler açılışta
+     `replaceState` ile taşınır; `?grup=<id>` slug bilinince `/katalog/<slug>`'a döner; `/urun/<id>` slug'a düzelir; eski slug `redirectTo` ile taşınır. `?donus=` artık yol.
+   - Sayfa başlığı/meta (`shop/pageTitle.ts`): site SEO şablonu, ürün/grup seo alanları, noindex, canonical; GA4 yalnızca vitrinde (kimlik girildiyse). Admin sekme başlığı "Sayfa · AMİSOS Yönetim".
+   - K-79: kart, detay, favoriler, sepet, hızlı sipariş, ödeme: "Fiyat için bize ulaşın", "Fiyat sor" (WhatsApp, ürün adı+barkod), PRICE_NOT_SET mesajları; admin "Fiyatı girilmemiş" filtresi/rozeti, dashboard satırı.
+   - Admin SEO: Site ayarları "SEO" sekmesi + Google önizleme; ürün formunda SEO bölümü (slug, sayaçlar) ve BizimHesap ID; grup düzenlemede slug/açıklama/SEO; grup sayfasında açıklama.
+   - K-83: `/yonetim/bildirimler` Etkinlikler + E-posta gönderimleri sekmeleri; menü rozeti = okunmamış etkinlik + başarısız e-posta.
+   - Raporlar/ana sayfa: büyük KPI, değişim hapları, "bin/mn" eksenler, soluk ızgara, belirgin ipucu, kesik çizgili karşılaştırma, sıralı yatay çubuklar, anlamlı boş durum, "Bu çeyrek" hazır aralığı.
 
 ## Sıradaki adım
 
