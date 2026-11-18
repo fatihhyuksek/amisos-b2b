@@ -9,17 +9,24 @@ import { saveBlob } from '../download'
 /** Artış/azalış: ikon + işaretli metin + renk (renge tek başına dayanmaz; ekran okuyucu için gizli metin). */
 export function Delta({ change, kind }: { change: ReportChange<string | number>; kind: 'money' | 'count' }) {
   const n = Number(change.amount)
-  const dir = n > 0 ? 'up' : n < 0 ? 'down' : 'flat'
+  // Önceki değer 0 ise yüzde hesaplanamaz: renkli ok yerine nötr "Yeni" etiketi gösterilir.
+  const dir = change.percent === null ? 'flat' : n > 0 ? 'up' : n < 0 ? 'down' : 'flat'
   const amount = kind === 'money' ? formatSignedTRY(String(change.amount)) : formatSignedInt(change.amount)
   return (
     <span className={`ui-delta ui-delta--${dir}`}>
       <span className="ui-delta__pill">
         {dir !== 'flat' && <Icon name={dir === 'up' ? 'arrowUp' : 'arrowDown'} />}
         <span className="visually-hidden">
-          {dir === 'up' ? 'Artış: ' : dir === 'down' ? 'Azalış: ' : 'Değişim yok: '}
+          {dir === 'up'
+            ? 'Artış: '
+            : dir === 'down'
+              ? 'Azalış: '
+              : change.percent === null
+                ? ''
+                : 'Değişim yok: '}
         </span>
         <span className="num">
-          {change.percent === null ? 'Yüzde yok' : formatAbsPercent(change.percent)}
+          {change.percent === null ? (n === 0 ? '—' : 'Önceki dönem yok') : formatAbsPercent(change.percent)}
         </span>
       </span>
       <span className="num ui-delta__amt">{amount}</span>
